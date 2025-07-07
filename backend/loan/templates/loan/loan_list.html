@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Loan List</h2>
+<table>
+    <tr><th>ID</th><th>Name</th><th>Amount</th></tr>
+    {% for loan in loan %}
+    <tr>
+        <td>{{ loan.id }}</td>
+        <td>{{ loan.borrower_name }}</td>
+        <td>{{ loan.amount }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}
