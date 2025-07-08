@@ -2,7 +2,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 export const auditApi = createApi({
   reducerPath: 'auditApi',
-  baseQuery: fetchBaseQuery({ baseUrl: "http://localhost:8000/api/" }),
+  baseQuery: fetchBaseQuery({ baseUrl: "https://backend-l3f9.onrender.com/api/" }),
   endpoints: (builder) => ({
     /** GET /loans/:loanId/audit/  →  array of AuditEvent objects */
     getLoanAudit: builder.query({
