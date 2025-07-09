@@ -292,6 +292,7 @@ export default function LoanTable({
                     <Checkbox
                       checked={selectedRows.includes(loan.id)}
                       onChange={handleSelectRow(loan.id)}
+                      onClick={(e) => e.stopPropagation()}
                       icon={
                         <span
                           style={{
@@ -374,7 +375,10 @@ export default function LoanTable({
                   <TableCell>
                     <Button
                       endIcon={<OpenInNewIcon fontSize="small" />}
-                      onClick={() => onDetails(loan)}
+                      onClick={e => {
+                      e.stopPropagation();                      // NEW
+                      onDetails(loan);
+                    }}
                       sx={{
                         borderRadius: "999px", // pill shape
                         textTransform: "none", // preserve casing
@@ -401,7 +405,10 @@ export default function LoanTable({
                     <Button
                       variant="contained"
                       startIcon={<EditIcon />}
-                      onClick={() => onEdit(loan)}
+                      onClick={(e) => {
+                        e.stopPropagation(); // NEW
+                        onEdit(loan);
+                      }}
                       sx={{
                         backgroundColor: { xs: "transparent", md: "#fff" }, // your purple color
                         color: "#2563EB",
@@ -429,7 +436,10 @@ export default function LoanTable({
                         Edit
                       </Box>
                     </Button>
-                    <IconButton onClick={() => onDelete(loan.id)}>
+                    <IconButton onClick={(e) => {
+                        e.stopPropagation(); // NEW
+                        onDelete(loan.id);
+                      }}>
                       <DeleteIcon />
                     </IconButton>
                   </TableCell>
