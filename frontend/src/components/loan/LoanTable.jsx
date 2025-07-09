@@ -282,8 +282,11 @@ export default function LoanTable({
               {/* {paginatedLoans.map((loan) => ( */}
               {loans.map((loan) => (
                 <TableRow
-                  key={loan.id}
-                  selected={selectedRows.includes(loan.id)}
+                 key={loan.id}
+                 selected={selectedRows.includes(loan.id)}
+                 hover                               // subtle highlight on hover
+                 sx={{ cursor: "pointer" }}          // visual affordance
+                 onClick={() => onDetails(loan)} 
                 >
                   <TableCell padding="checkbox">
                     <Checkbox
