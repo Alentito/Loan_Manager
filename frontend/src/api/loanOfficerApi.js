@@ -1,9 +1,10 @@
 // src/components/redux/loanOfficerApi.js
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import baseQueryWithReauth from "./baseApi";
 
 export const loanOfficerApi = createApi({
   reducerPath: 'loanOfficerApi',
-  baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:8000/api/' }),
+  baseQuery: baseQueryWithReauth, // Use the base query with re-authentication
   tagTypes: ['LoanOfficer'],
   endpoints: (builder) => ({
     getLoanOfficers: builder.query({

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState,useCallback, useEffect } from "react";
+import { useTheme } from "@mui/material/styles";
 import { useSearchParams } from "react-router-dom";
 import { Routes, Route } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
@@ -10,7 +11,10 @@ import {
   useUpdateLoanMutation,
   useDeleteLoanMutation,
   useUploadXmlMutation,
+  useLazyGetLoansQuery,
 } from "../api/loanApi";
+import useLoanSocket from "../components/loan/useLoanSocket";
+import { debounce } from "lodash";
 import Checkbox from "@mui/material/Checkbox";
 
 import LoanTable from "../components/loan/LoanTable";
@@ -43,6 +47,7 @@ const processors = ["Processor A", "Processor B"];
 const supports = ["Support A", "Support B"];
 
 export default function LoanManagement() {
+  const theme = useTheme();
     //const [uploadXml, { isLoading: isUploading, isSuccess, error }] = useUploadXmlMutation();//xml upload
 //const fileInputRef = React.useRef();
 
@@ -62,8 +67,8 @@ export default function LoanManagement() {
   const [newLoan, setNewLoan] = useState({
     first_name: "",
     last_name: "",
-    broker: "",
-    loan_officer: "",
+    broker_id: "",
+    loan_officer_id: "",
     milestone: "",
     compensation: "",
     lock_status: "",
@@ -71,10 +76,10 @@ export default function LoanManagement() {
     point_file: "",
     subject_property: "",
     loan_comment: "",
-    team_leader: "",
-    team_manager: "",
-    processor: "",
-    support: "",
+    team_leader_id: "",
+    team_manager_id: "",
+    processor_id: "",
+    support_id: "",
   });
  
 
@@ -89,7 +94,16 @@ export default function LoanManagement() {
 
   const handleEditLoan = (loan) => {
     setSelectedLoan(loan);
-    setNewLoan({ ...loan }); // Populate modal with loan data
+    setNewLoan({
+    ...loan,
+    broker_id: loan.broker?.id || "",
+    loan_officer_id: loan.loan_officer?.id || "",
+    team_leader_id: loan.team_leader?.id ?? null,
+    team_manager_id: loan.team_manager?.id ?? null,
+    processor_id: loan.processor?.id ?? null,
+    support_id: loan.support?.id ?? null,
+    // Optionally, set other _id fields for team_leader, etc. if needed
+  }); // Populate modal with loan data
     setEditMode(true);
     setOpenNew(true);
   };
@@ -137,6 +151,28 @@ const milestoneFilter = activeTab === "all" ? undefined : activeTab;
   const totalLoans = data?.count || 0;
   const pageCount = Math.ceil(totalLoans / rowsPerPage);
 
+  const [triggerRefetch] = useLazyGetLoansQuery(); // For manual refresh
+  // Handle incoming WebSocket push
+  const debouncedRefetch = useCallback(
+  debounce(() => {
+    triggerRefetch({
+      page,
+      pageSize: rowsPerPage,
+      milestone: milestoneFilter,
+      search,
+      ordering,
+    });
+  }, 1000),
+  [page, rowsPerPage, milestoneFilter, search, ordering]
+);
+
+// 👇 This listens to WebSocket loan update events
+useLoanSocket(debouncedRefetch);
+
+
+
+ 
+
   const [createLoan] = useCreateLoanMutation();
   const [updateLoan] = useUpdateLoanMutation();
   const [deleteLoan] = useDeleteLoanMutation();
@@ -173,8 +209,8 @@ const milestoneFilter = activeTab === "all" ? undefined : activeTab;
       const newLoanData = {
         first_name: newLoan.first_name,
         last_name: newLoan.last_name || "Unknown",
-        broker: newLoan.broker || null,
-        loan_officer: newLoan.loan_officer || null,
+        broker_id: newLoan.broker_id || null,           // <-- correct
+        loan_officer_id: newLoan.loan_officer_id || null, // <-- correct
         milestone: newLoan.milestone || "Unknown",
         compensation: newLoan.compensation || null,
         lock_status: newLoan.lock_status || null,
@@ -183,10 +219,10 @@ const milestoneFilter = activeTab === "all" ? undefined : activeTab;
         subject_property: newLoan.subject_property || null,
         loan_comment: newLoan.loan_comment || null,
         lenders: lenders,
-        team_leader: newLoan.team_leader || null,
-        team_manager: newLoan.team_manager || null,
-        processor: newLoan.processor || null,
-        support: newLoan.support || null,
+        team_leader_id: newLoan.team_leader_id || null,
+        team_manager_id: newLoan.team_manager_id || null,
+        processor_id: newLoan.processor_id || null,
+        support_id: newLoan.support_id || null,
       };
 
       if (editMode && selectedLoan) {
@@ -199,8 +235,8 @@ const milestoneFilter = activeTab === "all" ? undefined : activeTab;
       setNewLoan({
         first_name: "",
         last_name: "",
-        broker: "",
-        loan_officer: "",
+        broker_id: "",
+        loan_officer_id: "",
         milestone: "",
         compensation: "",
         lock_status: "",
@@ -208,10 +244,10 @@ const milestoneFilter = activeTab === "all" ? undefined : activeTab;
         point_file: "",
         subject_property: "",
         loan_comment: "",
-        team_leader: "",
-        team_manager: "",
-        processor: "",
-        support: "",
+        team_leader_id: "",
+        team_manager_id: "",
+        processor_id: "",
+        support_id: "",
       });
       setLenders([{ lender: "", comment: "" }]);
       setOpenNew(false);
@@ -274,33 +310,9 @@ const handleChangeRowsPerPage = (e) => {                 // NEW
 
   return (
     
-    <Box sx={{m:3}}>
+    <Box sx={{mx:3, mt:1}}>
       {/* Title & Actions */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 2,
-          }}
-        >
-          <Box>
-            <FaMoneyCheckAlt size={22} color="#2563EB" />
-          </Box>
-          <Box>
-            <Typography
-              variant="h5"
-              sx={{
-                fontWeight: 600,
-              }}
-            >
-              Loan Management
-            </Typography>
-            <Typography color="text.secondary">Manage your Loans</Typography>
-          </Box>
-        </Box>
-      </Box>
+      
 
       {/* Tabs */}
       <Tabs
@@ -351,27 +363,29 @@ const handleChangeRowsPerPage = (e) => {                 // NEW
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ color: "rgb(0,0,0,0.5)" }} />
+                  <SearchIcon sx={{ color: theme.palette.text.secondary }} />
                 </InputAdornment>
               ),
             }}
             sx={{
-              width: 300,
-              borderRadius: "12px",
-              backgroundColor: "#FFFFFF",
-              "& .MuiOutlinedInput-root": {
-                borderRadius: "12px",
-                "& fieldset": {
-                  borderColor: "rgba(0, 0, 0, 0.1)", // 👈 Your custom border color
-                },
-                "&:hover fieldset": {
-                  borderColor: "rgba(0, 0, 0, 0.25)", // 👈 On hover
-                },
-                "&.Mui-focused fieldset": {
-                  borderColor: "#003CF7", // 👈 On focus
-                },
-              },
-            }}
+    width: 300,
+    borderRadius: "12px",
+    backgroundColor: theme.palette.background.paper,
+    color: theme.palette.text.primary,
+    "& .MuiOutlinedInput-root": {
+      borderRadius: "12px",
+      color: theme.palette.text.primary,
+      "& fieldset": {
+        borderColor: theme.palette.divider,
+      },
+      "&:hover fieldset": {
+        borderColor: theme.palette.primary.light,
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: theme.palette.primary.main,
+      },
+    },
+  }}
           />
         </Box>
         <Box>
@@ -381,18 +395,16 @@ const handleChangeRowsPerPage = (e) => {                 // NEW
             sx={{
               mr: 1,
               borderRadius: "10px",
-              color: "rgba(0,0,0,0.8)",
-              fontWeight: "600",
-              //boxShadow: "4px 4px 6px rgba(0, 0, 0, 0.05)", // 👈 custom shadow
-              border: "1px solid rgba(0, 0, 0, 0.1)", // 👈 custom border
-              backgroundColor: "#fff", // optional, makes border visible
-              textTransform: "none", // optional, keeps "Import" capitalized as-is
-              "&:hover": {
-                boxShadow: "6px 6px 8px rgba(0, 0, 0, 0.1)",
-                backgroundColor: "#f9f9f9",
-                borderColor: "rgba(0, 0, 0, 0.2)",
-              },
-            }}
+    color: theme.palette.text.primary,
+    fontWeight: "600",
+    border: `1px solid ${theme.palette.divider}`,
+    backgroundColor: theme.palette.background.paper,
+    textTransform: "none",
+    "&:hover": {
+      backgroundColor: theme.palette.action.hover,
+      borderColor: theme.palette.primary.light,
+    },
+  }}
             
             onClick={() => setOpenImport(true)}
             
@@ -405,19 +417,17 @@ const handleChangeRowsPerPage = (e) => {                 // NEW
             startIcon={<Upload  size="16"/>}
             sx={{
               mr: 1,
-              color: "rgba(0,0,0,0.8)",
-              fontWeight: "600",
-              borderRadius: "10px",
-              //boxShadow: "4px 4px 6px rgba(0, 0, 0, 0.05)", // 👈 custom shadow
-              border: "1px solid rgba(0, 0, 0, 0.1)", // 👈 custom border
-              backgroundColor: "#fff", // optional, makes border visible
-              textTransform: "none", // optional, keeps "Import" capitalized as-is
-              "&:hover": {
-                boxShadow: "6px 6px 8px rgba(0, 0, 0, 0.1)",
-                backgroundColor: "#f9f9f9",
-                borderColor: "rgba(0, 0, 0, 0.2)",
-              },
-            }}
+              color: theme.palette.text.primary,
+    fontWeight: "600",
+    borderRadius: "10px",
+    border: `1px solid ${theme.palette.divider}`,
+    backgroundColor: theme.palette.background.paper,
+    textTransform: "none",
+    "&:hover": {
+      backgroundColor: theme.palette.action.hover,
+      borderColor: theme.palette.primary.light,
+    },
+  }}
             onClick={exportToXML}
           >
             Export
@@ -425,7 +435,29 @@ const handleChangeRowsPerPage = (e) => {                 // NEW
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setOpenNew(true)}
+            onClick={() => {
+    setNewLoan({
+      first_name: "",
+      last_name: "",
+      broker_id: "",
+      loan_officer_id: "",
+      milestone: "",
+      compensation: "",
+      lock_status: "",
+      closing_date: "",
+      point_file: "",
+      subject_property: "",
+      loan_comment: "",
+      team_leader_id: "",
+      team_manager_id: "",
+      processor_id: "",
+      support_id: "",
+    });
+    setLenders([{ lender: "", comment: "" }]);
+    setEditMode(false);
+    setSelectedLoan(null);
+    setOpenNew(true);
+  }}
             sx={{
               backgroundColor: "rgba(0, 60, 247, 1)",
               borderRadius: "12px",
@@ -472,13 +504,9 @@ const handleChangeRowsPerPage = (e) => {                 // NEW
         setNewLoan={setNewLoan}
         lenders={lenders}
         setLenders={setLenders}
-        brokers={brokers}
-        loanOfficers={loanOfficers}
+        
         milestones={milestones}
-        teamLeads={teamLeads}
-        teamManagers={teamManagers}
-        processors={processors}
-        supports={supports}
+        
       />
     </Box>
   );

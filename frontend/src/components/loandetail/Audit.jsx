@@ -7,7 +7,7 @@ import {
   TimelineContent,
   TimelineOppositeContent,
 } from "@mui/lab";
-import { Typography, Box, Chip, Skeleton } from "@mui/material";
+import { Typography, Box, Chip, Skeleton, Tooltip } from "@mui/material";
 
 import dayjs from "dayjs";
 import { useGetLoanAuditQuery } from "./../../api/auditApi";
@@ -16,6 +16,16 @@ function colorForOp(op) {
   if (op === "CREATE") return "success";
   if (op === "DELETE") return "error";
   return "info"; // UPDATE
+}
+
+function displayName(evt) {
+  // prefer employee.name, then actor.display_name, then actor.username, else System
+  return (
+    evt.employee?.name ||
+    evt.actor?.display_name ||
+    evt.actor?.username ||
+    "System"
+  );
 }
 
 export default function Audit({ loanId }) {
@@ -31,14 +41,10 @@ export default function Audit({ loanId }) {
           <TimelineItem key={evt.id}>
             <TimelineOppositeContent
               sx={{
-                flex: "0 0 110px", // 0 grow, 0 shrink, 110 px basis
-                maxWidth: 110, // stop it growing on wide screens
-
-                /* keep the whole string on one line */
+                flex: "0 0 110px",
+                maxWidth: 110,
                 whiteSpace: "nowrap",
-
-                /* optional cosmetics */
-                textAlign: "right", // aligns nicely with the dot/line
+                textAlign: "right",
                 pr: 2,
                 fontSize: 12,
               }}
@@ -53,7 +59,16 @@ export default function Audit({ loanId }) {
 
             <TimelineContent>
               <Typography variant="subtitle2">
-                {(evt.actor && evt.actor.username) || "System"} —{" "}
+                <Tooltip
+                  title={
+                    evt.actor
+                      ? `${evt.actor.username}${evt.actor.first_name || evt.actor.last_name ? ` — ${evt.actor.first_name || ""} ${evt.actor.last_name || ""}` : ""}`
+                      : "System"
+                  }
+                >
+                  <span>{displayName(evt)}</span>
+                </Tooltip>
+                {" — "}
                 {evt.operation.toLowerCase()}
               </Typography>
 

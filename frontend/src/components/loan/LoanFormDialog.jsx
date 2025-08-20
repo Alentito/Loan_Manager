@@ -5,6 +5,7 @@ import {
   DialogActions,
   Button,
   Grid,
+  Autocomplete,
   TextField,
   FormControl,
   InputLabel,
@@ -13,6 +14,9 @@ import {
   Box,
 } from "@mui/material";
 import LenderFields from "./LenderFields";
+import { useGetBrokersQuery } from "../../api/brokerApi";
+import { useGetLoanOfficersQuery } from "../../api/loanOfficerApi";
+import { useGetEmployeesQuery } from "../../api/employeeApi";
 
 export default function LoanFormDialog({
   open,
@@ -22,14 +26,44 @@ export default function LoanFormDialog({
   setNewLoan,
   lenders,
   setLenders,
-  brokers,
-  loanOfficers,
+
   milestones,
-  teamLeads,
-  teamManagers,
-  processors,
-  supports,
 }) {
+  const { data: brokersData = [], isLoading: loadingBrokers } =
+    useGetBrokersQuery({
+      page: 1,
+      page_size: 1000,
+    });
+  const brokers = brokersData.results || [];
+
+  const { data: loanOfficersData = [] } = useGetLoanOfficersQuery(
+    newLoan.broker_id ? { broker_company: newLoan.broker_id } : {},
+    { skip: !newLoan.broker_id }
+  );
+  const loanOfficers = loanOfficersData.results || [];
+
+  const { data: teamLeadsData = [] } = useGetEmployeesQuery({
+    position: "team_lead",
+    page_size: 100,
+  });
+  const { data: teamManagersData = [] } = useGetEmployeesQuery({
+    position: "team_manager",
+    page_size: 100,
+  });
+  const { data: processorsData = [] } = useGetEmployeesQuery({
+    position: "processor",
+    page_size: 100,
+  });
+  const { data: supportsData = [] } = useGetEmployeesQuery({
+    position: "junior_processor",
+    page_size: 100,
+  });
+
+  const teamLeads = teamLeadsData.results || [];
+  const teamManagers = teamManagersData.results || [];
+  const processors = processorsData.results || [];
+  const supports = supportsData.results || [];
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>New Loan</DialogTitle>
@@ -57,36 +91,47 @@ export default function LoanFormDialog({
               }
             />
             <FormControl size="medium" fullWidth margin="normal">
-              <InputLabel>Broker</InputLabel>
-              <Select
-                label="Broker"
-                value={newLoan.broker}
-                onChange={(e) =>
-                  setNewLoan({ ...newLoan, broker: e.target.value })
-                }
-              >
-                {brokers.map((b) => (
-                  <MenuItem key={b} value={b}>
-                    {b}
-                  </MenuItem>
-                ))}
-              </Select>
+              <Autocomplete
+                options={brokers}
+                getOptionLabel={(option) => option.name}
+                value={brokers.find((b) => b.id === newLoan.broker_id) || null}
+                onChange={(event, newValue) => {
+                  setNewLoan({
+                    ...newLoan,
+                    broker_id: newValue ? newValue.id : "",
+                    loan_officer_id: "", // reset loan officer when broker changes
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Broker" variant="outlined" />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                loading={loadingBrokers}
+              />
             </FormControl>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Loan Officer</InputLabel>
-              <Select
-                label="Loan Officer"
-                value={newLoan.loan_officer}
-                onChange={(e) =>
-                  setNewLoan({ ...newLoan, loan_officer: e.target.value })
+              <Autocomplete
+                options={loanOfficers}
+                getOptionLabel={(option) => option.name}
+                value={
+                  loanOfficers.find((o) => o.id === newLoan.loan_officer_id) ||
+                  null
                 }
-              >
-                {loanOfficers.map((o) => (
-                  <MenuItem key={o} value={o}>
-                    {o}
-                  </MenuItem>
-                ))}
-              </Select>
+                onChange={(event, newValue) => {
+                  setNewLoan({
+                    ...newLoan,
+                    loan_officer_id: newValue ? newValue.id : "",
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Loan Officer"
+                    variant="outlined"
+                  />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+              />
             </FormControl>
             <FormControl fullWidth margin="normal">
               <InputLabel>Milestone</InputLabel>
@@ -166,68 +211,87 @@ export default function LoanFormDialog({
             {/* ...other fields... */}
             <LenderFields lenders={lenders} setLenders={setLenders} />
             <FormControl fullWidth margin="normal">
-              <InputLabel>Team Leader</InputLabel>
-              <Select
-                label="Team Leader"
-                value={newLoan.team_leader}
-                onChange={(e) =>
-                  setNewLoan({ ...newLoan, team_leader: e.target.value })
+              <Autocomplete
+                options={teamLeads}
+                getOptionLabel={(option) => option.name}
+                value={
+                  teamLeads.find((t) => t.id === newLoan.team_leader_id) || null
                 }
-              >
-                {teamLeads.map((t) => (
-                  <MenuItem key={t} value={t}>
-                    {t}
-                  </MenuItem>
-                ))}
-              </Select>
+                onChange={(event, newValue) => {
+                  setNewLoan({
+                    ...newLoan,
+                    team_leader_id: newValue ? newValue.id : "",
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Team Leader"
+                    variant="outlined"
+                  />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+              />
             </FormControl>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Team Manager</InputLabel>
-              <Select
-                label="Team Manager"
-                value={newLoan.team_manager}
-                onChange={(e) =>
-                  setNewLoan({ ...newLoan, team_manager: e.target.value })
+              <Autocomplete
+                options={teamManagers}
+                getOptionLabel={(option) => option.name}
+                value={
+                  teamManagers.find((t) => t.id === newLoan.team_manager_id) ||
+                  null
                 }
-              >
-                {teamManagers.map((t) => (
-                  <MenuItem key={t} value={t}>
-                    {t}
-                  </MenuItem>
-                ))}
-              </Select>
+                onChange={(event, newValue) => {
+                  setNewLoan({
+                    ...newLoan,
+                    team_manager_id: newValue ? newValue.id : "",
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Team Manager"
+                    variant="outlined"
+                  />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+              />
             </FormControl>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Processor</InputLabel>
-              <Select
-                label="Processor"
-                value={newLoan.processor}
-                onChange={(e) =>
-                  setNewLoan({ ...newLoan, processor: e.target.value })
+              <Autocomplete
+                options={processors}
+                getOptionLabel={(option) => option.name}
+                value={
+                  processors.find((p) => p.id === newLoan.processor_id) || null
                 }
-              >
-                {processors.map((p) => (
-                  <MenuItem key={p} value={p}>
-                    {p}
-                  </MenuItem>
-                ))}
-              </Select>
+                onChange={(event, newValue) => {
+                  setNewLoan({
+                    ...newLoan,
+                    processor_id: newValue ? newValue.id : "",
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Processor" variant="outlined" />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+              />
             </FormControl>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Support</InputLabel>
-              <Select
-                label="Support"
-                value={newLoan.support}
-                onChange={(e) =>
-                  setNewLoan({ ...newLoan, support: e.target.value })
-                }
-              >
-                {supports.map((s) => (
-                  <MenuItem key={s} value={s}>
-                    {s}
-                  </MenuItem>
-                ))}
-              </Select>
+              <Autocomplete
+                options={supports}
+                getOptionLabel={(option) => option.name}
+                value={supports.find((s) => s.id === newLoan.support_id) || null}
+                onChange={(event, newValue) => {
+                  setNewLoan({
+                    ...newLoan,
+                    support_id: newValue ? newValue.id : "",
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Support" variant="outlined" />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+              />
             </FormControl>
             {/* ...team lead, manager, processor, support selects... */}
           </Grid>

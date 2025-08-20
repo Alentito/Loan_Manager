@@ -1,82 +1,65 @@
 // src/components/brokers/BrokerList.js
-import React, { useState, useEffect, useRef } from "react";
-import { useSelector, useDispatch } from "react-redux";
-
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Box,
-  Button,
-  Checkbox,
-  Dialog,
-  DialogActions,
-  DialogTitle,
-  DialogContent,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Pagination,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Tooltip,
-  Typography,
-  useMediaQuery,
-  Grow,
-  CircularProgress,
-  Avatar,
-} from "@mui/material";
+  Box, Button, Checkbox, Dialog, DialogActions, DialogTitle, DialogContent,
+  FormControl, IconButton, InputLabel, MenuItem, Paper, Pagination, Select,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField,
+  Tooltip, Typography, useMediaQuery, Grow, CircularProgress, Avatar, Chip, Switch
+} from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
-} from "@mui/icons-material";
-import { toast } from "react-hot-toast";
-import { useGetBrokersQuery, useDeleteBrokerMutation } from "../api/brokerApi";
-import BrokerFormDialog from "./BrokerFormDialog";
+  Restore as RestoreIcon
+} from '@mui/icons-material';
+import { toast } from 'react-hot-toast';
+import {
+  useGetBrokersQuery,
+  useArchiveBrokerMutation,
+  useUnarchiveBrokerMutation
+} from '../redux/brokerApi';
+import BrokerFormDialog from './BrokerFormDialog';
 
-const pageSizeDefault = 10;
+const pageSize = 10;
 
 const BrokerList = () => {
-  const isMobile = useMediaQuery("(max-width:600px)");
+  const isMobile = useMediaQuery('(max-width:600px)');
+  const debounceRef = useRef(null);
+
+  // --- State ---
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [orderingField, setOrderingField] = useState("created_at");
-  const [orderingDirection, setOrderingDirection] = useState("desc");
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [orderingField, setOrderingField] = useState('created_at');
+  const [orderingDirection, setOrderingDirection] = useState('desc');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBroker, setEditingBroker] = useState(null);
   const [selectedBrokers, setSelectedBrokers] = useState([]);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
-  const [toDeleteId, setToDeleteId] = useState(null);
-  const [logoDialogOpen, setLogoDialogOpen] = useState(false);
-  const [selectedLogo, setSelectedLogo] = useState(null);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [bulkArchiveDialogOpen, setBulkArchiveDialogOpen] = useState(false);
+  const [toArchiveId, setToArchiveId] = useState(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [viewingBroker, setViewingBroker] = useState(null);
-  const debounceRef = useRef(null);
-  //const selectedRows = useSelector((state) => state.selectedLoans);
+  const [showArchived, setShowArchived] = useState(false);
 
+  // --- API Hooks ---
   const { data, error, isLoading, refetch } = useGetBrokersQuery({
     page,
-    page_size: pageSizeDefault,
+    page_size: pageSize,
     search: debouncedSearch,
-    ordering:
-      orderingDirection === "desc" ? `-${orderingField}` : orderingField,
+    ordering: orderingDirection === 'desc' ? `-${orderingField}` : orderingField,
+    archived: showArchived,
   });
 
-  const [deleteBroker, { isLoading: deleting }] = useDeleteBrokerMutation();
+  const [archiveBroker, { isLoading: archiving }] = useArchiveBrokerMutation();
+  const [unarchiveBroker, { isLoading: unarchiving }] = useUnarchiveBrokerMutation();
 
   const brokers = data?.results || [];
   const total = data?.count || 0;
-  const emptyRows = pageSizeDefault - brokers.length;
+  const emptyRows = pageSize - brokers.length;
 
+  // --- Debounce search ---
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -86,78 +69,67 @@ const BrokerList = () => {
     return () => clearTimeout(debounceRef.current);
   }, [search]);
 
+  // --- Handlers ---
   const handleSelectAll = (e) => {
-    setSelectedBrokers(e.target.checked ? brokers.map((b) => b.id) : []);
+    setSelectedBrokers(e.target.checked ? brokers.map(b => b.id) : []);
   };
 
   const handleSelectOne = (id) => {
-    setSelectedBrokers((prev) =>
-      prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
+    setSelectedBrokers(prev =>
+      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
     );
   };
 
   const handleSortChange = (e) => {
-    const [field, direction] = e.target.value.split("_");
+    const [field, direction] = e.target.value.split('_');
     setOrderingField(field);
     setOrderingDirection(direction);
     setPage(1);
   };
 
-  const handleDeleteConfirm = (id) => {
-    setToDeleteId(id);
-    setDeleteDialogOpen(true);
+  const handleArchiveConfirm = (id) => {
+    setToArchiveId(id);
+    setArchiveDialogOpen(true);
   };
 
-  const handleDelete = async () => {
+  const handleArchiveAction = async (ids, unarchive = false) => {
     try {
-      await deleteBroker(toDeleteId).unwrap();
-      toast.success("Broker deleted successfully");
-      setSelectedBrokers((prev) => prev.filter((id) => id !== toDeleteId));
-      refetch();
+      const fn = unarchive ? unarchiveBroker : archiveBroker;
+      await Promise.all(ids.map(id => fn(id).unwrap()));
+      toast.success(unarchive ? 'Unarchived successfully' : 'Archived successfully');
+      setSelectedBrokers(prev => prev.filter(id => !ids.includes(id)));
+      refetch(); // always refresh
     } catch {
-      toast.error("Failed to delete broker");
-    } finally {
-      setDeleteDialogOpen(false);
-      setToDeleteId(null);
+      toast.error(`Failed to ${unarchive ? 'unarchive' : 'archive'} broker(s)`);
     }
   };
 
-  const handleBulkDelete = async () => {
-    try {
-      await Promise.all(selectedBrokers.map((id) => deleteBroker(id).unwrap()));
-      toast.success("Selected brokers deleted successfully");
-      setSelectedBrokers([]);
-      refetch();
-    } catch {
-      toast.error("Failed to delete some brokers");
-    }
-    setBulkDeleteDialogOpen(false);
+  const handleArchive = async () => {
+    await handleArchiveAction([toArchiveId], showArchived);
+    setArchiveDialogOpen(false);
+    setToArchiveId(null);
+  };
+
+  const handleBulkArchive = async () => {
+    await handleArchiveAction(selectedBrokers, showArchived);
+    setBulkArchiveDialogOpen(false);
   };
 
   const handleExport = (format) => {
     const urls = {
-      csv: "http://localhost:8000/api/brokers/export-csv/",
-      xml: "http://localhost:8000/api/brokers/export-xml/",
+      csv: 'http://localhost:8000/api/brokers/export-excel/',
+      xml: 'http://localhost:8000/api/brokers/export-pdf/',
     };
-    if (urls[format]) window.open(urls[format], "_blank");
+    if (urls[format]) window.open(urls[format], '_blank');
   };
-  const allSelected =
-    brokers.length > 0 &&
-    brokers.every((broker) => selectedBrokers.includes(broker.id));
 
+  // --- Render ---
   return (
     <Box p={isMobile ? 1 : 3}>
       {/* Header */}
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={2}
-        flexWrap="wrap"
-        gap={1}
-      >
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
         <Typography variant="h5" color="primary" fontWeight="bold">
-          Broker Management
+          {showArchived ? 'Archived Brokers' : 'Broker Management'}
         </Typography>
         <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
           <FormControl size="small" sx={{ minWidth: 150 }}>
@@ -172,160 +144,73 @@ const BrokerList = () => {
               <MenuItem value="name_desc">Name (Z-A)</MenuItem>
             </Select>
           </FormControl>
-          <TextField
-            size="small"
-            label="Search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <Button variant="outlined" onClick={() => setSearch("")}>
-            Clear
-          </Button>
+          <TextField size="small" label="Search" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Button variant="outlined" onClick={() => setSearch('')}>Clear</Button>
 
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Export</InputLabel>
-            <Select
-              defaultValue=""
-              label="Export"
-              onChange={(e) => handleExport(e.target.value)}
-            >
-              <MenuItem value="" disabled>
-                Export
-              </MenuItem>
-              <MenuItem value="csv">CSV</MenuItem>
-              <MenuItem value="xml">XML</MenuItem>
+            <Select defaultValue="" label="Export" onChange={(e) => handleExport(e.target.value)}>
+              <MenuItem value="" disabled>Export</MenuItem>
+              <MenuItem value="csv">Excel</MenuItem>
+              <MenuItem value="xml">PDF</MenuItem>
             </Select>
           </FormControl>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => {
-              setDialogOpen(true);
-              setEditingBroker(null);
-            }}
-            sx={{
-              backgroundColor: "rgba(0, 60, 247, 1)",
-              borderRadius: "12px",
-              "&:hover": {
-                backgroundColor: "rgba(0, 50, 200, 1)", // optional hover color
-              },
-            }}
+            onClick={() => { setDialogOpen(true); setEditingBroker(null); }}
           >
             Add Broker
           </Button>
+
           {selectedBrokers.length > 0 && (
             <Button
               variant="outlined"
               color="error"
-              onClick={() => setBulkDeleteDialogOpen(true)}
+              onClick={() => setBulkArchiveDialogOpen(true)}
             >
-              Delete Selected
+              {showArchived ? 'Unarchive Selected' : 'Archive Selected'}
             </Button>
           )}
+
+          <Box display="flex" alignItems="center">
+            <Typography variant="body2" sx={{ mr: 1 }}>Show Archived</Typography>
+            <Switch
+              checked={showArchived}
+              onChange={(e) => {
+                setShowArchived(e.target.checked);
+                setPage(1);
+                setSelectedBrokers([]);
+              }}
+            />
+          </Box>
         </Box>
       </Box>
 
       {/* Table */}
       {isLoading ? (
-        <Box display="flex" justifyContent="center" mt={5}>
-          <CircularProgress />
-        </Box>
+        <Box display="flex" justifyContent="center" mt={5}><CircularProgress /></Box>
       ) : error ? (
-        <Box color="error.main" textAlign="center" mt={5}>
-          Error loading brokers. Please try again.
-        </Box>
+        <Box color="error.main" textAlign="center" mt={5}>Error loading brokers. Please try again.</Box>
       ) : (
-        <TableContainer  sx={{ minWidth: 1000 }}>
-          <Table
-            stickyHeader
-            size="small"
-            sx={{
-              "& .MuiTableCell-root": {
-                borderBottom: "none", // 🚫 Removes bottom border for all cells
-              },
-              borderCollapse: "separate",
-              borderSpacing: 0,
-            }}
-          >
-            <TableHead
-              sx={{
-                backgroundColor: "#F9F9F9",
-                borderRadius: "12px",
-                "& th": {
-                  color: "rgba(152, 152, 152, 1)",
-                  fontWeight: 500,
-                },
-              }}
-            >
-              <TableRow sx={{ borderRadius: "12px" }}>
-                <TableCell
-                  padding="checkbox"
-                  sx={{ borderTopLeftRadius: "12px" }}
-                >
-                  <Tooltip title="Select">
-                    <Checkbox
-                      checked={allSelected}
-                      indeterminate={selectedBrokers.length > 0 && !allSelected}
-                      onChange={handleSelectAll}
-                      icon={
-                        <span
-                          style={{
-                            width: 22,
-                            height: 22,
-                            display: "inline-block",
-                            borderRadius: 8,
-                            border: "2px solid #E5E7EB",
-                            backgroundColor: "#fff",
-                          }}
-                        />
-                      }
-                      checkedIcon={
-                        <span
-                          style={{
-                            width: 22,
-                            height: 22,
-                            display: "inline-block",
-                            borderRadius: 8,
-                            backgroundColor: "#2563EB",
-                            position: "relative",
-                          }}
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="white"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            style={{
-                              position: "absolute",
-                              top: "50%",
-                              left: "50%",
-                              transform: "translate(-50%, -50%)",
-                            }}
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        </span>
-                      }
-                    />
-                  </Tooltip>
+        <TableContainer component={Paper} sx={{ minWidth: 1000 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    checked={selectedBrokers.length === brokers.length && brokers.length > 0}
+                    indeterminate={selectedBrokers.length > 0 && selectedBrokers.length < brokers.length}
+                    onChange={handleSelectAll}
+                  />
                 </TableCell>
                 {[
-                  "Logo",
-                  "Name",
-                  "Email",
-                  "NMLS",
-                  "Primary Phone",
-                  "Created At",
-                  "Updated At",
-                  "Actions",
+                  'Avatar', 'Name', 'Email', 'NMLS', 'Primary Phone',
+                  'Created At', 'Updated At',
+                  ...(showArchived ? ['Archived At'] : []),
+                  'Actions'
                 ].map((label, idx) => (
-                  <TableCell key={idx}>
-                    <strong>{label}</strong>
-                  </TableCell>
+                  <TableCell key={idx}><strong>{label}</strong></TableCell>
                 ))}
               </TableRow>
             </TableHead>
@@ -333,109 +218,44 @@ const BrokerList = () => {
               {brokers.length > 0 ? (
                 brokers.map((broker) => (
                   <Grow in key={broker.id} timeout={300}>
-                    <TableRow hover>
+                    <TableRow hover sx={broker.is_archived ? { backgroundColor: '#f0f0f0' } : {}}>
                       <TableCell padding="checkbox">
                         <Checkbox
                           checked={selectedBrokers.includes(broker.id)}
                           onChange={() => handleSelectOne(broker.id)}
-                          icon={
-                            <span
-                              style={{
-                                width: 22,
-                                height: 22,
-                                display: "inline-block",
-                                borderRadius: 8,
-                                border: "2px solid #E5E7EB",
-                                backgroundColor: "#fff",
-                              }}
-                            />
-                          }
-                          checkedIcon={
-                            <span
-                              style={{
-                                width: 22,
-                                height: 22,
-                                display: "inline-block",
-                                borderRadius: 8,
-                                backgroundColor: "#2563EB",
-                                position: "relative",
-                              }}
-                            >
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="white"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                style={{
-                                  position: "absolute",
-                                  top: "50%",
-                                  left: "50%",
-                                  transform: "translate(-50%, -50%)",
-                                }}
-                              >
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            </span>
-                          }
                         />
                       </TableCell>
                       <TableCell>
-                        <Tooltip title="View Logo">
-                          <IconButton
-                            onClick={() => {
-                              setSelectedLogo(broker.logo);
-                              setLogoDialogOpen(true);
-                            }}
-                          >
-                            <Avatar
-                              src={broker.logo}
-                              alt={broker.name}
-                              sx={{ width: 32, height: 32 }}
-                            />
-                          </IconButton>
-                        </Tooltip>
+                        <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: '#fff' }}>
+                          {broker.name ? broker.name[0].toUpperCase() : '?'}
+                        </Avatar>
                       </TableCell>
-                      <TableCell>{broker.name}</TableCell>
+                      <TableCell>
+                        {broker.name}
+                        {broker.is_archived && <Chip label="Archived" size="small" sx={{ ml: 1 }} />}
+                      </TableCell>
                       <TableCell>{broker.email}</TableCell>
                       <TableCell>{broker.NMLS}</TableCell>
                       <TableCell>{broker.primary_phone}</TableCell>
-
-                      <TableCell>
-                        {new Date(broker.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(broker.updated_at).toLocaleDateString()}
-                      </TableCell>
+                      <TableCell>{new Date(broker.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>{new Date(broker.updated_at).toLocaleDateString()}</TableCell>
+                      {showArchived && (
+                        <TableCell>{broker.archived_at ? new Date(broker.archived_at).toLocaleDateString() : '-'}</TableCell>
+                      )}
                       <TableCell>
                         <Tooltip title="View">
-                          <IconButton
-                            onClick={() => {
-                              setViewingBroker(broker);
-                              setViewDialogOpen(true);
-                            }}
-                          >
+                          <IconButton onClick={() => { setViewingBroker(broker); setViewDialogOpen(true); }}>
                             <VisibilityIcon />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Edit">
-                          <IconButton
-                            onClick={() => {
-                              setEditingBroker(broker);
-                              setDialogOpen(true);
-                            }}
-                          >
+                          <IconButton onClick={() => { setEditingBroker(broker); setDialogOpen(true); }}>
                             <EditIcon color="primary" />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton
-                            onClick={() => handleDeleteConfirm(broker.id)}
-                          >
-                            <DeleteIcon color="error" />
+                        <Tooltip title={showArchived ? "Unarchive" : "Archive"}>
+                          <IconButton onClick={() => handleArchiveConfirm(broker.id)}>
+                            {showArchived ? <RestoreIcon color="primary" /> : <DeleteIcon color="error" />}
                           </IconButton>
                         </Tooltip>
                       </TableCell>
@@ -443,19 +263,15 @@ const BrokerList = () => {
                   </Grow>
                 ))
               ) : (
-                <TableRow>
-                  <TableCell colSpan={9} align="center">
-                    No brokers found.
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={showArchived ? 10 : 9} align="center">No brokers found.</TableCell></TableRow>
               )}
-              {emptyRows > 0 &&
-                brokers.length > 0 &&
+              {emptyRows > 0 && brokers.length > 0 && (
                 Array.from(Array(emptyRows)).map((_, idx) => (
                   <TableRow key={`empty-${idx}`} style={{ height: 53 }}>
-                    <TableCell colSpan={8} />
+                    <TableCell colSpan={showArchived ? 10 : 9} />
                   </TableRow>
-                ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>
@@ -464,7 +280,7 @@ const BrokerList = () => {
       {/* Pagination */}
       <Box mt={2} display="flex" justifyContent="flex-end">
         <Pagination
-          count={Math.ceil(total / pageSizeDefault)}
+          count={Math.ceil(total / pageSize)}
           page={page}
           onChange={(_, newPage) => setPage(newPage)}
           color="primary"
@@ -487,105 +303,62 @@ const BrokerList = () => {
         }}
       />
 
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Are you sure you want to delete this broker?</DialogTitle>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button color="error" onClick={handleDelete} disabled={deleting}>
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={bulkDeleteDialogOpen}
-        onClose={() => setBulkDeleteDialogOpen(false)}
-      >
+      <Dialog open={archiveDialogOpen} onClose={() => setArchiveDialogOpen(false)}>
         <DialogTitle>
-          Are you sure you want to delete selected brokers?
+          {showArchived ? 'Unarchive this broker?' : 'Archive this broker?'}
         </DialogTitle>
         <DialogActions>
-          <Button onClick={() => setBulkDeleteDialogOpen(false)}>Cancel</Button>
-          <Button color="error" onClick={handleBulkDelete} disabled={deleting}>
-            Delete
+          <Button onClick={() => setArchiveDialogOpen(false)}>Cancel</Button>
+          <Button
+            color={showArchived ? "primary" : "error"}
+            onClick={handleArchive}
+            disabled={archiving || unarchiving}
+          >
+            {showArchived ? 'Unarchive' : 'Archive'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={logoDialogOpen}
-        onClose={() => setLogoDialogOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>Logo Preview</DialogTitle>
-        <DialogContent>
-          <Box display="flex" justifyContent="center" p={2}>
-            <img
-              src={selectedLogo}
-              alt="Logo Preview"
-              style={{ maxHeight: 200, borderRadius: 8 }}
-            />
-          </Box>
-        </DialogContent>
+      <Dialog open={bulkArchiveDialogOpen} onClose={() => setBulkArchiveDialogOpen(false)}>
+        <DialogTitle>
+          {showArchived ? 'Unarchive selected brokers?' : 'Archive selected brokers?'}
+        </DialogTitle>
         <DialogActions>
-          <Button onClick={() => setLogoDialogOpen(false)}>Close</Button>
+          <Button onClick={() => setBulkArchiveDialogOpen(false)}>Cancel</Button>
+          <Button
+            color={showArchived ? "primary" : "error"}
+            onClick={handleBulkArchive}
+            disabled={archiving || unarchiving}
+          >
+            {showArchived ? 'Unarchive Selected' : 'Archive Selected'}
+          </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={viewDialogOpen}
-        onClose={() => setViewDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle height={60} bgcolor="primary.main" mb={3}>
-          Broker Details
-        </DialogTitle>
+      <Dialog open={viewDialogOpen} onClose={() => setViewDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle height={60} bgcolor="primary.main" mb={3}>Broker Details</DialogTitle>
         <DialogContent dividers>
           {viewingBroker && (
             <Box display="flex" flexDirection="column" gap={1}>
               {[
-                ["Name", viewingBroker.name],
-                ["Email", viewingBroker.email],
-                ["NMLS", viewingBroker.NMLS],
-                ["Primary Phone", viewingBroker.primary_phone],
-                ["Phone", viewingBroker.phone],
-                ["Address", viewingBroker.address],
-                ["Company Address", viewingBroker.company_address],
-                ["Designation", viewingBroker.designation],
-                ["Entregar Email", viewingBroker.entregar_email],
-                ["Entregar Fax", viewingBroker.entregar_fax],
-                ["Entregar Phone", viewingBroker.entregar_phone],
-                ["Doc Order Option", viewingBroker.doc_order_option],
-                ["Submission Checklist", viewingBroker.submission_checklist],
-                [
-                  "Created At",
-                  new Date(viewingBroker.created_at).toLocaleString(),
-                ],
-                [
-                  "Updated At",
-                  new Date(viewingBroker.updated_at).toLocaleString(),
-                ],
+                ['Name', viewingBroker.name],
+                ['Email', viewingBroker.email],
+                ['NMLS', viewingBroker.NMLS],
+                ['Primary Phone', viewingBroker.primary_phone],
+                ['Phone', viewingBroker.phone],
+                ['Address', viewingBroker.address],
+                ['Company Address', viewingBroker.company_address],
+                ['Created At', new Date(viewingBroker.created_at).toLocaleString()],
+                ['Updated At', new Date(viewingBroker.updated_at).toLocaleString()],
+                ['Archived At', viewingBroker.archived_at ? new Date(viewingBroker.archived_at).toLocaleString() : '-'],
               ].map(([label, value]) => (
-                <Typography key={label}>
-                  <strong>{label}:</strong> {value || "-"}
-                </Typography>
+                <Typography key={label}><strong>{label}:</strong> {value || '-'}</Typography>
               ))}
             </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => setViewDialogOpen(false)}
-            variant="contained"
-            color="primary"
-          >
-            Close
-          </Button>
+          <Button onClick={() => setViewDialogOpen(false)} variant="contained" color="primary">Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

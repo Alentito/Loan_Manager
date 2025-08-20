@@ -1,3 +1,6 @@
+import React, { useState, useEffect } from "react";
+import { useTheme } from "@mui/material/styles";
+
 import {
   Table,
   TableBody,
@@ -25,7 +28,13 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import MilestoneChip from "../../layout/MilestoneChip";
 import { red } from "@mui/material/colors";
 import TableSortLabel from "@mui/material/TableSortLabel";
-import { ArrowUpDown, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  ArrowUpDown,
+  Settings2,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 
 import { useSelector, useDispatch } from "react-redux";
 import {
@@ -34,6 +43,17 @@ import {
   removeSelectedLoan,
 } from "./../../api/selectedLoansSlice";
 import { useBulkDeleteLoansMutation } from "./../../api/loanApi";
+import ColumnChooserDialog from "./ColumnChooserDialog";
+
+const ALL_COLUMNS = [
+  { id: "first_name", label: "Borrower Name" },
+  { id: "created_at", label: "Initiated Date" },
+  { id: "milestone", label: "Milestone" },
+  { id: "managed_by", label: "Managed By" },
+  { id: "amount", label: "Loan Amount" },
+  { id: "details", label: "Details" },
+  { id: "actions", label: "Actions" },
+];
 
 // ...existing code...
 export default function LoanTable({
@@ -53,6 +73,13 @@ export default function LoanTable({
   setSortField,
   setSortDirection,
 }) {
+  const theme = useTheme();
+  const [visibleIds, setVisibleIds] = useState(
+    ALL_COLUMNS.map((col) => col.id) // default: show all
+  );
+  //column chooser
+  const [chooserOpen, setChooserOpen] = useState(false);
+
   //const paginatedLoans = loans.slice((page - 1) * rowsPerPage, page * rowsPerPage);
   const dispatch = useDispatch();
   const selectedRows = useSelector((state) => state.selectedLoans);
@@ -97,13 +124,37 @@ export default function LoanTable({
       >
         <TableContainer
           sx={{
-            width: "100%",
-            minHeight: { xs: 300, sm: 400 }, // responsive min-height
-            maxHeight: "100%",
-            flexGrow: 1,
-          }}
+    width: "100%",
+    minHeight: { xs: 300, sm: 400 },
+    maxHeight: "100%",
+    flexGrow: 1,
+    // Custom scrollbar styles:
+    "&::-webkit-scrollbar": {
+      width: 8,
+      backgroundColor: theme.palette.background.paper,
+    },
+    "&::-webkit-scrollbar-thumb": {
+      backgroundColor:
+        theme.palette.mode === "dark"
+          ? theme.palette.grey[800]
+          : theme.palette.grey[300],
+      borderRadius: 8,
+    },
+    "&::-webkit-scrollbar-thumb:hover": {
+      backgroundColor:
+        theme.palette.mode === "dark"
+          ? theme.palette.grey[700]
+          : theme.palette.grey[400],
+    },
+    // For Firefox
+    scrollbarColor: `${theme.palette.mode === "dark"
+      ? theme.palette.grey[800]
+      : theme.palette.grey[300]
+    } ${theme.palette.background.paper}`,
+    scrollbarWidth: "thin",
+  }}
         >
-          <Table
+          <Table 
             sx={{
               "& .MuiTableCell-root": {
                 borderBottom: "none", // 🚫 Removes bottom border for all cells
@@ -114,13 +165,22 @@ export default function LoanTable({
           >
             <TableHead
               sx={{
-                backgroundColor: "#F9F9F9",
-                borderRadius: "12px",
-                "& th": {
-                  color: "rgba(152, 152, 152, 1)",
-                  fontWeight: 500,
-                },
-              }}
+    backgroundColor: theme.palette.background.paper,
+    borderRadius: "12px",
+    zIndex: 2,
+    position: "sticky",
+    top: 0,
+    "& th": {
+      color: theme.palette.text.secondary,
+      fontWeight: 500,
+      backgroundColor: theme.palette.mode === "dark"
+        ? theme.palette.grey[900]
+        : "#F9F9F9",
+      position: "sticky",
+      top: 0,
+      zIndex: 3,
+    },
+  }}
             >
               <TableRow sx={{ borderRadius: "12px" }}>
                 <TableCell
@@ -140,8 +200,8 @@ export default function LoanTable({
                               height: 22,
                               display: "inline-block",
                               borderRadius: 8,
-                              border: "2px solid #E5E7EB",
-                              backgroundColor: "#fff",
+                              border: `2px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
                             }}
                           />
                         }
@@ -152,7 +212,8 @@ export default function LoanTable({
                               height: 22,
                               display: "inline-block",
                               borderRadius: 8,
-                              backgroundColor: "#2563EB",
+                                      backgroundColor: theme.palette.primary.main,
+
                               position: "relative",
                             }}
                           >
@@ -198,84 +259,143 @@ export default function LoanTable({
                     </Tooltip>
                   </Box>
                 </TableCell>
-                <TableCell
-                  sx={{ cursor: "pointer", userSelect: "none" }}
-                  onClick={() => {
-                    if (sortField === "first_name") {
-                      setSortDirection(
-                        sortDirection === "asc" ? "desc" : "asc"
-                      );
-                    } else {
-                      setSortField("first_name");
-                      setSortDirection("asc");
-                    }
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    Borrower Name
-                    {sortField !== "first_name" ? (
-                      <ArrowUpDown size={16} color="#9CA3AF" />
-                    ) : sortDirection === "asc" ? (
-                      <ArrowUp size={16} color="#2563EB" />
-                    ) : (
-                      <ArrowDown size={16} color="#2563EB" />
-                    )}
-                  </Box>
-                </TableCell>
-                <TableCell
-                  sx={{ cursor: "pointer", userSelect: "none" }}
-                  onClick={() => {
-                    if (sortField === "created_at") {
-                      setSortDirection(
-                        sortDirection === "asc" ? "desc" : "asc"
-                      );
-                    } else {
-                      setSortField("created_at");
-                      setSortDirection("asc");
-                    }
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    Initiated Date
-                    {sortField !== "created_at" ? (
-                      <ArrowUpDown size={16} color="#9CA3AF" />
-                    ) : sortDirection === "asc" ? (
-                      <ArrowUp size={16} color="#2563EB" />
-                    ) : (
-                      <ArrowDown size={16} color="#2563EB" />
-                    )}
-                  </Box>
-                </TableCell>
-                <TableCell
-                  sx={{ cursor: "pointer" }}
-                  onClick={() => {
-                    if (sortField === "milestone") {
-                      setSortDirection(
-                        sortDirection === "asc" ? "desc" : "asc"
-                      );
-                    } else {
-                      setSortField("milestone");
-                      setSortDirection("asc");
-                    }
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    Milestone
-                    {sortField !== "milestone" ? (
-                      <ArrowUpDown size={16} color="#9CA3AF" />
-                    ) : sortDirection === "asc" ? (
-                      <ArrowUp size={16} color="#2563EB" />
-                    ) : (
-                      <ArrowDown size={16} color="#2563EB" />
-                    )}
-                  </Box>
-                </TableCell>
-                <TableCell>Managed By</TableCell>
-                <TableCell>Loan Amount</TableCell>
-                <TableCell>Details</TableCell>
-                <TableCell sx={{ borderTopRightRadius: "12px" }}>
-                  Actions
-                </TableCell>
+
+                {visibleIds.includes("first_name") && (
+                  <TableCell
+                    sx={{ cursor: "pointer", userSelect: "none" }}
+                    onClick={() => {
+                      if (sortField === "first_name") {
+                        setSortDirection(
+                          sortDirection === "asc" ? "desc" : "asc"
+                        );
+                      } else {
+                        setSortField("first_name");
+                        setSortDirection("asc");
+                      }
+                    }}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      Borrower Name
+                      {sortField !== "first_name" ? (
+                        <ArrowUpDown size={16} color="#9CA3AF" />
+                      ) : sortDirection === "asc" ? (
+                        <ArrowUp size={16} color="#2563EB" />
+                      ) : (
+                        <ArrowDown size={16} color="#2563EB" />
+                      )}
+                    </Box>
+                  </TableCell>
+                )}
+
+                {visibleIds.includes("created_at") && (
+                  <TableCell
+                    sx={{ cursor: "pointer", userSelect: "none" }}
+                    onClick={() => {
+                      if (sortField === "created_at") {
+                        setSortDirection(
+                          sortDirection === "asc" ? "desc" : "asc"
+                        );
+                      } else {
+                        setSortField("created_at");
+                        setSortDirection("asc");
+                      }
+                    }}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      Initiated Date
+                      {sortField !== "created_at" ? (
+                        <ArrowUpDown size={16} color="#9CA3AF" />
+                      ) : sortDirection === "asc" ? (
+                        <ArrowUp size={16} color="#2563EB" />
+                      ) : (
+                        <ArrowDown size={16} color="#2563EB" />
+                      )}
+                    </Box>
+                  </TableCell>
+                )}
+
+                {visibleIds.includes("milestone") && (
+                  <TableCell
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => {
+                      if (sortField === "milestone") {
+                        setSortDirection(
+                          sortDirection === "asc" ? "desc" : "asc"
+                        );
+                      } else {
+                        setSortField("milestone");
+                        setSortDirection("asc");
+                      }
+                    }}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      Milestone
+                      {sortField !== "milestone" ? (
+                        <ArrowUpDown size={16} color="#9CA3AF" />
+                      ) : sortDirection === "asc" ? (
+                        <ArrowUp size={16} color="#2563EB" />
+                      ) : (
+                        <ArrowDown size={16} color="#2563EB" />
+                      )}
+                    </Box>
+                  </TableCell>
+                )}
+
+                {visibleIds.includes("managed_by") && (
+                  <TableCell>Managed By</TableCell>
+                )}
+                {visibleIds.includes("amount") && (
+                  <TableCell>Loan Amount</TableCell>
+                )}
+                {visibleIds.includes("details") && (
+                  <TableCell>Details</TableCell>
+                )}
+
+                 {visibleIds.includes("actions") && (
+      <TableCell
+        sx={{
+          position: "sticky",
+          top: 0,
+          borderTopRightRadius: "12px",
+          zIndex: 4,
+          backgroundColor: theme.palette.mode === "dark"
+            ? theme.palette.grey[900]
+            : "#F9F9F9",
+        }}
+      >
+        Actions
+        <IconButton
+          onClick={() => setChooserOpen(true)}
+          size="small"
+          sx={{
+            position: "absolute",
+            top: "50%",
+            right: 8,
+            transform: "translateY(-50%)",
+            color: "#6B7280",
+          }}
+        >
+          <Settings2 size={18} />
+        </IconButton>
+        <ColumnChooserDialog
+          open={chooserOpen}
+          onClose={() => setChooserOpen(false)}
+          visibleIds={visibleIds}
+          allColumns={ALL_COLUMNS}
+          onApply={(newVisible) => {
+            setVisibleIds(newVisible);
+            setChooserOpen(false);
+          }}
+      
+                    />
+                  </TableCell>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -284,11 +404,15 @@ export default function LoanTable({
                 <TableRow
                   key={loan.id}
                   selected={selectedRows.includes(loan.id)}
+                  hover // subtle highlight on hover
+                  sx={{ cursor: "pointer" }} // visual affordance
+                  onClick={() => onDetails(loan)}
                 >
                   <TableCell padding="checkbox">
                     <Checkbox
                       checked={selectedRows.includes(loan.id)}
                       onChange={handleSelectRow(loan.id)}
+                      onClick={(e) => e.stopPropagation()}
                       icon={
                         <span
                           style={{
@@ -296,8 +420,8 @@ export default function LoanTable({
                             height: 22,
                             display: "inline-block",
                             borderRadius: 8,
-                            border: "2px solid #E5E7EB",
-                            backgroundColor: "#fff",
+                             border: `2px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
                           }}
                         />
                       }
@@ -308,7 +432,7 @@ export default function LoanTable({
                             height: 22,
                             display: "inline-block",
                             borderRadius: 8,
-                            backgroundColor: "#2563EB",
+        backgroundColor: theme.palette.primary.main,
                             position: "relative",
                           }}
                         >
@@ -317,7 +441,8 @@ export default function LoanTable({
                             height="16"
                             viewBox="0 0 24 24"
                             fill="none"
-                            stroke="white"
+                                    stroke={theme.palette.primary.contrastText}
+
                             strokeWidth="3"
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -334,102 +459,130 @@ export default function LoanTable({
                       }
                     />
                   </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Avatar sx={{ mr: 1, bgcolor: "secondary.main" }}>
-                      {loan.first_name
-                        ?.split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </Avatar>
-                    {loan.first_name}
-                  </TableCell>
-                  <TableCell
-                    sx={{ color: "rgba(152, 152, 152, 1)", fontWeight: 500 }}
-                  >
-                    {new Date(loan.created_at).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    {" "}
-                    <MilestoneChip status={loan.milestone} />
-                  </TableCell>
-                  <TableCell>{loan.managed_by || "-"}</TableCell>
-                  <TableCell
-                    sx={{ color: "rgba(152, 152, 152, 1)", fontWeight: 500 }}
-                  >
-                    {Number(loan.amount).toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      endIcon={<OpenInNewIcon fontSize="small" />}
-                      onClick={() => onDetails(loan)}
+                  {visibleIds.includes("first_name") && (
+                    <TableCell
                       sx={{
-                        borderRadius: "999px", // pill shape
-                        textTransform: "none", // preserve casing
-                        fontWeight: 600, // bold text
-                        fontSize: "14px",
-                        color: "#2563EB", // blue text
-                        backgroundColor: "#fff", // subtle blueish bg
-                        border: "1px solid #D1D5DB", // light gray border
-                        paddingX: 2,
-                        paddingY: 0.5,
-                        minHeight: "32px",
-                        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-
-                        "&:hover": {
-                          backgroundColor: "rgb(239, 239, 239)",
-                          borderColor: "#A3BFFA",
-                        },
+                        fontWeight: 600,
+                        display: "flex",
+                        alignItems: "center",
                       }}
                     >
-                      Details
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="contained"
-                      startIcon={<EditIcon />}
-                      onClick={() => onEdit(loan)}
-                      sx={{
-                        backgroundColor: { xs: "transparent", md: "#fff" }, // your purple color
-                        color: "#2563EB",
-                        border: { xs: "none", md: "1px solid #D1D5DB" }, // light gray border on mobile, none on desktop
-                        borderRadius: "20px",
-                        textTransform: "none",
+                      <Avatar sx={{ mr: 1, bgcolor: "secondary.main" }}>
+                        {loan.first_name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("")}
+                      </Avatar>
+                      {loan.first_name}
+                    </TableCell>
+                  )}
 
-                        fontWeight: 500,
-                        boxShadow: "none",
-                        minWidth: { xs: 0, md: 64 }, // kill the default 64 px on tablet/phone
-                        width: { xs: "auto", md: "auto" }, // no fixed width at any size
-                        px: { xs: 1, md: 2 },
-                        "&:hover": {
-                          backgroundColor: "rgb(239, 239, 239)",
-                          borderColor: "#A3BFFA",
-                          boxShadow: "none",
-                        },
-                        mr: { xs: 0, md: 1 }, // margin right
-                      }}
+                  {visibleIds.includes("created_at") && (
+                    <TableCell
+                      sx={{ color: "rgba(152, 152, 152, 1)", fontWeight: 500 }}
                     >
-                      <Box
-                        component="span"
-                        sx={{ display: { xs: "none", md: "inline" } }}
+                      {new Date(loan.created_at).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </TableCell>
+                  )}
+
+                  {visibleIds.includes("milestone") && (
+                    <TableCell>
+                      <MilestoneChip status={loan.milestone} />
+                    </TableCell>
+                  )}
+
+                  {visibleIds.includes("managed_by") && (
+                    <TableCell>{loan.managed_by || "-"}</TableCell>
+                  )}
+
+                  {visibleIds.includes("amount") && (
+                    <TableCell
+                      sx={{ color: "rgba(152, 152, 152, 1)", fontWeight: 500 }}
+                    >
+                      {Number(loan.amount).toLocaleString()}
+                    </TableCell>
+                  )}
+
+                  {visibleIds.includes("details") && (
+                    <TableCell>
+                      <Button
+                        endIcon={<OpenInNewIcon fontSize="small" />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDetails(loan);
+                        }}
+                        sx={{
+                          borderRadius: "999px",
+                          textTransform: "none",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                           color: theme.palette.primary.main,
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
+                          paddingX: 2,
+                          paddingY: 0.5,
+                          minHeight: "32px",
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                          "&:hover": {
+      backgroundColor: theme.palette.action.hover,
+      borderColor: theme.palette.primary.light,
+    },
+                        }}
                       >
-                        Edit
-                      </Box>
-                    </Button>
-                    <IconButton onClick={() => onDelete(loan.id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
+                        Details
+                      </Button>
+                    </TableCell>
+                  )}
+
+                  {visibleIds.includes("actions") && (
+                    <TableCell>
+                      <Button
+                        variant="contained"
+                        startIcon={<EditIcon />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEdit(loan);
+                        }}
+                        sx={{
+                         backgroundColor: theme.palette.background.paper,
+    color: theme.palette.primary.main,
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: "20px",
+                          textTransform: "none",
+                          fontWeight: 500,
+                          boxShadow: "none",
+                          minWidth: { xs: "auto", md: "auto" },
+                          width: { xs: "auto", md: "auto" },
+                          px: { xs: 1, md: 2 },
+                          "&:hover": {
+      backgroundColor: theme.palette.action.hover,
+      borderColor: theme.palette.primary.light,
+      boxShadow: "none",
+    },
+                          mr: { xs: 0, md: 0 },
+                        }}
+                      >
+                        <Box
+                          component="span"
+                          sx={{ display: { xs: "none", md: "inline" } }}
+                        >
+                          Edit
+                        </Box>
+                      </Button>
+                      <IconButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(loan.id);
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

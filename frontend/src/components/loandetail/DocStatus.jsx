@@ -86,7 +86,7 @@ export default function DocStatus({ loanId }) {
   };
 
   return (
-    <Paper elevation={2} sx={{ p: 3, mb: 0, height: "100vh", borderRadius: 0 }}>
+    <Paper elevation={2} sx={{ p: 3, mb: 0, height: "100%", borderRadius: 0 }}>
       <Typography variant="h6" sx={{fontSize:14}} mb={2}>
         Document Status Panel
       </Typography>

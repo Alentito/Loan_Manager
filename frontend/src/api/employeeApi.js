@@ -1,9 +1,10 @@
 // src/components/redux/employeeApi.js
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import baseQueryWithReauth from "./baseApi";
 
 export const employeeApi = createApi({
   reducerPath: 'employeeApi',
-  baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:8000/api/' }),
+  baseQuery: baseQueryWithReauth, // Use the base query with re-authentication
   tagTypes: ['Employee', 'Attendance'],
   endpoints: (builder) => ({
     getEmployees: builder.query({

@@ -1,0 +1,55 @@
+/* Grid-like cell styling */
+.fc-daygrid-day-frame {
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  padding: 4px;
+}
+
+.fc-daygrid-day:hover {
+  box-shadow: 0 0 6px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+
+/* Attendance statuses */
+.status-present {
+  background-color: #2e7d32 !important;
+  color: white !important;
+  border: none;
+}
+.status-late {
+  background-color: #ef6c00 !important;
+  color: white !important;
+}
+.status-absent {
+  background-color: #8B0000 !important;
+  color: white !important;
+}
+.status-leave {
+  background-color: #6a1b9a !important;
+  color: white !important;
+}
+
+/* Holiday */
+.status-holiday {
+  background-color: #d32f2f !important;
+  color: white !important;
+}
+
+/* Meetings */
+.status-meeting {
+  background-color: #1976d2 !important;
+  color: white !important;
+}
+
+/* Event block styles */
+.fc-event {
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+
+.fc-day-sat, .fc-day-sun {
+  background-color: #ac9e9e;
+}
+
