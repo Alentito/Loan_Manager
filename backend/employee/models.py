@@ -1,8 +1,13 @@
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from userauth.models import Role, Permission
+from django.conf import settings
+from django.contrib.auth.models import Group
+
+
 # Create your models here.
-class broker(models.Model):
+class Broker(models.Model):
     name = models.CharField(max_length=100, db_index=True)  # if searched
     email = models.EmailField(max_length=100, unique=True, db_index=True)  # already unique
     NMLS = models.CharField(max_length=50, unique=True, db_index=True)  # already unique
@@ -10,22 +15,16 @@ class broker(models.Model):
     phone = models.CharField(max_length=25, unique=True, db_index=True)  # already unique
     address = models.TextField()
     company_address = models.TextField()
-    logo = models.ImageField(upload_to='broker_logos/', blank=True, null=True)
-    designation = models.CharField(max_length=100, db_index=True)  # if you search by this
-
-    entregar_email = models.EmailField(max_length=100, blank=True, null=True)
-    entregar_fax = models.CharField(max_length=25, blank=True, null=True)
-    entregar_phone = models.CharField(max_length=25, blank=True, null=True)
-    signature = models.ImageField(upload_to='broker_signatures/', blank=True, null=True)
-    doc_order_option = models.CharField(max_length=255, blank=True, null=True)
-    submission_checklist = models.TextField(blank=True, null=True)  # Optional: can be FileField or JSONField
-
+     
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
 
     def __str__(self):
         return self.name
     
+
 
 class LoanOfficer(models.Model):
     name = models.CharField(max_length=100, db_index=True)
@@ -33,71 +32,62 @@ class LoanOfficer(models.Model):
     email = models.EmailField(max_length=100, unique=True, db_index=True)
     NMLS = models.CharField(max_length=50, unique=True, db_index=True)
     broker_company = models.ForeignKey('broker', on_delete=models.CASCADE, related_name='loan_officers')
-
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
     last_updated = models.DateTimeField(auto_now=True, db_index=True)
+    
     def __str__(self):
         return f"{self.name} ({self.broker_company.name})"
 
 
-
 class Employee(models.Model):
-    POSITION_CHOICES = [
-        ('junior_processor', 'Junior Processor'),
-        ('processor', 'Processor'),
-        ('team_lead', 'Team Lead'),
-        ('team_manager', 'Team Manager'),
-    ]
-
-    STATUS_CHOICES = [
-        ('active', 'Active'),
-        ('inactive', 'Inactive'),
-        ('on_leave', 'On Leave'),
-    ]
-
+   
     # Identity fields
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    roles = models.ManyToManyField(Group, blank=True)   # allow multiple roles
     login_id = models.CharField(max_length=50, unique=True, db_index=True, null=True, blank=True)
     name = models.CharField(max_length=100, db_index=True)
     company_email = models.EmailField(unique=True, db_index=True, default='default@example.com')
     contact_number = models.CharField(max_length=20, blank=True, db_index=True)
-    
+    designation = models.ForeignKey('Designation', on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
 
-    position = models.CharField(max_length=20, choices=POSITION_CHOICES, default='junior_processor', db_index=True)
+    team = models.ForeignKey('Team', on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
+    primary_shift = models.ForeignKey('Shift', on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_employees')
+    alternate_shift = models.ForeignKey('Shift', on_delete=models.SET_NULL, null=True, blank=True, related_name='alternate_employees')
 
-    # Removed manager, type, is_active fields here
-
-    performance_score = models.FloatField(default=0.0, db_index=True)
-    experience_months = models.PositiveIntegerField(default=0, db_index=True)
-
-    # Banking
-    bank_name = models.CharField(max_length=100, blank=True, db_index=True)
-    account_number = models.CharField(max_length=50, blank=True, db_index=True)
-    bank_details = models.TextField(blank=True, db_index=True)
-
-    # Employment
-    address = models.TextField(blank=True, db_index=True)
-    date_of_join = models.DateField(null=True, blank=True, db_index=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active', db_index=True)
-    login_password = models.CharField(max_length=128, blank=True, null=True, db_index=True)
-    leave_balance = models.FloatField(default=0.0, db_index=True)
-
-    # Timestamps
-    date_joined = models.DateTimeField(auto_now_add=True, db_index=True)
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    
+    
+    login_password = models.CharField(max_length=128, blank=True, null=True, db_index=True)
+
 
     def __str__(self):
         return self.name
 
 
 class Attendance(models.Model):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-    date = models.DateField()
-    status = models.CharField(max_length=10, choices=[('present', 'Present'), ('absent', 'Absent')])
+    STATUS_CHOICES = [
+        ('present', 'Present'),
+        ('late', 'Late'),
+        ('absent', 'Absent'),
+        ('paid_leave', 'Paid Leave'),
+    ]
 
-    class Meta:
-        unique_together = ('employee', 'date')  # Prevent duplicates
+    employee = models.ForeignKey('Employee', on_delete=models.CASCADE)
+    date = models.DateField(default=timezone.now)
+    login_time = models.TimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
 
+    def __str__(self):
+        return f"{self.employee.name} - {self.date} ({self.status})"
+    
+    
 class PublicHoliday(models.Model):
     date = models.DateField(unique=True)
     title = models.CharField(max_length=100)
@@ -115,3 +105,44 @@ class Meeting(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.date}"
+
+
+class LeaveRequests(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='leave_requests')
+    leave_type = models.CharField(max_length=50)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    reason = models.TextField()
+    status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('approved', 'Approved'), ('denied', 'Denied')], default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+# models.py (inside employees app)
+class Shift(models.Model):
+    name = models.CharField(max_length=100)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    total_hours = models.CharField(max_length=10)
+    created_at = models.DateTimeField(auto_now_add=True)  # Automatically set when created
+    updated_at = models.DateTimeField(auto_now=True) 
+    
+    def __str__(self):
+        return self.name
+
+class Team(models.Model):
+    name = models.CharField(max_length=100)
+    head = models.ForeignKey('Employee', on_delete=models.SET_NULL, null=True, related_name='headed_teams')
+    shift = models.ForeignKey('Shift', on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)  # Automatically set when created
+    updated_at = models.DateTimeField(auto_now=True) 
+
+    
+    def __str__(self):
+        return self.name
+
+
+class Designation(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+
+    def __str__(self):
+        return self.name

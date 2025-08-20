@@ -11,8 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-import dj_database_url
-import os 
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,8 +26,7 @@ SECRET_KEY = 'django-insecure-u4ui3@x-ycfn0ajm2#7@scmky1tkuhdq0&*3@xy8ihm*fuq#oz
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["backend-l3f9.onrender.com", "localhost", "127.0.0.1"]
-
+ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -47,6 +45,9 @@ INSTALLED_APPS = [
     'django_celery_results',
     'audit',
     'employee',
+    'channels',
+    'userauth', 
+    "rest_framework_simplejwt.token_blacklist",
 ]
 
 MIDDLEWARE = [
@@ -79,7 +80,18 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+# Add this
+ASGI_APPLICATION = 'config.asgi.application'
 
+# Use Redis as channel layer backend
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],  # docker service name
+        },
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -92,9 +104,14 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # }
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL')
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'loan_management',
+        'USER': 'postgres',
+        'PASSWORD': '1234',
+        'HOST': '127.0.0.1',
+        'PORT': '5432',
+    }
 }
 
 
@@ -134,7 +151,6 @@ USE_TZ = True
 
 # STATIC_URL = 'static/'
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 STATICFILES_DIRS = [
     BASE_DIR / "static",  # 👈 Your global static folder
@@ -147,8 +163,26 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
 CORS_ALLOW_CREDENTIALS = True 
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:8000",
+]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:8000",
+]
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # Default for admin
+]
 
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'userauth.authentication.CookieJWTAuthentication', # Custom authentication class
+  ),
+  'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
@@ -158,6 +192,24 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 10,  # or smaller for large datasets
     
 }
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
+     "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    # ...
+}
+
+CSRF_COOKIE_SECURE = False  # Set to True in production
+CSRF_COOKIE_SAMESITE = None  # Adjust based on your frontend/backend
+CSRF_COOKIE_HTTPONLY = False  # so JS can read it
+  # Prevents JavaScript access to CSRF cookie
+SESSION_COOKIE_SECURE = False  # Set to True in production
+SESSION_COOKIE_SAMESITE = 'Lax'  # Adjust based on your frontend/backend
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+
 
 CACHES = {
     'default': {

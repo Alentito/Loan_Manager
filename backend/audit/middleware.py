@@ -8,10 +8,12 @@ def get_request_ctx():
     return _request_ctx.get({})
 
 class AuditRequestMiddleware(MiddlewareMixin):
-    def process_request(self, request):
+     def process_view(self, request, view_func, view_args, view_kwargs):
+        print("Audit Middleware -> request.user:", request.user)
         _request_ctx.set({
             "request_id": uuid.uuid4(),
             "actor":      getattr(request, "user", None),
             "ip":         request.META.get("REMOTE_ADDR"),
             "ua":         request.META.get("HTTP_USER_AGENT", "")[:255],
         })
+     

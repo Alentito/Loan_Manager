@@ -1,44 +1,13 @@
 from rest_framework import serializers
-from employee.models import broker, LoanOfficer, Employee, Attendance, PublicHoliday, Meeting
+from employee.models import Broker, LoanOfficer, Employee, Attendance, PublicHoliday, Meeting,LeaveRequests, Shift, Team, Designation
+from django.contrib.auth.models import Group  # or from userauth.models import Role if custom
 
 class BrokerSerializer(serializers.ModelSerializer):
-    logo = serializers.ImageField(use_url=True, required=False, allow_null=True)
-
     class Meta:
-        model = broker
-        fields = [
-            'id',
-            'name',
-            'email',
-            'NMLS',
-            'primary_phone',
-            'phone',
-            'address',
-            'company_address',
-            'logo',
-            'designation',
-            'entregar_email',
-            'entregar_fax',
-            'entregar_phone',
-            'signature',
-            'doc_order_option',
-            'submission_checklist',
-            'created_at',
-            'updated_at',
-        ]
+        model = Broker
+        fields =fields = '__all__'
 
-    def update(self, instance, validated_data):
-        # Handle logo separately (only update if explicitly passed)
-        logo = validated_data.pop('logo', None)
-        if logo is not None:
-            instance.logo = logo
-
-        # Update other fields, including empty strings
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-
-        instance.save()
-        return instance
+   
 
 
 class LoanOfficerSerializer(serializers.ModelSerializer):
@@ -46,60 +15,61 @@ class LoanOfficerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LoanOfficer
-        fields = ['id', 'name', 'contact_number', 'email', 'NMLS', 'broker_company', 'broker_company_name', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'contact_number', 'email', 'NMLS', 'broker_company', 'broker_company_name', 'created_at', 'updated_at','archived_at', 'is_archived']
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
+    roles = serializers.PrimaryKeyRelatedField(
+        queryset=Group.objects.all(),
+        many=True
+    )
+    team_name = serializers.CharField(source='team.name', read_only=True)
+    primary_shift_name = serializers.CharField(source='primary_shift.name', read_only=True)
+    alternate_shift_name = serializers.CharField(source='alternate_shift.name', read_only=True)
+
     class Meta:
         model = Employee
-        fields = [
-            'id',
-            'login_id',
-            'name',
-            'company_email',
-            'contact_number',
-            'position',
-            'performance_score',
-            'experience_months',
-            'bank_name',
-            'account_number',
-            'bank_details',
-            'address',
-            'date_of_join',
-            'status',
-            'login_password',
-            'leave_balance',
-            'date_joined',
-            'updated_at',
-        ]
-        extra_kwargs = {
-            'login_password': {'write_only': False, 'required': False},  # Set write_only=True after debugging
-            'leave_balance': {'read_only': True},
-        }
+        fields =fields = '__all__'
 
     def create(self, validated_data):
-        print("🔐 Creating employee with password:", validated_data.get('login_password'))
-        return Employee.objects.create(**validated_data)
+        roles = validated_data.pop('roles', [])
+        team = validated_data.get('team', None)
+
+        if team and not validated_data.get('primary_shift'):
+            validated_data['primary_shift'] = team.shift
+
+        employee = Employee.objects.create(**validated_data)
+        employee.roles.set(roles)
+        return employee
 
     def update(self, instance, validated_data):
-        print("✏️ Updating employee with password:", validated_data.get('login_password'))
+        roles = validated_data.pop('roles', None)
+        team = validated_data.get('team', instance.team)
+
+        if team and not validated_data.get('primary_shift'):
+            validated_data['primary_shift'] = team.shift
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+
         instance.save()
+
+        if roles is not None:
+            instance.roles.set(roles)
+
         return instance
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
-        fields = ['id', 'employee', 'date', 'status']
-        
+        fields = ['id', 'employee', 'date', 'status', 'login_time']
+      
 
 class PublicHolidaySerializer(serializers.ModelSerializer):
     class Meta:
         model = PublicHoliday
         fields = '__all__'
-
 
 class MeetingSerializer(serializers.ModelSerializer):
     employees = serializers.PrimaryKeyRelatedField(
@@ -108,4 +78,53 @@ class MeetingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Meeting
-        fields = ['id', 'title', 'description', 'date', 'time', 'employees']
+        fields = '__all__'
+        
+class EmployeeBasicSerializer(serializers.ModelSerializer):
+    team = serializers.StringRelatedField()
+    primary_shift = serializers.StringRelatedField()
+    alternate_shift = serializers.StringRelatedField()
+    
+    class Meta:
+        model = Employee
+        fields = '__all__'
+
+class LeaveRequestSerializer(serializers.ModelSerializer):
+    employee = EmployeeBasicSerializer(read_only=True)
+
+    class Meta:
+        model = LeaveRequests
+        fields = '__all__'
+        
+        
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'employee'):
+            validated_data['employee'] = request.user.employee
+        else:
+            raise serializers.ValidationError("User is not associated with an employee.")
+        return super().create(validated_data)
+
+
+class ShiftSerializer(serializers.ModelSerializer):
+    start_time = serializers.TimeField(format='%H:%M', input_formats=['%H:%M'])
+    end_time = serializers.TimeField(format='%H:%M', input_formats=['%H:%M'])
+    class Meta:
+        model = Shift
+        fields = '__all__'
+
+
+class TeamSerializer(serializers.ModelSerializer):
+    head_name = serializers.CharField(source='head.name', read_only=True)
+    shift_name = serializers.CharField(source='shift.name', read_only=True)
+    shift = serializers.PrimaryKeyRelatedField(queryset=Shift.objects.all())
+
+    class Meta:
+        model = Team
+        fields = '__all__'
+     
+
+class DesignationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Designation
+        fields = ['id', 'name']

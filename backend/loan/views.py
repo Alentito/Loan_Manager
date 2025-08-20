@@ -7,6 +7,8 @@ from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from .pagination import CustomPageNumberPagination
 
+from rest_framework.permissions import IsAuthenticated
+
 from django.db import transaction
 
 from django.db.models import Max, F
@@ -14,10 +16,10 @@ from .models import LoanContact
 from .serializers import LoanContactSerializer
 
 
-from .models import Loan, ChecklistQuestion, LoanChecklistAnswer, Broker, Employee, Lender, LoanDocStatus,Task
+from .models import Loan, ChecklistQuestion, LoanChecklistAnswer, Lender, LoanDocStatus,Task
 from .serializers import (
     LoanSerializer, ChecklistQuestionSerializer, 
-    BrokerSerializer, EmployeeSerializer, LenderSerializer, LoanDocStatusSerializer,TaskSerializer
+     LenderSerializer, LoanDocStatusSerializer,TaskSerializer
 )
 from rest_framework.views import APIView
 
@@ -35,6 +37,55 @@ from audit.mixins import AuditableViewSetMixin
 import logging
 
 logger = logging.getLogger(__name__)
+
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from .models import Notification
+
+
+from rest_framework.permissions import DjangoModelPermissions
+
+
+from rest_framework.permissions import DjangoModelPermissions
+
+
+class StrictDjangoModelPermissions(DjangoModelPermissions):
+    # Require view permission for GET
+    perms_map = {
+        'GET': ['%(app_label)s.view_%(model_name)s'],
+        'OPTIONS': [],
+        'HEAD': [],
+        'POST': ['%(app_label)s.add_%(model_name)s'],
+        'PUT': ['%(app_label)s.change_%(model_name)s'],
+        'PATCH': ['%(app_label)s.change_%(model_name)s'],
+        'DELETE': ['%(app_label)s.delete_%(model_name)s'],
+    }
+
+def push_notification(payload: dict):
+
+    Notification.objects.create(
+            user="admin",
+            title="New Loan Created",
+            message=payload.get("message", "New loan created.")
+        )
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        "notifications",  # group name
+        {
+            "type": "send_notification",
+            "message": payload
+        }
+    )
+def push_loan_update(payload):
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        "loan_updates",
+        {
+            "type": "loan.event",
+            "payload": payload
+        }
+    )
+
 
 class XMLUploadViewSet(viewsets.ModelViewSet):
     queryset = XMLUpload.objects.all()
@@ -67,7 +118,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     Use query params `?loan=<id>` and `?status=` for filtering.
     """
     serializer_class   = TaskSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     pagination_class = None
 
     filter_backends  = [DjangoFilterBackend,
@@ -76,26 +127,40 @@ class TaskViewSet(viewsets.ModelViewSet):
     filterset_fields = ["loan", "status", "assignee"]
     search_fields    = ["title", "description"]
     ordering_fields  = ["position", "created_at", "updated_at"]
+    
+
 
     def get_queryset(self):
         queryset = Task.objects.select_related("loan", "assignee")
+        cmp = Task.objects.all()
+
         loan_id = self.kwargs.get('loan_pk')
         if loan_id:
             queryset = queryset.filter(loan_id=loan_id)
-        return queryset
+            return queryset
+        else:
+            return cmp
+        #return queryset
     # ensure POST without ‘loan’ returns 400 (better DX)
     def perform_create(self, serializer):
      status   = serializer.validated_data.get("status")
-     loan_id  = self.kwargs.get("loan_pk") or serializer.validated_data.get("loan").id
-     last_pos = (
-        Task.objects
-        .filter(loan_id=loan_id, status=status)
-        .aggregate(Max("position"))["position__max"]
-     )
-     serializer.save(
-        loan_id = loan_id,
-        position = (last_pos or -1) + 1,
-     )
+     loan_obj = serializer.validated_data.get("loan", None)
+     loan_id  = self.kwargs.get("loan_pk") or (loan_obj.id if loan_obj else None)
+
+     if loan_id is not None:
+        last_pos = (
+            Task.objects
+            .filter(loan_id=loan_id, status=status)
+            .aggregate(Max("position"))["position__max"]
+        )
+        serializer.save(
+            loan_id=loan_id,
+            position=(last_pos or -1) + 1,
+            assigner=self.request.user,
+        )
+     else:
+            # For global tasks, just save (let position default to 0 or whatever you want)
+            serializer.save(assigner=self.request.user)
 
     # keep your position-shifting logic
     def perform_update(self, serializer):
@@ -138,7 +203,10 @@ class LoanContactViewSet(viewsets.ModelViewSet):
     filterset_fields = ['loan']
 
 class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
-    permission_classes = [AllowAny]
+    
+    permission_classes = [StrictDjangoModelPermissions]
+
+    
     queryset = Loan.objects.all()  
     serializer_class = LoanSerializer
     pagination_class = CustomPageNumberPagination
@@ -152,7 +220,29 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
 
     ordering_fields = ['created_at', 'amount', 'milestone', 'first_name']  # allowed sort fields
     ordering = ['-created_at']  # default sort
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        
+        print("SERIALIZER DATA:", serializer.data)  # <--- Add this line
 
+
+        # 🔔 Push notification here
+        push_loan_update({
+            "type": "new_loan",
+            "loan_id": serializer.data['id'],
+            "message": f"New loan created: {serializer.data['first_name']} {serializer.data['last_name']}",
+        })
+        # ✅ Save notification in DB
+        push_notification({
+            "type": "new_loan",
+            "message": f"New loan created: {serializer.data['first_name']} {serializer.data['last_name']}"
+        })
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    
     @action(detail=True, methods=['get'], url_path='checklist-answers')
     def get_checklist_answers(self, request, pk=None):
         loan = self.get_object()
@@ -234,13 +324,7 @@ class ChecklistQuestionViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
 
-class BrokerViewSet(viewsets.ModelViewSet):
-    queryset = Broker.objects.all()
-    serializer_class = BrokerSerializer
 
-class EmployeeViewSet(viewsets.ModelViewSet):
-    queryset = Employee.objects.all()
-    serializer_class = EmployeeSerializer
 
 class LendorViewSet(viewsets.ModelViewSet):
     queryset = Lender.objects.all()
