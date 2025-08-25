@@ -48,6 +48,35 @@ from rest_framework.permissions import DjangoModelPermissions
 
 from rest_framework.permissions import DjangoModelPermissions
 
+# app/services/events.py
+from .models import EventOutbox
+
+
+
+from rest_framework import viewsets
+from .models import Notification
+from .serializers import NotificationSerializer
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user_id=self.request.user.id).order_by('-created_at')
+
+
+        
+
+def emit_event(aggregate: str, event_type: str, tenant_id: str, payload: dict, aggregate_id=None):
+    # Simple helper; ensure caller wraps in transaction.atomic when needed
+    return EventOutbox.objects.create(
+        aggregate=aggregate,
+        aggregate_id=aggregate_id,
+        event_type=event_type,
+        payload=payload,
+        tenant_id=tenant_id
+    )
+
 
 class StrictDjangoModelPermissions(DjangoModelPermissions):
     # Require view permission for GET
@@ -60,22 +89,71 @@ class StrictDjangoModelPermissions(DjangoModelPermissions):
         'PATCH': ['%(app_label)s.change_%(model_name)s'],
         'DELETE': ['%(app_label)s.delete_%(model_name)s'],
     }
-
-def push_notification(payload: dict):
-
-    Notification.objects.create(
-            user="admin",
-            title="New Loan Created",
-            message=payload.get("message", "New loan created.")
-        )
+# where you keep push_loan_update / push_notification
+def push_task_update(payload: dict):
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
-        "notifications",  # group name
+        "task_updates",
         {
-            "type": "send_notification",
-            "message": payload
+            "type": "task.event",
+            "payload": payload
         }
     )
+
+
+logger = logging.getLogger(__name__)
+ch = get_channel_layer()
+
+def push_notification_minimal(payload: dict, recipients=None, tenant_id=None):
+    """
+    Backwards-compatible helper. Prefer writing to outbox via emit_event instead.
+    payload: dict with title, message, data, type
+    recipients: list of user ids (preferred). If None and tenant_id provided, broadcast to tenant group.
+    """
+    now = timezone.now()
+    title = payload.get("title", "Notification")
+    message = payload.get("message", "")
+
+    if recipients:
+        for uid in recipients:
+            try:
+                notif = Notification.objects.create(
+                    user_id=uid,
+                    tenant_id=tenant_id or "default",
+                    type=payload.get("type",""),
+                    title=title,
+                    body=message,
+                    data=payload.get("data", {})
+                )
+                async_to_sync(ch.group_send)(
+                    f"user-{n.user_id}",
+                    {"type":"send_notification", "message": {
+                        "id": str(notif.id),
+                        "type": notif.type,
+                        "title": notif.title,
+                        "body": notif.body,
+                        "data": notif.data,
+                        "created_at": notif.created_at.isoformat()
+                    }}
+                )
+            except Exception as e:
+                logger.exception("push_notification_minimal failed for user %s: %s", uid, e)
+        return
+
+    # fallback to tenant broadcast
+    if tenant_id:
+        try:
+            async_to_sync(ch.group_send)(
+                f"tenant:{tenant_id}",
+                {"type":"send_notification", "message": {
+                    "title": title, "body": message, "data": payload.get("data", {}), "created_at": now.isoformat()
+                }}
+            )
+        except Exception:
+            logger.exception("tenant push failed")
+    else:
+        logger.warning("push_notification_minimal called without recipients or tenant_id")
+        
 def push_loan_update(payload):
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
@@ -114,7 +192,7 @@ class XMLUploadViewSet(viewsets.ModelViewSet):
     
 class TaskViewSet(viewsets.ModelViewSet):
     """
-    Pure-DRF ViewSet:    /api/tasks/
+    Pure-DRF ViewSet: /api/tasks/
     Use query params `?loan=<id>` and `?status=` for filtering.
     """
     serializer_class   = TaskSerializer
@@ -127,8 +205,6 @@ class TaskViewSet(viewsets.ModelViewSet):
     filterset_fields = ["loan", "status", "assignee"]
     search_fields    = ["title", "description"]
     ordering_fields  = ["position", "created_at", "updated_at"]
-    
-
 
     def get_queryset(self):
         queryset = Task.objects.select_related("loan", "assignee")
@@ -140,45 +216,105 @@ class TaskViewSet(viewsets.ModelViewSet):
             return queryset
         else:
             return cmp
-        #return queryset
-    # ensure POST without ‘loan’ returns 400 (better DX)
+
     def perform_create(self, serializer):
-     status   = serializer.validated_data.get("status")
-     loan_obj = serializer.validated_data.get("loan", None)
-     loan_id  = self.kwargs.get("loan_pk") or (loan_obj.id if loan_obj else None)
+        status_val = serializer.validated_data.get("status")
+        loan_obj = serializer.validated_data.get("loan", None)
+        loan_id  = self.kwargs.get("loan_pk") or (loan_obj.id if loan_obj else None)
 
-     if loan_id is not None:
-        last_pos = (
-            Task.objects
-            .filter(loan_id=loan_id, status=status)
-            .aggregate(Max("position"))["position__max"]
-        )
-        serializer.save(
-            loan_id=loan_id,
-            position=(last_pos or -1) + 1,
-            assigner=self.request.user,
-        )
-     else:
-            # For global tasks, just save (let position default to 0 or whatever you want)
-            serializer.save(assigner=self.request.user)
+        if loan_id is not None:
+            last_pos = (
+                Task.objects
+                .filter(loan_id=loan_id, status=status_val)
+                .aggregate(Max("position"))["position__max"]
+            )
+            task = serializer.save(
+                loan_id=loan_id,
+                position=(last_pos or -1) + 1,
+                assigner=self.request.user,
+            )
+        else:
+            task = serializer.save(assigner=self.request.user)
 
-    # keep your position-shifting logic
+        with transaction.atomic():
+            loan = serializer.save()
+            emit_event(
+                aggregate="loan",
+                aggregate_id=loan.id,
+                event_type="LoanCreated",
+                tenant_id=getattr(loan, "tenant_id", "default"),
+                payload={
+                    "loan_id": str(loan.id),
+                    "first_name": loan.first_name,
+                    "last_name": loan.last_name,
+                    "created_by": request.user.id,
+                }
+            )
+
+        # push notification + DB record
+        # payload = {
+        #     "type": "task_created",
+        #     "task_id": task.id,
+        #     "loan_id": getattr(task.loan, "id", None),
+        #     "message": f"Task created: {task.title}"
+        # }
+        # push_task_update(payload)
+        # push_notification({
+        #     "type": "task_created",
+        #     "message": payload["message"]
+        # })
+
     def perform_update(self, serializer):
         old = self.get_object()
-        new_status = serializer.validated_data.get("status", old.status)
-        new_pos    = serializer.validated_data.get("position", old.position)
+        old_status = old.status
+        old_position = old.position
+        old_title = old.title
+        old_description = old.description
+        old_assignee_id = getattr(old.assignee, "id", None)
 
-        if new_status != old.status:
+        new_status = serializer.validated_data.get("status", old_status)
+        new_pos    = serializer.validated_data.get("position", old_position)
+
+        # adjust positions when moving out of old status
+        if new_status != old_status:
             Task.objects.filter(
-                loan=old.loan, status=old.status, position__gt=old.position
+                loan=old.loan, status=old_status, position__gt=old.position
             ).update(position=F("position") - 1)
 
+        # make space in new status
         Task.objects.filter(
             loan=old.loan, status=new_status, position__gte=new_pos
         ).update(position=F("position") + 1)
 
-        serializer.save(position=new_pos, status=new_status)
+        # save and get instance
+        instance = serializer.save(position=new_pos, status=new_status)
 
+        # compute diffs to include in notification
+        diffs = {}
+        if old_status != instance.status:
+            diffs["status"] = {"old": old_status, "new": instance.status}
+        if old_position != instance.position:
+            diffs["position"] = {"old": old_position, "new": instance.position}
+        if old_title != instance.title:
+            diffs["title"] = {"old": old_title, "new": instance.title}
+        if old_description != instance.description:
+            diffs["description"] = {"old": old_description, "new": instance.description}
+        new_assignee_id = getattr(instance.assignee, "id", None)
+        if old_assignee_id != new_assignee_id:
+            diffs["assignee"] = {"old": old_assignee_id, "new": new_assignee_id}
+
+        payload = {
+            "type": "task_updated",
+            "task_id": instance.id,
+            "loan_id": getattr(instance.loan, "id", None),
+            "diff": diffs,
+            "message": f"Task updated: {instance.title}"
+        }
+        push_task_update(payload)
+        push_notification({
+            "type": "task_updated",
+            "message": payload["message"]
+        })
 
 class LoanDocStatusViewSet(viewsets.ModelViewSet):
     queryset = LoanDocStatus.objects.all()
@@ -223,26 +359,32 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+
+        with transaction.atomic():
+            loan = serializer.save()
+            emit_event(
+                aggregate="loan",
+                aggregate_id=loan.id,
+                event_type="LoanCreated",
+                tenant_id=getattr(loan, "tenant_id", "default"),
+                payload={
+                    "loan_id": str(loan.id),
+                    "first_name": loan.first_name,
+                    "last_name": loan.last_name,
+                    "created_by": request.user.id,
+                }
+            )
+            push_loan_update({
+            "type": "LoanCreated",
+            "loan_id": str(loan.id),
+            "first_name": loan.first_name,
+            "last_name": loan.last_name,
+            "created_by": request.user.id,
+             })
+
         headers = self.get_success_headers(serializer.data)
-        
-        print("SERIALIZER DATA:", serializer.data)  # <--- Add this line
-
-
-        # 🔔 Push notification here
-        push_loan_update({
-            "type": "new_loan",
-            "loan_id": serializer.data['id'],
-            "message": f"New loan created: {serializer.data['first_name']} {serializer.data['last_name']}",
-        })
-        # ✅ Save notification in DB
-        push_notification({
-            "type": "new_loan",
-            "message": f"New loan created: {serializer.data['first_name']} {serializer.data['last_name']}"
-        })
-
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-    
+
     @action(detail=True, methods=['get'], url_path='checklist-answers')
     def get_checklist_answers(self, request, pk=None):
         loan = self.get_object()
@@ -329,3 +471,6 @@ class ChecklistQuestionViewSet(viewsets.ModelViewSet):
 class LendorViewSet(viewsets.ModelViewSet):
     queryset = Lender.objects.all()
     serializer_class = LenderSerializer
+
+
+

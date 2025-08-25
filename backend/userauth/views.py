@@ -26,6 +26,28 @@ from django.contrib.auth.models import Permission
 
 from rest_framework.permissions import BasePermission
 
+
+
+from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth import get_user_model
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "groups": [g.name for g in user.groups.all()],
+            "permissions": list(user.get_all_permissions()),  # e.g. ["app.view_dashboard", ...]
+
+            # add other fields as needed
+        })
+
+
+
 class HasGroupPermission(BasePermission):
     def has_permission(self, request, view):
         # Check if user is authenticated
@@ -63,11 +85,9 @@ class CookieTokenRefreshView(APIView):
     permission_classes = [AllowAny]
     #authentication_classes = []
     def post(self, request, *args, **kwargs):
-        print( "hi")
-        print("Refresh endpoint called")
+        
         refresh_token = request.COOKIES.get('refresh_token')
-        print("COOKIES:", request.COOKIES)
-        print("refresh_token:", refresh_token)
+        
         if not refresh_token:
             return Response({"detail": "Refresh token missing myree umfi"},
                             status=status.HTTP_401_UNAUTHORIZED)
@@ -113,10 +133,16 @@ class CookieTokenRefreshView(APIView):
 class CookieTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
+        
         if response.status_code == 200:
             data = response.data
             refresh = data["refresh"]
             access = data["access"]
+
+
+            print("Login for user:", request.data.get("username"))
+            print("Access token:", access)
+            print("Refresh token:", refresh)
 
             res = Response(status=status.HTTP_200_OK)
             res.set_cookie(

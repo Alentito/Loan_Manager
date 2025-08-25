@@ -10,8 +10,15 @@ from django.utils import timezone
 from loan.models import XMLUpload, Loan
 from loan.importer import LoanImporter
 
+from loan.outbox_publisher import publish_outbox_batch
+
 
 logger = get_task_logger(__name__)
+
+
+@shared_task
+def publish_outbox():
+    publish_outbox_batch()
 
 @shared_task
 def test_task(message):

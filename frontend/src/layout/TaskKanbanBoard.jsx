@@ -101,92 +101,39 @@ export default function TaskKanbanBoard({
 }
 
 // ---------------- Column -----------------
+// ---------------- Column -----------------
 const Column = ({ title, headingColor, cards, column, setCards, onAddCard, onCardContextMenu }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const [active, setActive] = useState(false);
 
-  const handleDragStart = (e, card) => e.dataTransfer.setData("cardId", card.id);
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setActive(false);
 
- const handleDragEnd = (e) => {
-  const cardId = String(e.dataTransfer.getData("cardId")); // normalize to string
+    const cardId = e.dataTransfer.getData("cardId");
+    if (!cardId) return;
 
-  setActive(false);
-  clearHighlights();
-
-  const indicators = getIndicators();
-  const { element } = getNearestIndicator(e, indicators);
-
-  const before = element?.dataset?.before ?? "-1";
-
-  if (before !== cardId) {
     let copy = [...cards];
-
-    // find the card by string id
     let cardToTransfer = copy.find((c) => String(c.id) === cardId);
     if (!cardToTransfer) return;
-    cardToTransfer = { ...cardToTransfer, column };
 
-    // remove the old one
+    // If already in same column → do nothing
+    if (cardToTransfer.column === column) return;
+
+    // Remove from old column & append to new one
     copy = copy.filter((c) => String(c.id) !== cardId);
-
-    if (before === "-1") {
-      copy.push(cardToTransfer);
-    } else {
-      const insertAtIndex = copy.findIndex((el) => String(el.id) === String(before));
-      if (insertAtIndex === -1) {
-        copy.push(cardToTransfer);
-      } else {
-        copy.splice(insertAtIndex, 0, cardToTransfer);
-      }
-    }
+    copy.push({ ...cardToTransfer, column });
 
     setCards(copy);
-  }
-};
-
+  };
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    highlightIndicator(e);
     setActive(true);
   };
 
-  const clearHighlights = (els) => {
-    const indicators = els || getIndicators();
-    indicators.forEach((i) => (i.style.opacity = "0"));
-  };
-
-  const highlightIndicator = (e) => {
-    const indicators = getIndicators();
-    clearHighlights(indicators);
-    const el = getNearestIndicator(e, indicators);
-    el.element.style.opacity = "1";
-  };
-
-  // replace your getNearestIndicator with this:
-const getNearestIndicator = (e, indicators) => {
-  if (!indicators || indicators.length === 0) return { element: null, index: -1 };
-
-  for (let i = 0; i < indicators.length; i++) {
-    const rect = indicators[i].getBoundingClientRect();
-    const midpoint = rect.top + rect.height / 2;
-    if (e.clientY < midpoint) {
-      return { element: indicators[i], index: i };
-    }
-  }
-
-  // pointer is after all indicators
-  return { element: indicators[indicators.length - 1], index: indicators.length - 1 };
-};
-
-
-  const getIndicators = () => Array.from(document.querySelectorAll(`[data-column="${column}"]`));
-
-  const handleDragLeave = () => {
-    clearHighlights();
-    setActive(false);
-  };
+  const handleDragLeave = () => setActive(false);
 
   const filteredCards = (cards || []).filter((c) => c.column === column);
 
@@ -202,7 +149,7 @@ const getNearestIndicator = (e, indicators) => {
       </div>
 
       <div
-        onDrop={handleDragEnd}
+        onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         className={`flex-1 overflow-y-auto transition-colors ${
@@ -210,15 +157,20 @@ const getNearestIndicator = (e, indicators) => {
         } p-1`}
       >
         {filteredCards.map((c) => (
-          <Card key={c.id} {...c} handleDragStart={handleDragStart} onContextMenu={(e) => onAddCard && onCardContextMenu && onCardContextMenu(e, c)} />
+          <Card
+            key={c.id}
+            {...c}
+            handleDragStart={(e) => e.dataTransfer.setData("cardId", String(c.id))}
+            onContextMenu={(e) => onAddCard && onCardContextMenu && onCardContextMenu(e, c)}
+          />
         ))}
 
-        <DropIndicator beforeId={null} column={column} />
         <AddCard column={column} onAddCard={onAddCard} />
       </div>
     </div>
   );
 };
+
 
 // ---------------- Card -----------------
 const Card = ({ title, description, assignee, assigner, id, column, handleDragStart, onContextMenu }) => {
@@ -231,7 +183,7 @@ const Card = ({ title, description, assignee, assigner, id, column, handleDragSt
 
   return (
     <>
-      <DropIndicator beforeId={id} column={column} />
+      
 
       <div onContextMenu={onContextMenu}>
         <motion.div
@@ -311,9 +263,7 @@ const Card = ({ title, description, assignee, assigner, id, column, handleDragSt
 };
 
 // ---------------- DropIndicator -----------------
-const DropIndicator = ({ beforeId, column }) => (
-  <div data-before={beforeId || "-1"} data-column={column} className="my-0.5 h-0.5 w-full bg-blue-400 opacity-0" />
-);
+
 
 // ---------------- BurnBarrel -----------------
 const BurnBarrel = ({ onDeleteCard }) => {

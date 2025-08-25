@@ -145,12 +145,12 @@ const initials =
           {notifList.length === 0 && <MenuItem disabled>No new notifications</MenuItem>}
 
           {notifList.slice(0, 6).map((n, i) => {
-  const { title, message, timestamp } = n.message || {};
+  // Use n.title, n.body, n.created_at directly
   return (
     <MenuItem key={i} onClick={() => handleNotifClose()}>
       <ListItemText
-        primary={title || message || "Notification"}
-        secondary={timestamp || ""}
+        primary={n.title || n.body || "Notification"}
+        secondary={n.created_at || n.timestamp || ""}
         primaryTypographyProps={{ fontWeight: n.read ? "normal" : "bold" }}
       />
     </MenuItem>

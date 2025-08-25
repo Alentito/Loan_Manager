@@ -3,38 +3,31 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
   isAuthenticated: false,
-  initialized: false, // becomes true after initial auth check
-  user: null,         // optional: store minimal user info if you want
+  initialized: false,
+  user: null,
 };
 
 const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    // Call with payload = user object OR payload = true/false
     setAuthenticated(state, action) {
-      // If payload is a user object, mark authenticated and save user
+        console.log("Reducer called with:", action.payload);
+
       if (action.payload && typeof action.payload === "object") {
         state.isAuthenticated = true;
         state.user = action.payload;
       } else {
-        state.isAuthenticated = !!action.payload; // true/false or default
+        state.isAuthenticated = !!action.payload;
         if (!action.payload) state.user = null;
       }
+      state.initialized = true; // important: mark init done when we have auth result
     },
-
-    // Logout: fully clear client-side auth state & localStorage keys
     logoutAction(state) {
       state.isAuthenticated = false;
       state.user = null;
-      state.initialized = true; // ensure app doesn't keep waiting for init
-      try {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-      } catch (e) { /* ignore */ }
+      state.initialized = true;
     },
-
-    // Mark that initial auth check completed
     setInitialized(state, action) {
       state.initialized = !!action.payload;
     },

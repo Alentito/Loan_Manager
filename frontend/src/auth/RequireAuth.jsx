@@ -1,6 +1,9 @@
 import { Navigate, Outlet } from "react-router-dom";
+import { useSelector } from "react-redux";
 
 export default function RequireAuth() {
-  const token = localStorage.getItem("access");
-  return token ? <Outlet /> : <Navigate to="/login" />;
+  // RequireAuth.jsx
+const { isAuthenticated, user, initialized } = useSelector((state) => state.auth);
+console.log("RequireAuth:", { isAuthenticated, user, initialized });
+return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
 }

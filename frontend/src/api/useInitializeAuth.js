@@ -1,27 +1,30 @@
-// src/hooks/useInitializeAuth.js
 import { useEffect } from "react";
-import { useRefreshTokenMutation } from "./authApi";
+import { useRefreshTokenMutation, useLazyGetMeQuery } from "../api/authApi";
 import { useDispatch } from "react-redux";
-import { logoutAction, setAuthenticated, setInitialized } from "./authSlice";
+import { logoutAction, setAuthenticated, setInitialized } from "../api/authSlice";
 
 export default function useInitializeAuth() {
   const [refresh] = useRefreshTokenMutation();
   const dispatch = useDispatch();
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        await refresh().unwrap(); // cookie-based refresh
-        if (!mounted) return;
-        dispatch(setAuthenticated(true));
-      } catch (err) {
-        if (!mounted) return;
-        dispatch(logoutAction()); // clear app state if refresh fails
-      } finally {
-        if (mounted) dispatch(setInitialized(true));
-      }
-    })();
-    return () => { mounted = false; };
-  }, [refresh, dispatch]);
+  const [triggerGetMe] = useLazyGetMeQuery();
+
+useEffect(() => {
+  let mounted = true;
+  (async () => {
+    try {
+      await refresh().unwrap();
+      const result = await triggerGetMe();
+      const user = result.data;
+      if (!mounted) return;
+      dispatch(setAuthenticated(user));
+    } catch (err) {
+      if (!mounted) return;
+      dispatch(logoutAction());
+    } finally {
+      if (mounted) dispatch(setInitialized(true));
+    }
+  })();
+  return () => { mounted = false; };
+}, [refresh, triggerGetMe, dispatch]);
 }

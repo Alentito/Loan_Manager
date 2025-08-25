@@ -2,15 +2,24 @@ import { useEffect } from "react";
 
 export function useNotificationSocket(onMessage) {
   useEffect(() => {
-    const socket = new WebSocket("ws://127.0.0.1:8000/ws/notifications/");
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    // Use window.location.host so it matches the frontend dev server (5173)
+    const url = `${proto}://${window.location.host}/ws/notifications/`;
+
+    const socket = new WebSocket(url);
 
     socket.onopen = () => console.log("✅ Notification WebSocket connected");
-    socket.onclose = () => console.warn("❌ Notification WebSocket disconnected");
+    socket.onclose = (ev) =>
+      console.warn("❌ Notification WebSocket disconnected", ev);
     socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      onMessage(data);  // callback with the message
-    };
+  console.log("WS message received:", event.data);
+  onMessage(JSON.parse(event.data));
+};
 
-    return () => socket.close();
+    return () => {
+      try {
+        socket.close();
+      } catch (e) {}
+    };
   }, [onMessage]);
 }

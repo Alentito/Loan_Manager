@@ -13,6 +13,8 @@ import xml.etree.ElementTree as ET
 import csv
 import pytz
 import os, re
+from django.db import transaction
+
 from datetime import date, timedelta
 import calendar
 from django.utils import timezone

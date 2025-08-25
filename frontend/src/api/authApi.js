@@ -2,7 +2,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import baseQueryWithReauth from "./baseApi"; // Import the base query with re-authentication
 
-
 export const authApi = createApi({
   reducerPath: "authApi",
   baseQuery: baseQueryWithReauth, // Use the base query with re-authentication
@@ -12,7 +11,6 @@ export const authApi = createApi({
       query: () => ({
         url: "token/refresh/",
         method: "POST",
-        
       }),
     }),
     login: builder.mutation({
@@ -42,6 +40,9 @@ export const authApi = createApi({
         credentials: "include",
       }),
     }),
+    getMe: builder.query({
+      query: () => "me/",
+    }),
   }),
 });
 
@@ -51,5 +52,8 @@ export const {
   useGetPermissionsQuery,
   useGetGroupsQuery,
   useCreateGroupMutation,
-  useLogoutMutation
+  useLogoutMutation,
+  useLazyGetPermissionsQuery,
+  useGetMeQuery,
+  useLazyGetMeQuery,
 } = authApi;

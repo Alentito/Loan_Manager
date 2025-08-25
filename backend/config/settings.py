@@ -107,12 +107,13 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'loan_management',
-        'USER': 'postgres',
-        'PASSWORD': '1234',
+        'USER': 'alentito',          # change from 'postgres' to 'loanuser'
+        'PASSWORD': '1234',  # the password you set for loanuser
         'HOST': '127.0.0.1',
         'PORT': '5432',
     }
 }
+
 
 
 # Password validation
@@ -229,3 +230,10 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True # celery >=5.2
+
+CELERY_BEAT_SCHEDULE = {
+    "publish-outbox-every-2s": {
+        "task": "loan.tasks.publish_outbox",  # create a wrapper Celery task that calls publish_outbox_batch
+        "schedule": 2.0,
+    }
+}

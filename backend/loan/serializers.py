@@ -8,6 +8,14 @@ from employee.models import Broker, LoanOfficer
 from employee.serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer
 from employee.models import Broker, LoanOfficer, Employee
 
+
+from .models import Notification
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = "__all__"
+        
 class SimpleEmployeeSerializer(serializers.ModelSerializer):
     #full_name = serializers.SerializerMethodField()
     class Meta:

@@ -5,13 +5,41 @@ from employee.models import Employee, Broker,LoanOfficer
 
 User = get_user_model()
 
+# models/events.py
+import uuid
+from django.db import models
+
+class EventOutbox(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    aggregate = models.CharField(max_length=40)          # "loan","task"
+    aggregate_id = models.UUIDField(null=True, blank=True)
+    event_type = models.CharField(max_length=60)
+    payload = models.JSONField()
+    tenant_id = models.CharField(max_length=60)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    publish_try = models.IntegerField(default=0)
+    version = models.IntegerField(default=1)
+
+    
+
+# models/notifications.py
 class Notification(models.Model):
-    #user = models.ForeignKey(User, on_delete=models.CASCADE)
-    user = models.CharField(max_length=200)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE)
+    tenant_id = models.CharField(max_length=60)
+    type = models.CharField(max_length=60)
     title = models.CharField(max_length=200)
-    message = models.TextField()
+    body = models.TextField(blank=True)
+    entity_type = models.CharField(max_length=40, blank=True)
+    entity_id = models.UUIDField(null=True, blank=True)
+    severity = models.CharField(max_length=20, blank=True)  # info|warning|critical
+    data = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    
+
 
 
 # models.py
