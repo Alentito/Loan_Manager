@@ -19,6 +19,7 @@ const handleSubmit = async (e) => {
   try {
     await login({ username, password }).unwrap();
     const result = await triggerGetMe();
+    
         console.log("Result from triggerGetMe:", result);
 
     const user = result.data;

@@ -7,6 +7,10 @@ import MenuItem from "@mui/material/MenuItem";
 import Chip from "@mui/material/Chip";
 import { useTheme } from "@mui/material/styles";
 
+
+import { SquarePen, Trash } from "lucide-react";
+
+
 // Theme-aware Task Kanban Board
 // - Uses MUI `useTheme()` to switch styles automatically between light/dark
 // - Keeps most of your original behaviour intact (drag/drop, context menu, add card)
@@ -57,7 +61,7 @@ export default function TaskKanbanBoard({
   return (
     <div
       className={`flex flex-col h-full w-full gap-3 overflow-hidden transition-colors ${
-        isDark ? "bg-neutral-900 text-neutral-100" : "bg-neutral-50 text-neutral-900"
+        isDark ? "bg-neutral-900 text-neutral-100" : "bg-white text-neutral-900"
       }`}
     >
       {/* Kanban zone */}
@@ -91,8 +95,8 @@ export default function TaskKanbanBoard({
             : undefined
         }
       >
-        <MenuItem onClick={handleEdit}>Edit</MenuItem>
-        <MenuItem onClick={handleDelete}>Delete</MenuItem>
+        <MenuItem onClick={handleEdit}> <SquarePen size={16} />Edit</MenuItem>
+        <MenuItem onClick={handleDelete}> <Trash size={16} /> Delete</MenuItem>
       </Menu>
 
       <BurnBarrel onDeleteCard={onDeleteCard} />
@@ -139,7 +143,7 @@ const Column = ({ title, headingColor, cards, column, setCards, onAddCard, onCar
 
   return (
     <div
-      className={`w-[32.4%] min-h-[50vh] shrink-0 flex flex-col p-3 rounded-lg transition-colors ${
+      className={`w-[32.4%] h-screen shrink-0 flex flex-col p-3 rounded-lg transition-colors ${
         isDark ? "bg-neutral-800" : "bg-neutral-100"
       }`}
     >
@@ -152,9 +156,10 @@ const Column = ({ title, headingColor, cards, column, setCards, onAddCard, onCar
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        className={`flex-1 overflow-y-auto transition-colors ${
-          active ? "bg-blue-200/30" : "bg-transparent"
-        } p-1`}
+        className={`flex-1 overflow-y-auto transition-colors flex flex-col gap-1 ${
+    active ? "bg-blue-200/30" : "bg-transparent"
+  } p-1`}
+
       >
         {filteredCards.map((c) => (
           <Card

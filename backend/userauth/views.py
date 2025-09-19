@@ -42,6 +42,7 @@ class MeView(APIView):
             "email": user.email,
             "groups": [g.name for g in user.groups.all()],
             "permissions": list(user.get_all_permissions()),  # e.g. ["app.view_dashboard", ...]
+            "firstName": user.first_name,
 
             # add other fields as needed
         })

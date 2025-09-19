@@ -1,7 +1,14 @@
 // LoanDetails.jsx (drop-in replacement)
 import React, { Suspense, lazy, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useGetLoanQuery, useDeleteLoanMutation } from "../api/loanApi";
+
+import { useSelector } from "react-redux";
+
+import {
+  useGetLoanQuery,
+  useDeleteLoanMutation,
+  useUpdateLoanMutation,
+} from "../api/loanApi";
 
 import Skeleton from "@mui/material/Skeleton";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -102,6 +109,12 @@ const localTheme = createTheme({
 });
 
 export default function LoanDetails() {
+  const Permissions = useSelector(
+    (state) => state.auth.user?.permissions || []
+  );
+
+  const [updateLoan] = useUpdateLoanMutation();
+
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -159,6 +172,27 @@ export default function LoanDetails() {
   const handleEditLoan = (loanObj) => {
     setSelectedLoan(loanObj);
     setEditMode(true);
+  };
+  const handleSaveEditLoan = async () => {
+    try {
+      await updateLoan({ id: loan.id, data: newLoan }).unwrap();
+      setOpenNew(false);
+      setEditMode(false);
+      setSelectedLoan(null);
+      setNewLoan({});
+      refetch();
+      setSnackbar({
+        open: true,
+        severity: "success",
+        message: "Loan updated.",
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        severity: "error",
+        message: "Failed to update loan.",
+      });
+    }
   };
 
   const handleDelete = async () => {
@@ -235,191 +269,213 @@ export default function LoanDetails() {
                   {tab === 0 && (
                     <Box>
                       {/* LEFT COLUMN */}
-                      
-                        <Card variant="outlined" sx={{ mb: 3 }}>
-                          <CardContent>
+
+                      <Card variant="outlined" sx={{ mb: 3 }}>
+                        <CardContent>
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            justifyContent="space-between"
+                            sx={{ mb: 2 }}
+                          >
                             <Stack
                               direction="row"
+                              spacing={2}
                               alignItems="center"
-                              justifyContent="space-between"
-                              sx={{ mb: 2 }}
                             >
-                              <Stack
-                                direction="row"
-                                spacing={2}
-                                alignItems="center"
+                              <Avatar
+                                sx={{
+                                  bgcolor: "primary.main",
+                                  width: 56,
+                                  height: 56,
+                                  fontSize: 20,
+                                }}
                               >
-                                <Avatar
-                                  sx={{
-                                    bgcolor: "primary.main",
-                                    width: 56,
-                                    height: 56,
-                                    fontSize: 20,
-                                  }}
+                                {loan.first_name?.[0]?.toUpperCase() || "U"}
+                              </Avatar>
+                              <Box>
+                                <Typography variant="h6">
+                                  {loan.first_name} {loan.last_name}
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
                                 >
-                                  {loan.first_name?.[0]?.toUpperCase() || "U"}
-                                </Avatar>
-                                <Box>
-                                  <Typography variant="h6">
-                                    {loan.first_name} {loan.last_name}
-                                  </Typography>
-                                  <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                  >
-                                    Loan ID: {loan.id ?? "-"} • Created:{" "}
-                                    {loan.created_at
-                                      ? new Date(
-                                          loan.created_at
-                                        ).toLocaleDateString()
-                                      : "-"}
-                                  </Typography>
-                                </Box>
-                              </Stack>
-                              <Chip
-                                label={loan.milestone ?? "Unknown"}
-                                color="primary"
-                                size="small"
-                              />
+                                  Loan ID: {loan.id ?? "-"} • Created:{" "}
+                                  {loan.created_at
+                                    ? new Date(
+                                        loan.created_at
+                                      ).toLocaleDateString()
+                                    : "-"}
+                                </Typography>
+                              </Box>
                             </Stack>
+                            <Chip
+                              label={loan.milestone ?? "Unknown"}
+                              color="primary"
+                              size="small"
+                            />
+                          </Stack>
 
-                            <Divider sx={{ mb: 2 }} />
+                          <Divider sx={{ mb: 2 }} />
 
-                            {/* summary row */}
-                            <Grid container spacing={2}>
-                              <Grid item xs={6}>
-                                <Typography>
-                                  <strong>Borrower:</strong> {loan.first_name}{" "}
-                                  {loan.last_name}
-                                </Typography>
-                              </Grid>
-                              <Grid item xs={6}>
-                                <Typography>
-                                  <strong>Amount:</strong> {loan.amount ?? "-"}
-                                </Typography>
-                              </Grid>
-                              <Grid item xs={6}>
-                                <Typography>
-                                  <strong>Closing Date:</strong>{" "}
-                                  {loan.closing_date ?? "-"}
-                                </Typography>
-                              </Grid>
-                              <Grid item xs={6}>
-                                <Typography noWrap>
-                                  <strong>Lenders:</strong>{" "}
-                                  {Array.isArray(loan.lenders)
-                                    ? loan.lenders.join(", ")
-                                    : loan.lenders ?? "-"}
-                                </Typography>
-                              </Grid>
+                          {/* summary row */}
+                          <Grid container spacing={2}>
+                            <Grid item xs={6}>
+                              <Typography>
+                                <strong>Borrower:</strong> {loan.first_name}{" "}
+                                {loan.last_name}
+                              </Typography>
                             </Grid>
+                            <Grid item xs={6}>
+                              <Typography>
+                                <strong>Amount:</strong> {loan.amount ?? "-"}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography>
+                                <strong>Closing Date:</strong>{" "}
+                                {loan.closing_date ?? "-"}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography noWrap>
+                                <strong>Lenders:</strong>{" "}
+                                {Array.isArray(loan.lenders)
+                                  ? loan.lenders.join(", ")
+                                  : loan.lenders ?? "-"}
+                              </Typography>
+                            </Grid>
+                          </Grid>
 
-                            <Divider sx={{ my: 2 }} />
+                          <Divider sx={{ my: 2 }} />
 
-{/* --- Quick Info (left) + Two mini-cards (right) --- */}
-<Box
-  sx={{
-    display: "flex",
-    gap: 2,
-    width: "100%",
-    flexDirection: { xs: "column", md: "row" },
-    alignItems: "stretch",
-  }}
->
-  {/* LEFT column (fills remaining space) */}
-  <Box
-    sx={{
-      flex: 1,                      // take remaining space
-      boxSizing: "border-box",
-      display: "flex",
-      flexDirection: "column",      // stack cards vertically
-      gap: 2,
-      alignItems: "stretch",
-    }}
-  >
-    {/* Mini-card 1 */}
-    <Card
-      variant="outlined"
-      sx={{
-        width: "100%",              // full width of left column
-        boxSizing: "border-box",
-        p: 2,
-      }}
-    >
-      <Typography sx={{ mb: 1 }}>
-        <strong>Compensation:</strong> {loan.compensation ?? "Nil"}
-      </Typography>
-      <Typography sx={{ mb: 1 }}>
-        <strong>Lock Status:</strong> {loan.lock_status ?? "Nil"}
-      </Typography>
-      <Typography sx={{ mb: 1 }}>
-        <strong>Point File:</strong> {loan.point_file ?? "Nil"}
-      </Typography>
-      <Typography sx={{ mb: 1 }}>
-        <strong>Property:</strong> {loan.subject_property ?? "Nil"}
-      </Typography>
-    </Card>
+                          {/* --- Quick Info (left) + Two mini-cards (right) --- */}
+                          <Box
+                            sx={{
+                              display: "flex",
+                              gap: 2,
+                              width: "100%",
+                              flexDirection: { xs: "column", md: "row" },
+                              alignItems: "stretch",
+                            }}
+                          >
+                            {/* LEFT column (fills remaining space) */}
+                            <Box
+                              sx={{
+                                flex: 1, // take remaining space
+                                boxSizing: "border-box",
+                                display: "flex",
+                                flexDirection: "column", // stack cards vertically
+                                gap: 2,
+                                alignItems: "stretch",
+                              }}
+                            >
+                              {/* Mini-card 1 */}
+                              <Card
+                                variant="outlined"
+                                sx={{
+                                  width: "100%", // full width of left column
+                                  boxSizing: "border-box",
+                                  p: 2,
+                                }}
+                              >
+                                <Typography sx={{ mb: 1 }}>
+                                  <strong>Compensation:</strong>{" "}
+                                  {loan.compensation ?? "Nil"}
+                                </Typography>
+                                <Typography sx={{ mb: 1 }}>
+                                  <strong>Lock Status:</strong>{" "}
+                                  {loan.lock_status ?? "Nil"}
+                                </Typography>
+                                <Typography sx={{ mb: 1 }}>
+                                  <strong>Point File:</strong>{" "}
+                                  {loan.point_file ?? "Nil"}
+                                </Typography>
+                                <Typography sx={{ mb: 1 }}>
+                                  <strong>Property:</strong>{" "}
+                                  {loan.subject_property ?? "Nil"}
+                                </Typography>
+                              </Card>
 
-    {/* Mini-card 2 */}
-    <Card
-      variant="outlined"
-      sx={{
-        width: "100%",              // full width of left column
-        boxSizing: "border-box",
-        p: 2,
-      }}
-    >
-      <Typography sx={{ mb: 1 }}>
-        <strong>Loan Comment:</strong> {loan.loan_comment ?? "-"}
-      </Typography>
-      <Typography sx={{ mb: 1 }}>
-        <strong>Team Leader:</strong> {loan.team_leader?.name ?? "-"}
-      </Typography>
-      <Typography sx={{ mb: 1 }}>
-        <strong>Processor:</strong> {loan.processor?.name ?? "-"}
-      </Typography>
-      <Typography sx={{ mb: 1 }}>
-        <strong>Support:</strong> {loan.support?.name ?? "-"}
-      </Typography>
-    </Card>
-  </Box>
+                              {/* Mini-card 2 */}
+                              <Card
+                                variant="outlined"
+                                sx={{
+                                  width: "100%", // full width of left column
+                                  boxSizing: "border-box",
+                                  p: 2,
+                                }}
+                              >
+                                <Typography sx={{ mb: 1 }}>
+                                  <strong>Loan Comment:</strong>{" "}
+                                  {loan.loan_comment ?? "-"}
+                                </Typography>
+                                <Typography sx={{ mb: 1 }}>
+                                  <strong>Team Leader:</strong>{" "}
+                                  {loan.team_leader?.name ?? "-"}
+                                </Typography>
+                                <Typography sx={{ mb: 1 }}>
+                                  <strong>Processor:</strong>{" "}
+                                  {loan.processor?.name ?? "-"}
+                                </Typography>
+                                <Typography sx={{ mb: 1 }}>
+                                  <strong>Support:</strong>{" "}
+                                  {loan.support?.name ?? "-"}
+                                </Typography>
+                              </Card>
+                            </Box>
 
-  {/* RIGHT column (fixed ~30%) */}
-  <Box
-    sx={{
-      flex: "0 0 30%",
-      maxWidth: { xs: "100%", md: "30%" },
-      boxSizing: "border-box",
-    }}
-  >
-    <Card variant="outlined" sx={{ height: "100%", minHeight: 200 }}>
-      <CardContent>
-        <Typography variant="subtitle1" gutterBottom>
-          Quick Info
-        </Typography>
-        <List dense>
-          <ListItem>
-            <ListItemText primary="External ID" secondary={loan.external_id ?? "-"} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Purpose" secondary={loan.purpose ?? "-"} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Note Amount" secondary={loan.note_amount ?? "-"} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Note Rate" secondary={loan.note_rate ?? "-"} />
-          </ListItem>
-        </List>
-      </CardContent>
-    </Card>
-  </Box>
-</Box>
+                            {/* RIGHT column (fixed ~30%) */}
+                            <Box
+                              sx={{
+                                flex: "0 0 30%",
+                                maxWidth: { xs: "100%", md: "30%" },
+                                boxSizing: "border-box",
+                              }}
+                            >
+                              <Card
+                                variant="outlined"
+                                sx={{ height: "100%", minHeight: 200 }}
+                              >
+                                <CardContent>
+                                  <Typography variant="subtitle1" gutterBottom>
+                                    Quick Info
+                                  </Typography>
+                                  <List dense>
+                                    <ListItem>
+                                      <ListItemText
+                                        primary="External ID"
+                                        secondary={loan.external_id ?? "-"}
+                                      />
+                                    </ListItem>
+                                    <ListItem>
+                                      <ListItemText
+                                        primary="Purpose"
+                                        secondary={loan.purpose ?? "-"}
+                                      />
+                                    </ListItem>
+                                    <ListItem>
+                                      <ListItemText
+                                        primary="Note Amount"
+                                        secondary={loan.note_amount ?? "-"}
+                                      />
+                                    </ListItem>
+                                    <ListItem>
+                                      <ListItemText
+                                        primary="Note Rate"
+                                        secondary={loan.note_rate ?? "-"}
+                                      />
+                                    </ListItem>
+                                  </List>
+                                </CardContent>
+                              </Card>
+                            </Box>
+                          </Box>
 
-
-
-                            {/* actions */}
-                            <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
+                          {/* actions */}
+                          <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
+                            {Permissions.includes("loan.change_loan") && (
                               <Button
                                 variant="contained"
                                 startIcon={<EditIcon />}
@@ -427,6 +483,8 @@ export default function LoanDetails() {
                               >
                                 Edit Loan
                               </Button>
+                            )}
+                            {Permissions.includes("loan.delete_loan") && (
                               <Button
                                 variant="outlined"
                                 color="error"
@@ -435,17 +493,14 @@ export default function LoanDetails() {
                               >
                                 Delete
                               </Button>
-                            </Stack>
-                          </CardContent>
-                        </Card>
-                      
+                            )}
+                          </Stack>
+                        </CardContent>
+                      </Card>
 
                       {/* RIGHT COLUMN */}
-                      
-                        
 
-                        {/* You can also move DocStatus here */}
-                      
+                      {/* You can also move DocStatus here */}
                     </Box>
                   )}
 
@@ -474,19 +529,7 @@ export default function LoanDetails() {
               setSelectedLoan(null);
               setNewLoan({});
             }}
-            onSave={() => {
-              // modal should call this after a successful save
-              setOpenNew(false);
-              setEditMode(false);
-              setSelectedLoan(null);
-              setNewLoan({});
-              refetch?.();
-              setSnackbar({
-                open: true,
-                severity: "success",
-                message: "Loan saved.",
-              });
-            }}
+            onSave={handleSaveEditLoan}
             newLoan={newLoan}
             setNewLoan={setNewLoan}
             lenders={lenders}

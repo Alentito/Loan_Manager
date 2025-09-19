@@ -27,6 +27,8 @@ export default function Tasks({ loanId }) {
 
   const [openModal, setOpenModal] = useState(false);
 
+  const [editingTask, setEditingTask] = useState(null);
+
   const { data: employeeData, isLoading: employeesLoading } = useGetEmployeesQuery({ page: 1, page_size: 1000 });
 const employees = employeeData?.results || [];
 const getUserById = (id) => employees.find(emp => emp.id === id);
@@ -54,6 +56,22 @@ const [viewType, setViewType] = useState("kanban"); // or "list" as default
 
   //const [cards, setCards] = useState([]);
   // Handle Kanban changes
+
+  const handleEditCard = (card) => {
+  // normalize & map to the modal's expected field names
+  setEditingTask({
+    id: String(card.id),
+    title: card.title ?? "",
+    description: card.description ?? "",
+    // modal usually expects `status` not `column`
+    status: card.column ?? card.status ?? columns[0].key,
+    // assignee as an id (modal often expects id or object)
+    assignee: card.assignee?.id ?? card.assignee ?? null,
+  });
+  setOpenModal(true);
+};
+
+
   const handleCardsChange = async (newCards) => {
   // 1. Build a map: cardId -> {status, position}
   const updates = {};
@@ -85,6 +103,33 @@ const [viewType, setViewType] = useState("kanban"); // or "list" as default
   // Handle delete card
   const handleDeleteCard = async (id) => {
     await deleteTask(id);
+  };
+const handleModalSubmit = async (values) => {
+    // `values` should be { title, description, status, assignee, ... }
+    if (editingTask) {
+      // Update existing
+      await updateTask({
+        id: Number(editingTask.id),
+        ...values,
+      });
+    } else {
+      // Create new
+      await createTask({
+        title: values.title,
+        description: values.description,
+        status: values.status || columns[0].key,
+        position: cards.filter(c => c.column === (values.status || columns[0].key)).length,
+        assignee: values.assignee?.id || values.assignee || null,
+      });
+    }
+    setOpenModal(false);
+    setEditingTask(null);
+  };
+
+  // NEW: close handler
+  const handleModalClose = () => {
+    setOpenModal(false);
+    setEditingTask(null);
   };
 
   return (
@@ -121,6 +166,7 @@ const [viewType, setViewType] = useState("kanban"); // or "list" as default
     onCardsChange={handleCardsChange}
     onAddCard={handleAddCard}
     onDeleteCard={handleDeleteCard}
+    onEditCard={handleEditCard}
     isLoading={isLoading}
     height="80vh"
    

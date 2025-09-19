@@ -8,14 +8,21 @@ export const loanApi = createApi({
   tagTypes: ["Loan"], // For caching and invalidation
   endpoints: (builder) => ({
     getLoans: builder.query({
-      query: ({ page = 1, pageSize, milestone, search,ordering }) => {
+      query: ({ page = 1, pageSize, milestone, search,ordering, assigned_to }) => {
         let url = `loan/?page=${page}&page_size=${pageSize}`;
         if (milestone) url += `&milestone=${milestone}`;
         if (search) url += `&search=${encodeURIComponent(search)}`;
         if (ordering) url += `&ordering=${ordering}`; // <-- new line
+        if (assigned_to) url += `&assigned_to=${encodeURIComponent(assigned_to)}`; // pass "me" or id
         return url;
       },
-      providesTags: ["Loan"],
+      providesTags: (result) =>
+        result
+          ? [
+              { type: "Loan", id: "LIST" },
+              ...((result.results || result).map ? result.results.map((r) => ({ type: "Loan", id: r.id })) : (result || []).map((r) => ({ type: "Loan", id: r.id }))),
+            ]
+          : [{ type: "Loan", id: "LIST" }],
     }),
     createLoan: builder.mutation({
       query: (data) => ({

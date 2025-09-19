@@ -1,11 +1,21 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  FaUserTie, FaFileInvoiceDollar, FaTachometerAlt, FaMoneyCheckAlt, FaTasks,
-  FaUsers, FaBuilding, FaFileAlt, FaCog, FaSignOutAlt, FaClipboardList
+  FaUserTie,
+  FaFileInvoiceDollar,
+  FaTachometerAlt,
+  FaMoneyCheckAlt,
+  FaTasks,
+  FaUsers,
+  FaBuilding,
+  FaFileAlt,
+  FaCog,
+  FaSignOutAlt,
+  FaClipboardList,
 } from "react-icons/fa";
 import { useLogoutMutation } from "../api/authApi";
 import React from "react";
 import { useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 
 export default function Sidebar() {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
@@ -20,36 +30,131 @@ export default function Sidebar() {
 
   // Define nav items with required permissions
   const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: <FaTachometerAlt />, permission: "loan.view_loan" },
-    { path: "/loan-management", label: "Loan Management", icon: <FaMoneyCheckAlt />, permission: "loan.view_loan" },
-    { path: "/tasks", label: "Tasks", icon: <FaTasks />, permission: "loan.view_task" },
-    { path: "/brokers", label: "Brokers", icon: <FaUserTie />, permission: "employee.view_broker" },
-    { path: "/loan-officers", label: "Loan Officers", icon: <FaBuilding />, permission: "employee.view_loanofficer" },
-    { path: "/employees", label: "Employees", icon: <FaUsers />, permission: "employee.view_employee" },
-    { path: "/payroll", label: "Payroll", icon: <FaFileInvoiceDollar />, permission: "employee.view_payroll" },
-    { path: "/reports", label: "Reports", icon: <FaFileAlt />, permission: "loan.view_report" },
-    { path: "/audit", label: "Audit", icon: <FaClipboardList />, permission: "audit.view_auditevent" },
-    { path: "/role-management", label: "Role Management", icon: <FaClipboardList />, permission: "auth.view_group" },
-    { path: "/teams", label: "Teams", icon: <FaUsers />, permission: "employee.view_team" },
-    { path: "/shifts", label: "Shifts", icon: <FaClipboardList />, permission: "employee.view_shift" },
-    { path: "/attendance", label: "Attendance", icon: <FaClipboardList />, permission: "employee.view_attendance" },
-    { path: "/leaves/my-requests", label: "My Leaves", icon: <FaClipboardList />, permission: "employee.view_leaverequests" },
-    { path: "/admin/meetings", label: "Meetings", icon: <FaClipboardList />, permission: "employee.view_meeting" },
-    { path: "/admin/holidays", label: "Holidays", icon: <FaClipboardList />, permission: "employee.view_publicholiday" },
-    { path: "/admin/leave-approvals", label: "Leave Approvals", icon: <FaClipboardList />, permission: "employee.view_leaverequests" },
+    {
+      path: "/dashboard",
+      label: "Dashboard",
+      icon: <FaTachometerAlt />,
+      permission: "loan.view_loan",
+    },
+    {
+      path: "/loan-management",
+      label: "Loan Management",
+      icon: <FaMoneyCheckAlt />,
+      permission: "loan.view_loan",
+    },
+    {
+      path: "/tasks",
+      label: "Tasks",
+      icon: <FaTasks />,
+      permission: "loan.view_task",
+    },
+    {
+      path: "/brokers",
+      label: "Brokers",
+      icon: <FaUserTie />,
+      permission: "employee.view_broker",
+    },
+    {
+      path: "/loan-officers",
+      label: "Loan Officers",
+      icon: <FaBuilding />,
+      permission: "employee.view_loanofficer",
+    },
+    {
+      path: "/employees",
+      label: "Employees",
+      icon: <FaUsers />,
+      permission: "employee.view_employee",
+    },
+    {
+      path: "/payroll",
+      label: "Payroll",
+      icon: <FaFileInvoiceDollar />,
+      permission: "employee.view_payroll",
+    },
+    {
+      path: "/reports",
+      label: "Reports",
+      icon: <FaFileAlt />,
+      permission: "loan.view_report",
+    },
+    {
+      path: "/audit",
+      label: "Audit",
+      icon: <FaClipboardList />,
+      permission: "audit.view_auditevent",
+    },
+    {
+      path: "/role-management",
+      label: "Role Management",
+      icon: <FaClipboardList />,
+      permission: "auth.view_group",
+    },
+    {
+      path: "/teams",
+      label: "Teams",
+      icon: <FaUsers />,
+      permission: "employee.view_team",
+    },
+    {
+      path: "/shifts",
+      label: "Shifts",
+      icon: <FaClipboardList />,
+      permission: "employee.view_shift",
+    },
+    {
+      path: "/attendance",
+      label: "Attendance",
+      icon: <FaClipboardList />,
+      permission: "employee.view_attendance",
+    },
+    {
+      path: "/leaves/my-requests",
+      label: "My Leaves",
+      icon: <FaClipboardList />,
+      permission: "employee.view_leaverequests",
+    },
+    {
+      path: "/admin/meetings",
+      label: "Meetings",
+      icon: <FaClipboardList />,
+      permission: "employee.view_meeting",
+    },
+    {
+      path: "/admin/holidays",
+      label: "Holidays",
+      icon: <FaClipboardList />,
+      permission: "employee.view_publicholiday",
+    },
+    {
+      path: "/admin/leave-approvals",
+      label: "Leave Approvals",
+      icon: <FaClipboardList />,
+      permission: "employee.view_leaverequests",
+    },
   ];
 
   // Filter nav items by user permissions
   const filteredNavItems = navItems.filter(
-    item => !item.permission || userPermissions.includes(item.permission)
+    (item) => !item.permission || userPermissions.includes(item.permission)
   );
 
   if (filteredNavItems.length === 0) return null;
 
+  const dispatch = useDispatch();
+
   const handleLogout = async () => {
     try {
-      await logout().unwrap();
-    } catch (e) {}
+      await logout().unwrap(); // API call to backend
+    } catch (e) {
+      console.error("Logout error", e);
+    }
+
+    // 🔑 Reset local state after logout
+    dispatch(logoutAction()); // clear auth state (token, user)
+    dispatch(setSelectedLoans([])); // clear UI selection (optional)
+    dispatch(loanApi.util.resetApiState()); // clear cached queries + mutations
+
     navigate("/login");
   };
 

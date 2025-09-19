@@ -2,8 +2,12 @@ cd backend
 source venv/bin/activate
 python manage.py runserver
 
+
+
 cd frontend
 npm run dev
+
+
 
 cd backend
 source venv/bin/activate
@@ -24,6 +28,9 @@ brew services start redis
 
 brew services start postgresql
 
+cd backend
+source venv/bin/activate
+
 
 celery -A config worker --loglevel=info
 celery -A config beat --loglevel=info
@@ -32,3 +39,17 @@ celery -A config beat --loglevel=info
 
 
 python -m loan.notification_consumer
+
+
+
+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
+
+
+
+
+git branch
+
+
+git status
+
+

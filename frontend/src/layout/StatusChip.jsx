@@ -74,7 +74,7 @@ export default function StatusChip({ value = "n/a", onChange }) {
       <Button
         variant="contained"
         onClick={handleOpen}
-        startIcon={<Icon size={16}  htmlColor={text} />} //  🆕  icon displayed
+        startIcon={<Icon size={16}  color={text} />} //  🆕  icon displayed
         endIcon={
           <span style={{ fontSize: 14 }}>
             {" "}
@@ -117,7 +117,7 @@ export default function StatusChip({ value = "n/a", onChange }) {
           >
             <Pill bgcolor={m.color} color={m.text}>
               <ListItemIcon sx={{ minWidth: 0 }}>
-                <m.icon fontSize="small"  size={16} htmlColor={m.text} />
+                <m.icon fontSize="small"  size={16} color={m.text} />
               </ListItemIcon>
               <Typography variant="body2" fontWeight={600}>
                 {m.label}

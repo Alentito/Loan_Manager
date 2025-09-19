@@ -11,12 +11,12 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { useGetLeaveRequestsQuery } from '../redux/leaveApi';
-import { getLoggedInEmployeeId } from '../../utils/authUtils';
+//import { getLoggedInEmployeeId } from '../../utils/authUtils';
 import LeaveRequestForm from './LeaveRequestForm';
 
 const LeaveRequestPage = () => {
-  const employeeId = getLoggedInEmployeeId();
-  const { data, isLoading, isError, refetch } = useGetLeaveRequestsQuery(employeeId);
+  //const employeeId = getLoggedInEmployeeId();
+  const { data, isLoading, isError, refetch } = useGetLeaveRequestsQuery();
   const [leaveRequests, setLeaveRequests] = useState([]);
 
   useEffect(() => {

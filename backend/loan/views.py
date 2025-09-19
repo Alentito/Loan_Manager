@@ -16,7 +16,7 @@ from .models import LoanContact
 from .serializers import LoanContactSerializer
 
 
-from .models import Loan, ChecklistQuestion, LoanChecklistAnswer, Lender, LoanDocStatus,Task
+from .models import Loan, ChecklistQuestion, LoanChecklistAnswer, Lender, LoanDocStatus,Task, Employee
 from .serializers import (
     LoanSerializer, ChecklistQuestionSerializer, 
      LenderSerializer, LoanDocStatusSerializer,TaskSerializer
@@ -57,6 +57,21 @@ from rest_framework import viewsets
 from .models import Notification
 from .serializers import NotificationSerializer
 
+from django.utils import timezone
+from django.core.exceptions import FieldDoesNotExist
+import logging
+from django.db.models import Q
+
+logger = logging.getLogger(__name__)
+
+def _has_field(model, name):
+    try:
+        model._meta.get_field(name)
+        return True
+    except FieldDoesNotExist:
+        return False
+
+
 class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
@@ -65,7 +80,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Notification.objects.filter(user_id=self.request.user.id).order_by('-created_at')
 
 
-        
+
 
 def emit_event(aggregate: str, event_type: str, tenant_id: str, payload: dict, aggregate_id=None):
     # Simple helper; ensure caller wraps in transaction.atomic when needed
@@ -126,16 +141,18 @@ def push_notification_minimal(payload: dict, recipients=None, tenant_id=None):
                     data=payload.get("data", {})
                 )
                 async_to_sync(ch.group_send)(
-                    f"user-{n.user_id}",
-                    {"type":"send_notification", "message": {
-                        "id": str(notif.id),
-                        "type": notif.type,
-                        "title": notif.title,
-                        "body": notif.body,
-                        "data": notif.data,
-                        "created_at": notif.created_at.isoformat()
-                    }}
-                )
+                f"user-{uid}",
+                {"type": "send_notification", "message": {
+                    "id": str(notif.id),
+                    "type": notif.type,
+                    "title": notif.title,       # ✅ should be "New Task: <title>"
+                    "body": notif.body,         # ✅ should be "Task '<title>' was created."
+                    "data": notif.data,
+                    "created_at": notif.created_at.isoformat()
+                }}
+            )
+
+
             except Exception as e:
                 logger.exception("push_notification_minimal failed for user %s: %s", uid, e)
         return
@@ -189,6 +206,28 @@ class XMLUploadViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(uploads, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+from rest_framework.permissions import BasePermission
+
+class IsTaskAssigneeOrAssignerOrStaff(BasePermission):
+    """
+    Object-level permission to allow only the assignee, assigner, or staff to access/modify the Task.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        # obj is a Task instance
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_staff or user.is_superuser or user.has_perm("tasks.view_all_tasks"):
+            return True
+        # allow if user is assignee or assigner
+        if obj.assignee_id and obj.assignee_id == user.id:
+            return True
+        if obj.assigner_id and obj.assigner_id == user.id:
+            return True
+        return False
+
     
 class TaskViewSet(viewsets.ModelViewSet):
     """
@@ -196,7 +235,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     Use query params `?loan=<id>` and `?status=` for filtering.
     """
     serializer_class   = TaskSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsTaskAssigneeOrAssignerOrStaff]
     pagination_class = None
 
     filter_backends  = [DjangoFilterBackend,
@@ -207,15 +246,20 @@ class TaskViewSet(viewsets.ModelViewSet):
     ordering_fields  = ["position", "created_at", "updated_at"]
 
     def get_queryset(self):
-        queryset = Task.objects.select_related("loan", "assignee")
-        cmp = Task.objects.all()
+            user = self.request.user
+            qs = Task.objects.select_related("loan", "assignee", "assigner")
 
-        loan_id = self.kwargs.get('loan_pk')
-        if loan_id:
-            queryset = queryset.filter(loan_id=loan_id)
-            return queryset
-        else:
-            return cmp
+            # nested route support / loan filter param
+            loan_id = self.kwargs.get("loan_pk") or self.request.query_params.get("loan")
+            if loan_id:
+                qs = qs.filter(loan_id=loan_id)
+
+            # staff / special perm sees everything
+            if user and (user.is_staff or user.is_superuser or user.has_perm("tasks.view_all_tasks")):
+                return qs
+
+            # otherwise only tasks where user is assignee or assigner
+            return qs.filter(Q(assignee=user) | Q(assigner=user)).distinct()
 
     def perform_create(self, serializer):
         status_val = serializer.validated_data.get("status")
@@ -236,20 +280,59 @@ class TaskViewSet(viewsets.ModelViewSet):
         else:
             task = serializer.save(assigner=self.request.user)
 
+        # 🔹 Emit a TaskCreated event instead of LoanCreated
         with transaction.atomic():
-            loan = serializer.save()
             emit_event(
-                aggregate="loan",
-                aggregate_id=loan.id,
-                event_type="LoanCreated",
-                tenant_id=getattr(loan, "tenant_id", "default"),
+                aggregate="task",
+                aggregate_id=task.id,
+                event_type="TaskCreated",
+                tenant_id=getattr(task, "tenant_id", "default"),
                 payload={
-                    "loan_id": str(loan.id),
-                    "first_name": loan.first_name,
-                    "last_name": loan.last_name,
-                    "created_by": request.user.id,
+                    "task_id": str(task.id),
+                    "title": task.title,
+                    "status": task.status,
+                    "loan_id": str(task.loan_id) if task.loan_id else None,
+                    "created_by": self.request.user.id,
                 }
             )
+
+            # 🔹 Push real-time task updates
+            push_task_update({
+                "type": "TaskCreated",
+                "task_id": str(task.id),
+                "title": task.title,
+                "status": task.status,
+                "loan_id": str(task.loan_id) if task.loan_id else None,
+                "created_by": self.request.user.id,
+                "assignee": task.assignee.id if task.assignee else None,
+
+            })
+
+            recipients = [self.request.user.id]
+            if task.assignee:
+                recipients.append(task.assignee.id)
+
+            notif_payload = {
+            "task_id": str(task.id),
+            "title": task.title,
+            "status": task.status,
+            "loan_id": str(task.loan_id) if task.loan_id else None,
+            "created_by": self.request.user.id,
+            "assignee": task.assignee.id if task.assignee else None,
+        }
+
+        push_notification_minimal(
+            {
+                "type": "TaskCreated",
+                "title": f"New Task: {task.title}",
+                "message": f"Task '{task.title}' was created.",
+                "data": notif_payload,
+            },
+            recipients=recipients,
+            tenant_id=getattr(task, "tenant_id", "default"),
+        )
+
+
 
         # push notification + DB record
         # payload = {
@@ -350,12 +433,61 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
     
 
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['milestone']
+    filterset_fields = [ 'first_name', 'milestone', 'created_at', 'closing_date', 'broker']
+
     
     search_fields = ['first_name', 'last_name', 'broker__name']
 
     ordering_fields = ['created_at', 'amount', 'milestone', 'first_name']  # allowed sort fields
     ordering = ['-created_at']  # default sort
+
+    def get_queryset(self):
+        user = self.request.user
+        print (f"User: {user}, is_staff: {user.is_staff}, is_superuser: {user.is_superuser}, perms: {user.get_all_permissions()}")
+
+        # Get the Employee instance for this user
+        
+
+        qs = Loan.objects.all()
+        select_candidates = [f for f in ("broker", "loan_officer", "team_leader", "team_manager", "processor", "support") if _has_field(Loan, f)]
+
+        # Staff/privileged users see all loans
+        if user and (user.is_staff or user.is_superuser or user.has_perm("loan.view_all_loans")):
+            try:
+                if select_candidates:
+                    qs = qs.select_related(*select_candidates)
+            except Exception:
+                logger.exception("select_related failed for staff path; returning base qs")
+            return qs
+
+        try:
+            employee = Employee.objects.get(user=user)
+            print (f"Employee found: {employee}")
+        except Employee.DoesNotExist:
+            return Loan.objects.none()
+
+        # Regular users: only loans where user is assigned
+        assigned_q = Q()
+        if _has_field(Loan, "team_manager"):
+            assigned_q |= Q(team_manager=employee)
+        if _has_field(Loan, "team_leader"):
+            assigned_q |= Q(team_leader=employee)
+        if _has_field(Loan, "processor"):
+            assigned_q |= Q(processor=employee)
+        if _has_field(Loan, "support"):
+            assigned_q |= Q(support=employee)
+
+        if assigned_q == Q():
+            return Loan.objects.none()
+
+        qs = qs.filter(assigned_q).distinct()
+        try:
+            if select_candidates:
+                qs = qs.select_related(*select_candidates)
+        except Exception:
+            logger.exception("select_related failed on default path; continuing without it")
+        return qs
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -380,6 +512,7 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
             "first_name": loan.first_name,
             "last_name": loan.last_name,
             "created_by": request.user.id,
+            
              })
 
         headers = self.get_success_headers(serializer.data)

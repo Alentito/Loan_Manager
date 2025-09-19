@@ -204,8 +204,14 @@ class Loan(models.Model):
     note_rate    = models.DecimalField(max_digits=6, decimal_places=3,
                                    null=True, blank=True)
 
+    class Meta:
+     permissions = [
+        ("view_all_loans", "Can view all loans"),
+     ]
+
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.subject_property or 'Loan'}"
+    
 
 
 class Task(models.Model):

@@ -28,8 +28,8 @@ def resolve_recipients(event_payload: dict, event_fields: dict):
     # Basic placeholder:
     # - If payload contains "assignee_id", notify that user
     # - Else, return tenant admins / all users for tenant (implement your own logic)
-    user = self.scope.get("user")
-    print("WS connect user:", user)
+    # user = self.scope.get("user")
+    #print("WS connect user:", user)
     users = []
     try:
         p = json.loads(event_fields.get("payload", "{}"))
@@ -54,8 +54,8 @@ def run():
         try:
             resp = r.xreadgroup(GROUP, CONSUMER, {STREAM: ">"}, count=100, block=5000)
             print("Read events:", resp)
-            user = self.scope.get("user")   
-            print("WS connect user:", user)
+            #user = self.scope.get("user")   
+            #print("WS connect user:", user)
             if not resp:
                 continue
             for stream_name, messages in resp:

@@ -508,7 +508,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 # Create Django User
                 user = User.objects.create_user(username=employee_id, password=employee_password)
-
+                user.first_name = data.get('name', '')
+                user.save()
                 if role_ids:
                     groups_qs = Group.objects.filter(pk__in=role_ids)
                     user.groups.set(groups_qs)
