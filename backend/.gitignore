@@ -21,3 +21,8 @@ build/
 # IDEs
 .vscode/
 .idea/
+
+echo "backend/venv/" >> .gitignore
+echo "frontend/node_modules/" >> .gitignore
+echo "frontend/package-lock.json" >> .gitignore
+echo ".vscode/" >> .gitignore
