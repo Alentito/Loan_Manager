@@ -1,13 +1,20 @@
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from .models import broker, LoanOfficer, Employee, Attendance, PublicHoliday,Meeting
+
+#employee/views.py
+from django.http import HttpResponse
+from .models import Broker, LoanOfficer, Employee, PublicHoliday,Meeting, LeaveRequests, Shift, Team,  Break, Attendance, MonthlyAttendanceSummary, Lender, TeamLead, TeamManager, EmployeeToken, EmployeeBreak
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
+
 from .serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer, AttendanceSerializer, PublicHolidaySerializer, MeetingSerializer
+from .serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer,  PublicHolidaySerializer, MeetingSerializer, LeaveRequestSerializer, ShiftSerializer, TeamSerializer, BreakSerializer, AttendanceSerializer,  MonthlyAttendanceSummarySerializer, LenderSerializer, TeamLeadSerializer, TeamManagerSerializer,EmployeeTokenSerializer, EmployeeBreakSerializer
+
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import api_view, action
 from django.http import JsonResponse
@@ -23,6 +30,47 @@ from django.utils import timezone
 from rest_framework import permissions
 #from .permissions import IsAdminOrTeamManager
 from rest_framework.permissions import AllowAny
+
+from django.db.models.signals import post_save
+from rest_framework.authtoken.models import Token
+from django.contrib.auth.models import User
+from rest_framework.exceptions import ValidationError, PermissionDenied
+from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import check_password
+from rest_framework.permissions import BasePermission, IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework import serializers
+import pytz
+# from pytz import timezone as pytz_timezone  # Removed unused import
+from datetime import datetime
+from io import BytesIO
+from reportlab.pdfgen import canvas
+from rest_framework_simplejwt.authentication import JWTAuthentication
+import openpyxl
+from openpyxl.utils import get_column_letter
+from reportlab.lib.pagesizes import letter
+from django.utils import timezone
+import logging
+from rest_framework import viewsets, permissions
+from django.contrib.auth.models import Group, Permission
+# views.py
+import json
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from django.middleware import csrf
+from django.contrib.auth.models import Group
+from employee.dates import get_cst_date
+from rest_framework.permissions import DjangoModelPermissions
+from django.db.models import Count
+from .utils import today_cst, mark_attendance_for_leave
+from .utils import now_cst
+from django.db.models import Prefetch
+from django.db.models import Sum, F, ExpressionWrapper, DurationField
+from .utils import to_cst
 
 
 # ✅ Custom Pagination (no max page size)
@@ -301,10 +349,231 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all().order_by('-date_joined')
     serializer_class = EmployeeSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+
     filterset_fields = ['position', 'status']  # ✅ Removed 'manager'
+
+    filterset_fields = [ 'team', 'primary_shift', 'team__manager']  # ✅ Removed 'manager'
+
     search_fields = ['name', 'login_id', 'company_email', 'contact_number']
     ordering_fields = ['date_joined', 'experience_months', 'performance_score', 'name']
     pagination_class = EmployeePagination
+
+
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        employee_id = data.get('login_id')
+        employee_password = data.get('login_password')
+        roles = data.get('roles', [])
+
+        # Normalize incoming roles into a list of ints
+        role_ids = []
+        if roles in (None, ""):
+            role_ids = []
+        elif isinstance(roles, str):
+            import json
+            try:
+                parsed = json.loads(roles)
+                role_ids = parsed if isinstance(parsed, list) else [parsed]
+            except Exception:
+                role_ids = [r.strip() for r in roles.split(",") if r.strip()]
+        elif isinstance(roles, (list, tuple)):
+            role_ids = list(roles)
+        else:
+            role_ids = [roles]
+
+        try:
+            role_ids = [int(r) for r in role_ids]
+        except Exception:
+            pass
+
+        if not employee_id or not employee_password:
+            return Response({'detail': 'login_id and login_password are required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if User.objects.filter(username=employee_id).exists():
+            return Response({'detail': 'User with this login_id already exists.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                # Create Django User
+                user = User.objects.create_user(username=employee_id, password=employee_password)
+
+                if role_ids:
+                    groups_qs = Group.objects.filter(pk__in=role_ids)
+                    user.groups.set(groups_qs)
+
+                data['user'] = user.id
+                data.pop('login_password', None)  # never persist plain password
+
+                serializer = self.get_serializer(data=data)
+                serializer.is_valid(raise_exception=True)
+                employee = serializer.save()
+
+                # ✅ Archive handling
+                if getattr(employee, 'is_archived', False):
+                    employee.archived_at = timezone.now()
+                    employee.save(update_fields=["archived_at"])
+                    # ❌ Disable User login if archived
+                    user.is_active = False
+                    user.save(update_fields=["is_active"])
+                else:
+                    # make sure active employees can log in
+                    user.is_active = True
+                    user.save(update_fields=["is_active"])
+
+                # defensive sync: employee.roles ←→ user.groups
+                if hasattr(employee, "roles"):
+                    employee.roles.set(user.groups.all())
+
+                out_serializer = self.get_serializer(employee)
+                headers = self.get_success_headers(out_serializer.data)
+                return Response(out_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+        except Exception as e:
+            return Response({'detail': 'Error creating employee', 'error': str(e)},
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        user = getattr(instance, "user", None)
+        data = self.request.data
+
+        if user:
+            # --- Sync login_id ---
+            new_login_id = data.get("login_id")
+            if new_login_id and user.username != new_login_id:
+                if User.objects.filter(username=new_login_id).exclude(pk=user.pk).exists():
+                    raise ValidationError({"login_id": "This login_id is already taken."})
+                user.username = new_login_id
+
+            # --- Sync password ---
+            new_password = data.get("login_password")
+            if new_password:
+                user.set_password(new_password)
+
+            # --- Sync roles ---
+            roles = data.get("roles", [])
+            if isinstance(roles, str):
+                try:
+                    roles = json.loads(roles)
+                except Exception:
+                    roles = [r.strip() for r in roles.split(",") if r.strip()]
+            if not isinstance(roles, (list, tuple)):
+                roles = [roles]
+
+            role_ids = [int(r) for r in roles if str(r).isdigit()]
+            groups_qs = Group.objects.filter(pk__in=role_ids)
+            user.groups.set(groups_qs)
+            if hasattr(instance, "roles"):
+                instance.roles.set(groups_qs)
+
+            # --- Archive flag ---
+            if getattr(instance, 'is_archived', False):
+                if not instance.archived_at:
+                    instance.archived_at = timezone.now()
+                user.is_active = False
+            else:
+                instance.archived_at = None
+                user.is_active = True
+
+            user.save()
+
+            # --- Issue new tokens ---
+            refresh = RefreshToken.for_user(user)
+            instance._new_tokens = {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            }
+
+        instance.save()
+        return instance
+
+    
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        employee = self.get_object()
+
+        # If perform_update created new tokens, attach them
+        if hasattr(employee, "_new_tokens"):
+            response.data["tokens"] = employee._new_tokens
+
+        return response
+    
+    def get_queryset(self):
+        queryset = Employee.objects.select_related('team', 'primary_shift').all().order_by('-created_at')
+        is_archived = self.request.query_params.get("is_archived")
+        
+
+        if is_archived == "true":
+            queryset = queryset.filter(is_archived=True)
+        elif is_archived == "false":
+            queryset = queryset.filter(is_archived=False)
+        else:
+            queryset = queryset.filter(is_archived=False)
+
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(login_id__icontains=search) |
+                Q(company_email__icontains=search)
+            )
+        manager_id = self.request.query_params.get("manager")
+        if manager_id:
+            queryset = queryset.filter(team__manager_id=manager_id)
+        return queryset
+
+
+    def destroy(self, request, *args, **kwargs):
+        employee = self.get_object()
+
+        if employee.is_archived:
+            return Response(
+                {"error": "Employee already archived"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        employee.is_archived = True
+        employee.archived_at = timezone.now()
+        employee.save(update_fields=["is_archived", "archived_at"])
+
+        # disable linked user if exists
+        if getattr(employee, "user_id", None):
+            employee.user.is_active = False
+            employee.user.save(update_fields=["is_active"])
+
+        return Response({"message": "Employee archived successfully"}, status=status.HTTP_200_OK)
+
+
+    @action(detail=True, methods=['post'], url_path='unarchive')
+    def unarchive(self, request, pk=None):
+        try:
+            employee = Employee.objects.get(pk=pk, is_archived=True)
+            employee.is_archived = False
+            employee.archived_at = None
+            employee.save(update_fields=["is_archived", "archived_at"])
+
+            # re-enable login
+            if getattr(employee, "user_id", None):
+                employee.user.is_active = True
+                employee.user.save(update_fields=["is_active"])
+
+            return Response({"message": "Employee unarchived successfully"}, status=status.HTTP_200_OK)
+        except Employee.DoesNotExist:
+            return Response({"error": "Archived employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+    def list(self, request, *args, **kwargs):
+        if request.query_params.get('all') == 'true':
+            self.pagination_class = None
+            queryset = self.filter_queryset(self.get_queryset())
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+        return super().list(request, *args, **kwargs)
+    
+    
 
 
 @api_view(['GET'])
@@ -349,6 +618,7 @@ def export_employees_xml(request):
     response['Content-Disposition'] = 'attachment; filename="employees.xml"'
     tree.write(response, encoding='unicode')
     return response
+
 
 
 @api_view(['POST'])
@@ -407,6 +677,7 @@ def employee_login(request):
         return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
+
 @api_view(['GET'])
 def get_employee_attendance(request, employee_id):
     attendances = Attendance.objects.filter(employee_id=employee_id).order_by('date')
@@ -447,7 +718,16 @@ class PublicHolidayViewSet(viewsets.ModelViewSet):
     serializer_class = PublicHolidaySerializer
 
 
+    def perform_create(self, serializer):
+        # Ensure stored date is CST-normalized
+        date = serializer.validated_data.get("date")
+        serializer.save(date=get_cst_date(date))
 
+    def perform_update(self, serializer):
+        date = serializer.validated_data.get("date")
+        serializer.save(date=get_cst_date(date))
+    
+    
 class MeetingViewSet(viewsets.ModelViewSet):
     queryset = Meeting.objects.all().order_by('-date')
     serializer_class = MeetingSerializer
@@ -456,7 +736,21 @@ class MeetingViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Meeting.objects.all().order_by('-date')
 
-    
+    def perform_create(self, serializer):
+        date = serializer.validated_data.get("date")
+        time = serializer.validated_data.get("time")
+        serializer.save(
+            date=get_cst_date(date),
+            time=time  # stays same unless you want tz-aware conversion
+        )
+
+    def perform_update(self, serializer):
+        date = serializer.validated_data.get("date")
+        time = serializer.validated_data.get("time")
+        serializer.save(
+            date=get_cst_date(date),
+            time=time
+        )
 
 # class IsAdminOrTeamManager(permissions.BasePermission):
     
@@ -473,4 +767,431 @@ class MeetingViewSet(viewsets.ModelViewSet):
 #         if hasattr(user, 'employee') and user.employee.position == 'team_manager':
 #             return True
 
-#         return False
+
+        return False
+
+User = get_user_model()
+
+class IsTeamManagerOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        if not hasattr(request.user, 'employee'):
+            return False
+        position = request.user.employee.roles
+        return position in ['team_manager', 'team_lead']
+    
+
+class LeaveRequestPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+class LeaveRequestViewSet(viewsets.ModelViewSet):
+    queryset = LeaveRequests.objects.all()
+    serializer_class = LeaveRequestSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status', 'employee']
+    search_fields = ['reason', 'leave_type','employee__login_id', 'employee__name', 'employee__user__username']
+    ordering_fields = ['start_date', 'created_at']
+    ordering = ['-created_at']
+    pagination_class = LeaveRequestPagination
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        # Approver can see all
+        if user.has_perm("employee.approve_leave") or user.has_perm("employee.deny_leave"):
+            return LeaveRequests.objects.all()
+        # Employee sees only their own
+        return LeaveRequests.objects.filter(employee=user.employee)
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve_request(self, request, pk=None):
+        with transaction.atomic():
+            leave = self.get_object()
+
+            # Prevent self-approval
+            if leave.employee == request.user.employee:
+                return Response(
+                    {"detail": "You cannot approve your own leave request."},
+                    status=403
+                )
+
+            if not request.user.has_perm("employee.approve_leave"):
+                return Response({"detail": "Not authorized"}, status=403)
+
+            if leave.status != "pending":
+                return Response({"detail": "Already processed"}, status=400)
+
+            leave.status = "approved"
+            leave.approved_by = request.user
+            leave.processed_at = now_cst()
+            leave.save()
+
+            mark_attendance_for_leave(
+                leave.employee,
+                leave.start_date,
+                leave.end_date,
+                approved=True,
+                leave_type=leave.leave_type
+            )
+
+            return Response(LeaveRequestSerializer(leave).data, status=200)
+
+
+    @action(detail=True, methods=["post"], url_path="deny")
+    def deny_request(self, request, pk=None):
+        with transaction.atomic():
+            leave = self.get_object()
+
+            # Prevent self-denial
+            if leave.employee == request.user.employee:
+                return Response(
+                    {"detail": "You cannot deny your own leave request."},
+                    status=403
+                )
+
+            if not request.user.has_perm("employee.deny_leave"):
+                return Response({"detail": "Not authorized"}, status=403)
+
+            if leave.status != "pending":
+                return Response({"detail": "Already processed"}, status=400)
+
+            leave.status = "denied"
+            leave.denied_by = request.user
+            leave.processed_at = now_cst()
+            leave.save()
+            mark_attendance_for_leave(
+                leave.employee,
+                leave.start_date,
+                leave.end_date,
+                approved=False,
+                leave_type=leave.leave_type
+            )
+
+            return Response(LeaveRequestSerializer(leave).data, status=200)
+
+
+    # Extra endpoint for employee-wise leaves
+    @action(detail=False, methods=['get'], url_path='employee/(?P<employee_id>[^/.]+)')
+    def by_employee(self, request, employee_id=None):
+        if not employee_id or not str(employee_id).isdigit():
+            return Response({"detail": "Invalid employee id"}, status=400)
+
+        qs = self.get_queryset().filter(employee_id=int(employee_id))
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+class ShiftPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'  # allows frontend to override
+    max_page_size = 1000 
+
+    def get_paginated_response(self, data):
+        return Response({
+            'count': self.page.paginator.count,
+            'total_pages': self.page.paginator.num_pages,
+            'results': data
+        })
+    
+
+class ShiftViewSet(viewsets.ModelViewSet):
+    permission_classes = [StrictDjangoModelPermissions]
+    queryset = Shift.objects.all()  # do NOT order_by here
+    serializer_class = ShiftSerializer
+    pagination_class = ShiftPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['id', 'name', 'start_time', 'end_time', 'created_at', 'updated_at']
+    ordering = ['-id']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        query = self.request.query_params.get("search", None)
+        if query:
+            qs = qs.filter(name__icontains=query)
+        return qs
+
+class TeamPagination(PageNumberPagination):
+    page_size = 10  # or whatever default page size you prefer
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
+
+    def get_paginated_response(self, data):
+        return Response({
+            'count': self.page.paginator.count,
+            'total_pages': self.page.paginator.num_pages,
+            'results': data
+        })
+
+class TeamViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    queryset = Team.objects.select_related("head", "manager", "shift").all()
+    serializer_class = TeamSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["name", "head__name", "manager__name", "shift__name"]
+    ordering_fields = ["id", "name", "manager__name", "head__name", "shift__name", "created_at", "updated_at"]
+    ordering = ["-created_at"]  # default sort
+    pagination_class = TeamPagination
+
+
+
+
+class BreakViewSet(viewsets.ModelViewSet):
+    queryset = Break.objects.all()
+    serializer_class = BreakSerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=["post"], url_path="start")
+    def start_break(self, request):
+        """Start a break for the current user's active attendance today (CST)."""
+        try:
+            attendance = Attendance.objects.get(
+                employee=request.user.employee,
+                date=today_cst(),   # ✅ CST date
+            )
+        except Attendance.DoesNotExist:
+            return Response({"detail": "No attendance record for today"}, status=400)
+
+        # prevent multiple open breaks
+        if attendance.breaks.filter(break_out__isnull=True).exists():
+            return Response({"detail": "You already have an ongoing break"}, status=400)
+
+        brk = Break.objects.create(attendance=attendance)
+        serializer = self.get_serializer(brk)
+        return Response(serializer.data, status=201)
+
+    @action(detail=True, methods=["post"], url_path="end")
+    def end_break(self, request, pk=None):
+        """End a break and recalc attendance worked minutes."""
+        brk = self.get_object()
+
+        if brk.break_out:
+            return Response({"detail": "Break already ended"}, status=400)
+
+        brk.close_break()  
+        brk.attendance.recalc_worked_minutes()  
+        serializer = self.get_serializer(brk)
+        return Response(serializer.data, status=200)
+    
+class AttendanceViewSet(viewsets.ModelViewSet):
+    queryset = Attendance.objects.all().select_related("employee", "shift").prefetch_related(
+        Prefetch("breaks", queryset=Break.objects.all())
+    )
+    serializer_class = AttendanceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+
+        # Employee sees only their own records unless superuser
+        if hasattr(user, "employee") and not user.is_superuser:
+            qs = qs.filter(employee=user.employee)
+
+        # Query params: month/year
+        month = self.request.query_params.get("month")
+        year = self.request.query_params.get("year")
+
+        if month and year:
+            qs = qs.filter(date__month=int(month), date__year=int(year))
+        else:
+            # Default: current CST month/year
+            today = today_cst()
+            qs = qs.filter(date__month=today.month, date__year=today.year)
+
+        return qs.order_by("date")
+
+    @action(detail=False, methods=["get"], url_path="today")
+    def today_attendance(self, request):
+        """
+        Return today’s attendance for the logged-in employee
+        """
+        attendance = self.get_queryset().filter(date=today_cst()).first()
+        if not attendance:
+            return Response({"detail": "No attendance record for today"}, status=404)
+
+        serializer = self.get_serializer(attendance)
+        return Response(serializer.data)
+
+       
+    
+
+class MonthlyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = MonthlyAttendanceSummarySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = MonthlyAttendanceSummary.objects.all()
+        user = self.request.user
+
+        # Restrict to employee unless superuser
+        if hasattr(user, "employee") and not user.is_superuser:
+            qs = qs.filter(employee=user.employee)
+        elif not user.is_superuser:
+            return qs.none()
+
+        # Query params
+        month = self.request.query_params.get("month")
+        year = self.request.query_params.get("year")
+
+        if month and year:
+            qs = qs.filter(month=int(month), year=int(year))
+        else:
+            # default: current CST month/year
+            today = today_cst()
+            qs = qs.filter(month=today.month, year=today.year)
+
+        return qs
+
+
+class LenderViewSet(viewsets.ModelViewSet):
+    queryset = Lender.objects.all()  # remove .order_by
+    serializer_class = LenderSerializer
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, OrderingFilter]
+    search_fields = ["lender_name", "executive_email", "manager_email", "account_executive_name"]
+    filterset_fields = ["lender_name", "executive_email"]
+    ordering_fields = ["created_at", "lender_name"]
+    ordering = ["-created_at"]  # default ordering
+    pagination_class = PageNumberPagination
+    permission_classes = [IsAuthenticated]
+
+    
+@api_view(["POST"])
+def validate_lender_field(request):
+    """Check if executive email, phone, manager email, or contact is unique."""
+    field = request.data.get("field")
+    value = request.data.get("value")
+
+    if not field or not value:
+        return Response({"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST)
+
+    exists = Lender.objects.filter(**{field: value}).exists()
+
+    return Response({"exists": exists})
+
+
+class TeamLeadViewSet(viewsets.ModelViewSet):
+    queryset = TeamLead.objects.all().prefetch_related("members", "lead")
+    serializer_class = TeamLeadSerializer
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = [
+        "lead__login_id",
+        "lead__name",
+        "members__login_id",
+        "members__name",
+    ]
+    filterset_fields = ["lead", "members"]
+    ordering_fields = ["created_at", "updated_at", "lead"]
+    ordering = ["-created_at"]  # default ordering
+    pagination_class = PageNumberPagination
+    permission_classes = [IsAuthenticated]
+
+
+class TeamManagerViewSet(viewsets.ModelViewSet):
+    queryset = TeamManager.objects.all().prefetch_related("team_leads", "manager")
+    serializer_class = TeamManagerSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = PageNumberPagination
+
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = ["manager__login_id", "manager__name", "team_leads__lead__login_id", "team_leads__lead__name"]
+    filterset_fields = ["manager", "team_leads"]
+    ordering_fields = ["created_at", "updated_at", "manager"]
+    ordering = ["-created_at"]
+
+
+
+class EmployeeTokenViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeToken.objects.all()
+    serializer_class = EmployeeTokenSerializer
+    permission_classes = [StrictDjangoModelPermissions]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status', 'employee']
+    search_fields = ['title', 'description', 'employee__username', 'responder__username']
+    ordering_fields = ['created_at', 'responded_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.has_perm('employee.approve_tokens'):
+            return EmployeeToken.objects.all()
+        return EmployeeToken.objects.filter(employee=user)
+
+    @action(detail=True, methods=["post"], url_path="respond")
+    def respond_token(self, request, pk=None):
+        token = self.get_object()
+
+        # Permission check
+        if not request.user.has_perm('employee.approve_tokens'):
+            return Response({"detail": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Already responded
+        if token.status == "responded":
+            return Response({"detail": "Already responded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update response, status, and responder
+        response_text = request.data.get("response", "").strip()
+        if not response_text:
+            return Response({"detail": "Response cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+
+        token.response = response_text
+        token.status = "responded"  # or "resolved", depending on your model
+        token.responder = request.user
+        token.responded_at = timezone.now()  # optional if you track response timestamp
+        token.save()
+
+        serializer = self.get_serializer(token)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+from rest_framework.pagination import PageNumberPagination
+
+class BreakPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+
+
+class EmployeeBreakViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeBreak.objects.all()
+    serializer_class = EmployeeBreakSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = BreakPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+
+    def get_queryset(self):
+        # Only return breaks for the current employee
+        return EmployeeBreak.objects.filter(employee=self.request.user)
+
+    def perform_create(self, serializer):
+        # Convert start_time to CST
+        
+        serializer.save(employee=self.request.user, start_time=now_cst())
+
+
+    @action(detail=True, methods=["post"])
+    def break_out(self, request, pk=None):
+        break_instance = self.get_object()
+        if break_instance.end_time is not None:
+            return Response({"detail": "Already clocked out"}, status=400)
+        
+        # Convert end_time to CST
+        break_instance.end_time = to_cst(timezone.now())
+        break_instance.save()
+        return Response(self.get_serializer(break_instance).data)
+
+    @action(detail=False, methods=["get"])
+    def total_break_time(self, request):
+        """
+        Return total break time in seconds for current employee in CST.
+        """
+        breaks = self.get_queryset()
+        total = breaks.annotate(
+            duration=ExpressionWrapper(
+                F('end_time') - F('start_time'),
+                output_field=DurationField()
+            )
+        ).aggregate(total_duration=Sum('duration'))['total_duration']
+        return Response({"total_break_seconds": total.total_seconds() if total else 0})

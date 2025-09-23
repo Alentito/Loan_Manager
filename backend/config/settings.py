@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """
 Django settings for config project.
 
@@ -10,6 +11,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+=======
+import os
+>>>>>>> 00f6f991e (Initial commit of backend and frontend project)
 from pathlib import Path
 import dj_database_url
 import os 
@@ -27,8 +31,12 @@ SECRET_KEY = 'django-insecure-u4ui3@x-ycfn0ajm2#7@scmky1tkuhdq0&*3@xy8ihm*fuq#oz
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+<<<<<<< HEAD
 ALLOWED_HOSTS = ["backend-l3f9.onrender.com", "localhost", "127.0.0.1"]
 
+=======
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+>>>>>>> 00f6f991e (Initial commit of backend and frontend project)
 
 
 # Application definition
@@ -47,6 +55,13 @@ INSTALLED_APPS = [
     'django_celery_results',
     'audit',
     'employee',
+<<<<<<< HEAD
+=======
+    'channels',
+    'userauth', 
+    "rest_framework_simplejwt.token_blacklist",
+    
+>>>>>>> 00f6f991e (Initial commit of backend and frontend project)
 ]
 
 MIDDLEWARE = [
@@ -92,9 +107,20 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # }
 
 DATABASES = {
+<<<<<<< HEAD
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL')
     )
+=======
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'loan',
+        'USER': 'postgres',         
+        'PASSWORD': '204612',  
+        'HOST': '127.0.0.1',
+        'PORT': '5432',
+    }
+>>>>>>> 00f6f991e (Initial commit of backend and frontend project)
 }
 
 
@@ -121,9 +147,13 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
+<<<<<<< HEAD
 
 TIME_ZONE = 'UTC'
 
+=======
+TIME_ZONE = 'UTC'
+>>>>>>> 00f6f991e (Initial commit of backend and frontend project)
 USE_I18N = True
 
 USE_TZ = True
@@ -136,17 +166,35 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+<<<<<<< HEAD
 #STATICFILES_DIRS = [
 #    BASE_DIR / "static",  # 👈 Your global static folder
 #]
+=======
+>>>>>>> 00f6f991e (Initial commit of backend and frontend project)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = True  # For development only
+CORS_ALLOW_ALL_ORIGINS = False  # For development only
 CORS_ALLOW_CREDENTIALS = True 
+<<<<<<< HEAD
+=======
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    
+]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    
+]
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # Default for admin
+]
+>>>>>>> 00f6f991e (Initial commit of backend and frontend project)
 
 REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': [
@@ -158,17 +206,40 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 10,  # or smaller for large datasets
     
 }
+<<<<<<< HEAD
+=======
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    # ...
+}
+
+CSRF_COOKIE_SECURE = False  # Set to True in production
+CSRF_COOKIE_SAMESITE = "Lax"  # Adjust based on your frontend/backend
+CSRF_COOKIE_HTTPONLY = False  # so JS can read it
+  # Prevents JavaScript access to CSRF cookie
+SESSION_COOKIE_SECURE = False  # Set to True in production
+SESSION_COOKIE_SAMESITE = 'Lax'  # Adjust based on your frontend/backend
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+
+>>>>>>> 00f6f991e (Initial commit of backend and frontend project)
+
 
 CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',  # Redis server URL
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",  # Separate DB for cache
         "OPTIONS": {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            #'IGNORE_EXCEPTIONS': True,  # Ignore cache errors
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            # "IGNORE_EXCEPTIONS": True,  # Uncomment in production to avoid breaking app on cache errors
         },
     }
 }
+<<<<<<< HEAD
 CELERY_BROKER_URL = os.environ.get('REDIS_URL')
 CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL')
 CELERY_ACCEPT_CONTENT = ['json']
@@ -178,3 +249,52 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_TASK_SERIALIZER = 'json'
 
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True # celery >=5.2
+=======
+
+# -------------------------------
+# Celery - Core
+# -------------------------------
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"     # Redis DB 0 → Broker
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/1" # Redis DB 1 → Results
+CELERY_TIMEZONE = "America/Chicago"                # CST
+CELERY_TASK_TRACK_STARTED = True                   # Track task start times
+CELERY_TASK_TIME_LIMIT = 60 * 30                   # Hard timeout: 30 min
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ENABLE_UTC = False  # Important since we force CST
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True   # Ensures Celery waits for broker
+
+# -------------------------------
+# Celery - Task Retry Defaults
+# -------------------------------
+# Instead of hardcoding retries inside every task,
+# you can configure global retry defaults here.
+CELERY_TASK_DEFAULT_RETRY_DELAY = 30   # Initial retry delay in seconds
+CELERY_TASK_ACKS_LATE = True           # Re-queue if worker crashes
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_TASK_DEFAULT_QUEUE = "default"
+
+# -------------------------------
+# Celery Beat Schedule
+# -------------------------------
+CELERY_BEAT_SCHEDULE = {
+    # Every 2 seconds → Outbox publisher
+    "publish-outbox-every-2s": {
+        "task": "loan.tasks.publish_outbox",
+        "schedule": 2.0,
+    },
+
+    # Daily at 23:59 CST → Auto mark absent or leave
+    "auto-mark-attendance": {
+        "task": "employee.tasks.auto_mark_absent_or_leave",
+        "schedule": crontab(hour=23, minute=59),
+    },
+
+    # Daily at 12:00 CST → Check for late arrivals
+    "check-late-midday": {
+        "task": "employee.tasks.update_late_status",
+        "schedule": crontab(hour=12, minute=0),
+    },
+}
+>>>>>>> 00f6f991e (Initial commit of backend and frontend project)

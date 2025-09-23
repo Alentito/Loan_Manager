@@ -1,0 +1,118 @@
+import React from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  Box,
+  Divider,
+  Chip,
+  List,
+  ListItem,
+  ListItemText,
+} from "@mui/material";
+import { CalendarToday, Event, AssignmentTurnedIn } from "@mui/icons-material";
+
+const capitalize = (str) =>
+  str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+
+const getStatusColor = (status) => {
+  switch (status) {
+    case "present":
+      return "success.main";
+    case "late":
+      return "warning.main";
+    case "absent":
+      return "error.main";
+    case "leave":
+    case "on_leave":
+      return "info.main";
+    default:
+      return "text.secondary";
+  }
+};
+
+const AttendanceDialog = ({ open, onClose, date, attendance, holiday, meetings = [] }) => (
+  <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    {/* Header */}
+    <DialogTitle>
+      <Box display="flex" alignItems="center" gap={1}>
+        <CalendarToday fontSize="small" />
+        <Typography variant="h6">Details – {date}</Typography>
+      </Box>
+    </DialogTitle>
+
+    <DialogContent dividers>
+      {/* Holiday */}
+      {holiday && (
+        <Typography color="error" mb={2}>
+          🎉 Public Holiday: <strong>{holiday}</strong>
+        </Typography>
+      )}
+
+      {/* Attendance */}
+      <Box mb={2}>
+        <Typography gutterBottom fontWeight={600}>
+          📝 Attendance
+        </Typography>
+        {attendance ? (
+          <Chip
+            label={capitalize(attendance)}
+            sx={{
+              bgcolor: getStatusColor(attendance),
+              color: "#fff",
+              fontWeight: 600,
+            }}
+          />
+        ) : (
+          <Typography color="textSecondary">No attendance marked</Typography>
+        )}
+      </Box>
+
+      <Divider sx={{ my: 2 }} />
+
+      {/* Meetings */}
+      <Box>
+        <Typography gutterBottom fontWeight={600}>
+          📅 Meetings
+        </Typography>
+        {meetings.length > 0 ? (
+          <List dense>
+            {meetings.map((m) => (
+              <ListItem key={m.id} alignItems="flex-start">
+                <Event sx={{ mr: 1, mt: 0.5 }} fontSize="small" color="primary" />
+                <ListItemText
+                  primary={<strong>{m.title}</strong>}
+                  secondary={
+                    <>
+                      {m.time && (
+                        <Typography variant="body2" color="text.secondary">
+                          {m.time}
+                        </Typography>
+                      )}
+                      {m.description && (
+                        <Typography variant="body2">{m.description}</Typography>
+                      )}
+                    </>
+                  }
+                />
+              </ListItem>
+            ))}
+          </List>
+        ) : (
+          <Typography color="textSecondary">No meetings scheduled</Typography>
+        )}
+      </Box>
+    </DialogContent>
+
+    <DialogActions>
+      <Button onClick={onClose} variant="outlined" startIcon={<AssignmentTurnedIn />}>
+        Close
+      </Button>
+    </DialogActions>
+  </Dialog>
+);
+
+export default AttendanceDialog;
