@@ -7,10 +7,10 @@ import {
 import {
   useAddTeamMutation,
   useUpdateTeamMutation
-} from '../redux/teamApi';
-import { useGetEmployeesQuery } from '../redux/employeeApi';
-import { useGetShiftsQuery } from '../redux/shiftApi';
-import { useGetTeamsQuery } from '../redux/teamApi'; // ✅ for checking existing teams
+} from '../api/teamApi';
+import { useGetEmployeesQuery } from '../api/employeeApi';
+import { useGetShiftsQuery } from '../api/shiftApi';
+import { useGetTeamsQuery } from '../api/teamApi'; // ✅ for checking existing teams
 
 const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
   const isEdit = Boolean(team);

@@ -1,9 +1,10 @@
 // src/services/loanApi.js
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi} from "@reduxjs/toolkit/query/react";
+import baseQueryWithReauth from "./baseApi";
 
 export const loanApi = createApi({
   reducerPath: "loanApi",
-  baseQuery: fetchBaseQuery({ baseUrl: "https://backend-l3f9.onrender.com/api/" }),
+  baseQuery: baseQueryWithReauth, // Use the base query with re-authentication
   tagTypes: ["Loan"], // For caching and invalidation
   endpoints: (builder) => ({
     getLoans: builder.query({
@@ -146,6 +147,16 @@ getLoanDocStatus: builder.query({
        invalidatesTags: ['Loan'], // <-- This will refetch the loan list
     }),
     //task
+    listAllTasks: builder.query({
+  query: () => `tasks/`,  // global route
+  providesTags: (res) => {
+    const items = Array.isArray(res) ? res : res?.results || [];
+    return [
+      ...items.map(({ id }) => ({ type: 'Task', id })),
+      { type: 'Task', id: 'ALL' },
+    ];
+  },
+}),
     listLoanTasks: builder.query({
       query: (loanId) => `loan/${loanId}/tasks/`,
         providesTags: (res, err, loanId) => {
@@ -159,12 +170,12 @@ getLoanDocStatus: builder.query({
 
     createTask: builder.mutation({
       query: ({ loan, ...body }) => ({
-        url: `loan/${loan}/tasks/`,
+        url: loan ? `loan/${loan}/tasks/` : `tasks/`, // <-- use global endpoint if no loan
         method: 'POST',
         body,
       }),
       invalidatesTags: (res, err, { loan }) => [
-        { type: 'Task', id: `LOAN-${loan}` },
+        { type: 'Task', id:  loan ? `LOAN-${loan}` : 'ALL' },
       ],
     }),
 
@@ -198,6 +209,7 @@ getLoanDocStatus: builder.query({
 export const {
   useGetLoansQuery,
   useGetLoanQuery,
+  useLazyGetLoansQuery,
   useCreateLoanMutation,
   useUpdateLoanMutation,
   useDeleteLoanMutation,
@@ -221,4 +233,5 @@ export const {
   useUpdateTaskMutation,
   useDeleteTaskMutation,
   useUploadXmlMutation,
+  useListAllTasksQuery
 } = loanApi;

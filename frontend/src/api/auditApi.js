@@ -1,8 +1,10 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { createApi} from '@reduxjs/toolkit/query/react';
+import baseQueryWithReauth from "./baseApi";
 
 export const auditApi = createApi({
   reducerPath: 'auditApi',
-  baseQuery: fetchBaseQuery({ baseUrl: "https://backend-l3f9.onrender.com/api/" }),
+  baseQuery: baseQueryWithReauth, // Use the base query with re-authentication
+  tagTypes: ['Audit'], // For caching and invalidation
   endpoints: (builder) => ({
     /** GET /loans/:loanId/audit/  →  array of AuditEvent objects */
     getLoanAudit: builder.query({
@@ -11,7 +13,13 @@ export const auditApi = createApi({
 
   // new global audit query
   getAllAuditLogs: builder.query({
-    query: () => `audit/`,
+     query: (params = {}) => {
+    const filteredParams = Object.fromEntries(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== "")
+    );
+    const searchParams = new URLSearchParams(filteredParams).toString();
+    return `audit/?${searchParams}`;
+  },
   }),
   }),
 });

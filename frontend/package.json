@@ -10,24 +10,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
-<<<<<<< HEAD
-=======
     "@date-io/date-fns": "^3.2.1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
->>>>>>> 00f6f991e (Initial commit of backend and frontend project)
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@fontsource/inter": "^5.2.6",
+    "@fullcalendar/daygrid": "^6.1.19",
+    "@fullcalendar/interaction": "^6.1.19",
+    "@fullcalendar/react": "^6.1.19",
     "@mui/icons-material": "^7.1.1",
     "@mui/lab": "^7.0.0-beta.14",
-<<<<<<< HEAD
-    "@mui/material": "^7.1.1",
-=======
     "@mui/material": "^7.2.0",
     "@mui/x-data-grid": "^8.7.0",
     "@mui/x-date-pickers": "^8.11.3",
->>>>>>> 00f6f991e (Initial commit of backend and frontend project)
     "@reduxjs/toolkit": "^2.8.2",
     "@syncfusion/ej2-base": "^30.1.37",
     "@syncfusion/ej2-react-kanban": "^30.1.37",
@@ -36,25 +32,23 @@
     "axios": "^1.9.0",
     "dayjs": "^1.11.13",
     "framer-motion": "^12.19.2",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.522.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "react-hot-toast": "^2.5.2",
     "react-icons": "^5.5.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.6.2",
-<<<<<<< HEAD
-    "react-window": "^1.8.11"
-=======
     "react-toastify": "^11.0.5",
     "react-window": "^1.8.11",
     "tailwind-scrollbar": "^4.0.2"
->>>>>>> 00f6f991e (Initial commit of backend and frontend project)
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
-    "@types/react": "^19.1.2",
-    "@types/react-dom": "^19.1.2",
+    "@types/react": "^18.2.7",
+    "@types/react-dom": "^18.2.4",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.25.0",

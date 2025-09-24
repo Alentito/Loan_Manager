@@ -26,7 +26,7 @@ import {
   Grow,
 } from "@mui/material";
 import { Delete, Edit, Add as AddIcon } from "@mui/icons-material";
-import { useGetShiftsQuery, useDeleteShiftMutation } from "../redux/shiftApi";
+import { useGetShiftsQuery, useDeleteShiftMutation } from "../api/shiftApi";
 import ShiftFormDialog from "./ShiftFormDialog";
 
 /** Utility: format time or date in Chicago timezone */

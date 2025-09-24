@@ -1,16 +1,24 @@
 // src/components/redux/brokerApi.js
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import baseQueryWithReauth from "./baseApi";
 
 export const brokerApi = createApi({
   reducerPath: 'brokerApi',
-  baseQuery: fetchBaseQuery({ baseUrl: 'https://backend-l3f9.onrender.com/api/' }),
+  baseQuery: baseQueryWithReauth, // Use the base query with re-authentication
   tagTypes: ['Broker'],
   endpoints: (build) => ({
     getBrokers: build.query({
-      query: ({ page = 1, page_size = 10, search = '', ordering = '' }) =>
-        `brokers/?page=${page}&page_size=${page_size}&search=${search}&ordering=${ordering}`,
-      providesTags: ['Broker'],
+      query: ({ page = 1, page_size = 10, search = '', ordering = '', archived = false }) =>
+        `brokers/?page=${page}&page_size=${page_size}&search=${search}&ordering=${ordering}&archived=${archived}`,
+      providesTags: (result) =>
+    result
+      ? [
+          ...result.results.map(({ id }) => ({ type: 'Broker', id })), 
+          { type: 'Broker', id: 'LIST' }
+        ]
+      : [{ type: 'Broker', id: 'LIST' }],
     }),
+    
     getBrokerById: build.query({
       query: (id) => `brokers/${id}/`,
       providesTags: (result, error, id) => [{ type: 'Broker', id }],
@@ -31,12 +39,19 @@ export const brokerApi = createApi({
       }),
       invalidatesTags: (result, error, { id }) => [{ type: 'Broker', id }],
     }),
-    deleteBroker: build.mutation({
+    archiveBroker: build.mutation({
       query: (id) => ({
-        url: `brokers/${id}/`,
-        method: 'DELETE',
+        url: `/brokers/${id}/archive/`,
+        method: 'POST',
       }),
-      invalidatesTags: ['Broker'],
+      invalidatesTags: [{ type: 'Broker', id: 'LIST' }],
+    }),
+    unarchiveBroker: build.mutation({
+      query: (id) => ({
+        url: `/brokers/${id}/unarchive/`,
+        method: 'POST',
+      }),
+      invalidatesTags: [{ type: 'Broker', id: 'LIST' }],
     }),
   }),
 });
@@ -46,5 +61,6 @@ export const {
   useGetBrokerByIdQuery,
   useAddBrokerMutation,
   useUpdateBrokerMutation,
-  useDeleteBrokerMutation,
+  useArchiveBrokerMutation,
+  useUnarchiveBrokerMutation
 } = brokerApi;

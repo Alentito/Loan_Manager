@@ -1,16 +1,15 @@
 // src/app/store.js
 import { configureStore } from '@reduxjs/toolkit';
 import selectedLoansReducer from "../api/selectedLoansSlice";
+
 import { loanApi } from '../api/loanApi';
 import { auditApi } from '../api/auditApi';
 import { brokerApi } from '../api/brokerApi';
 import { loanOfficerApi} from '../api/loanOfficerApi';
 import { employeeApi } from '../api/employeeApi';
-<<<<<<< HEAD
-//import authReducer from '../features/auth/authSlice';
-=======
 import { authApi } from '../api/authApi';
-import authReducer from "../api/authSlice"; // <--- ADD THIS
+
+import authReducer from "../api/authSlice"; 
 
 import { attendanceApi } from "../api/attendanceApi";
 import { holidayApi } from '../api/holidayApi';
@@ -25,22 +24,20 @@ import { teamLeadApi } from '../api/teamLeadApi';
 import { teamManagerApi} from '../api/teamManagerApi';
 import { tokenApi } from '../api/tokenApi';
 
->>>>>>> 00f6f991e (Initial commit of backend and frontend project)
 
 export const store = configureStore({
   reducer: {
     selectedLoans: selectedLoansReducer,
     
-     //auth: authReducer,
+    auth: authReducer, 
+    
+
+    [authApi.reducerPath]: authApi.reducer,
     [loanApi.reducerPath]: loanApi.reducer,
     [auditApi.reducerPath]: auditApi.reducer,
-    //kishke reducer
     [brokerApi.reducerPath]: brokerApi.reducer,
     [loanOfficerApi.reducerPath]: loanOfficerApi.reducer,
     [employeeApi.reducerPath]: employeeApi.reducer,
-<<<<<<< HEAD
-    
-=======
     [holidayApi.reducerPath]: holidayApi.reducer,
     [meetingApi.reducerPath]: meetingApi.reducer,
     [leaveApi.reducerPath]: leaveApi.reducer,
@@ -54,18 +51,15 @@ export const store = configureStore({
     [teamManagerApi.reducerPath]: teamManagerApi.reducer,
     [tokenApi.reducerPath]: tokenApi.reducer,
 
->>>>>>> 00f6f991e (Initial commit of backend and frontend project)
+
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()
+      .concat(authApi.middleware)
       .concat(loanApi.middleware)
       .concat(auditApi.middleware)
-      //kishke middleware
       .concat(brokerApi.middleware)
       .concat(loanOfficerApi.middleware)
-<<<<<<< HEAD
-      .concat(employeeApi.middleware),
-=======
       .concat(employeeApi.middleware)
       .concat(holidayApi.middleware)
       .concat(meetingApi.middleware)
@@ -80,5 +74,7 @@ export const store = configureStore({
       .concat(teamManagerApi.middleware)
       .concat(tokenApi.middleware)
 
->>>>>>> 00f6f991e (Initial commit of backend and frontend project)
+
 });
+
+export default store;

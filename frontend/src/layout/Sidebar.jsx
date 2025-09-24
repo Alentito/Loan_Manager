@@ -1,15 +1,3 @@
-<<<<<<< HEAD
-import { Link, useLocation } from 'react-router-dom';
-import {FaUserTie,FaFileInvoiceDollar, FaTachometerAlt, FaMoneyCheckAlt, FaTasks, FaUsers, FaChartBar, FaBuilding, FaFileAlt, FaCog } from 'react-icons/fa'; // Sample icons from FontAwesome
-import { Handshake } from 'lucide-react';
-
-import { FaClipboardList } from 'react-icons/fa';
-
-
- // preferred
-// or
-//<Banknote />
-=======
 // frontend/src/layout/Sidebar.jsx
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -22,27 +10,11 @@ import { useSelector } from "react-redux";
 import { useChicagoTime } from "../hooks/useChicagoTime";
 import { logoutAction } from "../api/authSlice";
 import { useDispatch } from "react-redux";
->>>>>>> 00f6f991e (Initial commit of backend and frontend project)
 
 export default function Sidebar() {
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const [logout] = useLogoutMutation();
   const location = useLocation();
-<<<<<<< HEAD
-
-  const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
-    { path: "/loan-management", label: "Loan Management", icon: <FaMoneyCheckAlt /> },
-    { path: "/tasks", label: "Tasks", icon: <FaTasks /> },
-    { path: "/brokers", label: "Brokers", icon: <FaUserTie />},
-    { path: "/loan-officers", label: "Loan Officers", icon: <FaBuilding /> },
-   
-    { path: "/employees", label: "Employee", icon: <FaUsers />  },
-    
-    { path: "/payroll", label: "Payroll", icon: <FaFileInvoiceDollar /> },
-    { path: "/reports", label: "Reports", icon: <FaFileAlt /> },
-    { path: "/audit", label: "audit", icon: <FaClipboardList /> },
-  ];
-
-=======
   const navigate = useNavigate();
   const { time, period } = useChicagoTime();
   const dispatch = useDispatch();
@@ -51,7 +23,7 @@ export default function Sidebar() {
 
   // Permissions array from user object
   const userPermissions = user?.permissions || [];
-  
+
   // Define nav items with required permissions
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: <FaTachometerAlt />, permission: "loan.view_loan" },
@@ -72,14 +44,14 @@ export default function Sidebar() {
     { path: "/admin/leave-approvals", label: "Leave Approvals", icon: <FaClipboardList />, permission: "employee.approve_leave" },
     { path: "/admin/meetings", label: "Meetings", icon: <FaClipboardList />, permission: "employee.view_meeting" },
     { path: "/admin/holidays", label: "Holidays", icon: <FaClipboardList />, permission: "employee.view_publicholiday" },
+  
     { path: "/lenders", label: "Lenders", icon: <FaClipboardList />, permission: "employee.view_lender" },
     { path: "/attendance/summary", label: "Monthly Summary", icon: <FaClipboardList />, permission: "employee.view_attendancesummary" },
     { path: "/tokens/my-tokens", label: "My Tokens", icon: <FaClipboardList />, permission: "employee.view_tokens" },
     { path: "/admin/token-approvals", label: "Token Approvals", icon: <FaClipboardList />, permission: "employee.approve_tokens" },
     { path: "/token/new", label: "Request Token", icon: <FaClipboardList />, permission: "employee.add_employeetoken" },
-    { path: "/breaks", label: "Breaks", icon: <FaClock />, permission: null },
-
-
+    { path: "/breaks", label: "Breaks", icon: <FaClock />, permission: null },    
+    
   ];
 
   // Filter nav items by user permissions
@@ -97,28 +69,52 @@ export default function Sidebar() {
     navigate("/login");
   };
 
->>>>>>> 00f6f991e (Initial commit of backend and frontend project)
   return (
-    <div className="hidden lg:block shadow-[0_4px_10px_rgba(0,0,0,0.2),0_0_10px_rgba(0,60,247,0.5)] relative w-64 h-screen bg-gradient-to-b from-blue-600 to-blue-800 text-white p-4 flex flex-col">
-      <h1 className="text-2xl font-bold mb-8">Entregar Solutions</h1>
-      <nav className="flex-1 space-y-2">
-        {navItems.map(item => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`flex items-center gap-3 px-3 py-2 rounded hover:bg-blue-700 transition ${
-              location.pathname === item.path ? 'bg-blue-900' : ''
-            }`}
-          >
-            <span className="text-lg">{item.icon}</span>
-            <span>{item.label}</span>
-          </Link>
-        ))}
-      </nav>
-      <div className="absolute bottom-4 w-full px-4">
-        <Link to="/settings" className="flex items-center gap-2 text-sm text-gray-200">
+    <div className="hidden lg:flex flex-col w-64 h-screen bg-gradient-to-b from-blue-600 to-blue-800 text-white shadow-lg">
+      {/* Logo/Header */}
+
+      <div className="p-4">
+        <h1 className="text-2xl font-bold">Entregar Solutions</h1>
+        {/* ⏰ Chicago Time */}
+        <div className="mt-2 flex items-center text-sm text-gray-200">
+          <FaClock className="mr-2" />
+          <span>{time || "Loading..."} {period && `${period} CST`}</span>
+        </div>
+
+      </div>
+
+      {/* Scrollable nav */}
+      <div className="flex-1 overflow-y-auto px-4 space-y-2">
+        <nav className="pb-16">
+          {filteredNavItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex items-center gap-3 px-3 py-2 rounded hover:bg-blue-700 transition ${location.pathname === item.path ? "bg-blue-900" : ""
+                }`}
+            >
+              <span className="text-lg">{item.icon}</span>
+              <span>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
+      </div>
+
+      {/* Bottom (fixed) */}
+      <div className="px-4 py-3 border-t border-blue-500 bg-blue-700">
+        <Link
+          to="/settings"
+          className="flex items-center gap-2 text-sm text-gray-200"
+        >
           <FaCog /> Settings
         </Link>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-sm text-gray-200 w-full mt-2 hover:text-red-300"
+        >
+          <FaSignOutAlt /> Logout
+        </button>
+
       </div>
     </div>
   );
