@@ -1,7 +1,47 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from employee.models import Employee, Broker,LoanOfficer
+
 
 User = get_user_model()
+
+# models/events.py
+import uuid
+from django.db import models
+
+class EventOutbox(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    aggregate = models.CharField(max_length=40)          # "loan","task"
+    aggregate_id = models.UUIDField(null=True, blank=True)
+    event_type = models.CharField(max_length=60)
+    payload = models.JSONField()
+    tenant_id = models.CharField(max_length=60)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    publish_try = models.IntegerField(default=0)
+    version = models.IntegerField(default=1)
+
+    
+
+# models/notifications.py
+class Notification(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE)
+    tenant_id = models.CharField(max_length=60)
+    type = models.CharField(max_length=60)
+    title = models.CharField(max_length=200)
+    body = models.TextField(blank=True)
+    entity_type = models.CharField(max_length=40, blank=True)
+    entity_id = models.UUIDField(null=True, blank=True)
+    severity = models.CharField(max_length=20, blank=True)  # info|warning|critical
+    data = models.JSONField(default=dict, blank=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    
+
+
+
 # models.py
 class XMLUpload(models.Model):
     file = models.FileField(upload_to='xml_uploads/')
@@ -12,7 +52,6 @@ class XMLUpload(models.Model):
 class TaskStatus(models.TextChoices):
     TODO        = "To Do",        "To Do"
     IN_PROGRESS = "In Progress",  "In Progress"
-    IN_REVIEW   = "In Review",    "In Review"
     DONE        = "Done",         "Done"
 
   
@@ -108,31 +147,7 @@ class LoanChecklistAnswer(models.Model):
         return f"Loan {self.loan_id} - Q{self.question.order}: {'✔️' if self.answer else '❌'}"
 
 # Create your models here.
-class Broker(models.Model):
-    name = models.CharField(max_length=100)
 
-    def __str__(self):
-        return self.name
-
-class Lender(models.Model):
-    name = models.CharField(max_length=100)
-
-    def __str__(self):
-        return self.name
-
-class Employee(models.Model):
-    ROLE_CHOICES = [
-        ('loan_officer', 'Loan Officer'),
-        ('team_leader', 'Team Leader'),
-        ('team_manager', 'Team Manager'),
-        ('processor', 'Processor'),
-        ('support', 'Support'),
-    ]
-    name = models.CharField(max_length=100)
-    role = models.CharField(max_length=50, choices=ROLE_CHOICES)
-
-    def __str__(self):
-        return f"{self.name} ({self.role})"
 
 
 class Loan(models.Model):
@@ -140,7 +155,7 @@ class Loan(models.Model):
     last_name = models.CharField(max_length=100,default="Unknown")
 
     broker = models.ForeignKey(Broker, on_delete=models.SET_NULL, null=True)
-    loan_officer = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_officer')
+    loan_officer = models.ForeignKey(LoanOfficer, on_delete=models.SET_NULL, null=True, related_name='loans_officer')
     milestone = models.CharField(max_length=100,null=True)
 
     compensation = models.CharField(max_length=100, blank=True, null=True)
@@ -183,21 +198,28 @@ class Loan(models.Model):
     note_rate    = models.DecimalField(max_digits=6, decimal_places=3,
                                    null=True, blank=True)
 
+    class Meta:
+     permissions = [
+        ("view_all_loans", "Can view all loans"),
+     ]
+
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.subject_property or 'Loan'}"
+    
 
 
 class Task(models.Model):
     loan       = models.ForeignKey(Loan, related_name="tasks",
-                                   on_delete=models.CASCADE)
+                                   on_delete=models.CASCADE, null=True, blank=True)
     title      = models.CharField(max_length=160)
+    assignee = models.ForeignKey(Employee, null=True, blank=True, on_delete=models.SET_NULL, related_name="assigned_tasks")
+    assigner = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_tasks")
     description= models.TextField(blank=True)
     status     = models.CharField(max_length=20,
                                   choices=TaskStatus.choices,
                                   default=TaskStatus.TODO)
     position   = models.PositiveIntegerField(default=0)      # order in column
-    assignee   = models.ForeignKey(User, null=True, blank=True,
-                                   on_delete=models.SET_NULL)
+    
     tags       = models.JSONField(default=list, blank=True)  # ["Bug", "Story"]
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -205,4 +227,7 @@ class Task(models.Model):
     class Meta:
         ordering = ["status", "position", "-updated_at"]
         indexes  = [models.Index(fields=["loan", "status", "position"])]
+    
+    def __str__(self):
+        return f"{self.title} ({self.status})"
       

@@ -1,28 +1,13 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
+# Python venv
 venv/
-windows_venv/
-*.env
-*.sqlite3
+venv_celery/
+backend/venv/
+backend/venv_celery/
 
-# Django
-*.log
-media/
-staticfiles/
-
-# Node / frontend
+# Node modules
 node_modules/
-dist/
-build/
+frontend/node_modules/
 
-# IDEs
-.vscode/
-.idea/
-
-echo "backend/venv/" >> .gitignore
-echo "frontend/node_modules/" >> .gitignore
-echo "frontend/package-lock.json" >> .gitignore
-echo ".vscode/" >> .gitignore
+# Python cache
+__pycache__/
+*.pyc

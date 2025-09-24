@@ -1,8 +1,24 @@
 from rest_framework import serializers
-from .models import Loan, Broker, Employee,Lender,ChecklistQuestion, LoanContact,LoanDocStatus,Task
+from .models import Loan, ChecklistQuestion, LoanContact,LoanDocStatus,Task
 from .models import DocOrder
 from .models import XMLUpload
+from employee.serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer
+from employee.models import Broker, LoanOfficer, Employee
 
+
+from .models import Notification
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = "__all__"
+        
+class SimpleEmployeeSerializer(serializers.ModelSerializer):
+    #full_name = serializers.SerializerMethodField()
+    class Meta:
+        model = Employee
+        fields = ('id', 'name')  # include only what UI needs
+    
 class XMLUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = XMLUpload
@@ -35,22 +51,43 @@ class ChecklistQuestionSerializer(serializers.ModelSerializer):
         fields = ['id', 'text', 'order']
 
 class LoanSerializer(serializers.ModelSerializer):
+    # read-side: nested serializers
+    broker = BrokerSerializer(read_only=True)
+    loan_officer = LoanOfficerSerializer(read_only=True)
+
+    team_leader = EmployeeSerializer(read_only=True)
+    team_manager = EmployeeSerializer(read_only=True)
+    processor = EmployeeSerializer(read_only=True)
+    support = EmployeeSerializer(read_only=True)
+
+  
+
+    # write-only PK fields (frontend should send these on create/update)
+    broker_id = serializers.PrimaryKeyRelatedField(
+        queryset=Broker.objects.all(), source='broker', write_only=True, required=False, allow_null=True
+    )
+    loan_officer_id = serializers.PrimaryKeyRelatedField(
+        queryset=LoanOfficer.objects.all(), source='loan_officer', write_only=True, required=False, allow_null=True
+    )
+
+    team_leader_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(), source='team_leader', write_only=True, required=False, allow_null=True
+    )
+    team_manager_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(), source='team_manager', write_only=True, required=False, allow_null=True
+    )
+    processor_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(), source='processor', write_only=True, required=False, allow_null=True
+    )
+    support_id = serializers.PrimaryKeyRelatedField(
+        queryset=Employee.objects.all(), source='support', write_only=True, required=False, allow_null=True
+    )
+
+    
     class Meta:
         model = Loan
         fields = '__all__'
-
-class BrokerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Broker
-        fields = '__all__'
-
-class EmployeeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Employee
-        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'updated_at')
 
 
-class LenderSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Lender
-        fields = '__all__'
+
