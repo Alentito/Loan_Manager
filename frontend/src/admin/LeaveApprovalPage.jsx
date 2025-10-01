@@ -168,8 +168,8 @@ export default function LeaveApprovalPage() {
       status === "approved"
         ? "#2e7d32"
         : status === "denied"
-        ? "#d32f2f"
-        : "#ed6c02";
+          ? "#d32f2f"
+          : "#ed6c02";
     return (
       <Box
         sx={{
@@ -276,7 +276,8 @@ export default function LeaveApprovalPage() {
             <TableRow>
               {[
                 "Employee ID",
-                "Leave Type",
+                "Approval Type",
+                "Leave Balance",
                 "Start Date",
                 "End Date",
                 "Status",
@@ -306,7 +307,12 @@ export default function LeaveApprovalPage() {
                       {req.employee?.login_id || "—"}
                     </TableCell>
                     <TableCell sx={{ px: 2 }}>
-                      {mapToSimpleLeaveType(req.leave_type)}
+                      {req.approval_type
+                        ? req.approval_type.charAt(0).toUpperCase() + req.approval_type.slice(1)
+                        : "—"}
+                    </TableCell>
+                    <TableCell sx={{ px: 2 }}>
+                      {req.employee_balance ?? "—"}
                     </TableCell>
                     <TableCell sx={{ px: 2 }}>
                       {formatToCSTDate(req.start_date)}
@@ -354,7 +360,7 @@ export default function LeaveApprovalPage() {
                                   <MenuItem value="paid">
                                     Paid Leave
                                   </MenuItem>
-                                  <MenuItem value="Unpaid">
+                                  <MenuItem value="unpaid">
                                     Unpaid Leave
                                   </MenuItem>
                                 </Select>
@@ -362,6 +368,7 @@ export default function LeaveApprovalPage() {
                                   size="small"
                                   color="success"
                                   variant="contained"
+                                  disabled={!approvalTypes[req.id]}
                                   sx={{
                                     opacity: 0.9,
                                     borderRadius: "16px",

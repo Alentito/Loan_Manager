@@ -31,13 +31,6 @@ const formatToCSTDate = (input) => {
   return date.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 };
 
-// Map leave type to simple label
-const mapToSimpleLeaveType = (type) => {
-  if (type === "Paid Leave") return "Paid Leave";
-  if (type === "Unpaid Leave") return "Unpaid Leave";
-  return type || "—";
-};
-
 // Status badge
 const StatusBox = ({ status }) => {
   const colors = { approved: "#2e7d32", denied: "#d32f2f", pending: "#ed6c02" };
@@ -183,7 +176,14 @@ export default function MyLeaveRequests() {
         <Table stickyHeader>
           <TableHead>
             <TableRow>
-              {["Leave Type", "Start Date", "End Date", "Status", "Reason"].map((label) => (
+              {[
+                "Approval Type",
+                "Leave Balance",
+                "Start Date",
+                "End Date",
+                "Status",
+                "Reason",
+              ].map((label) => (
                 <TableCell key={label} sx={{ fontWeight: 600 }}>
                   {label}
                 </TableCell>
@@ -195,7 +195,7 @@ export default function MyLeaveRequests() {
             {isLoading
               ? Array.from({ length: ROWS_PER_PAGE }).map((_, idx) => (
                   <TableRow key={idx}>
-                    <TableCell colSpan={5}>
+                    <TableCell colSpan={6}>
                       <Skeleton height={40} />
                     </TableCell>
                   </TableRow>
@@ -204,7 +204,13 @@ export default function MyLeaveRequests() {
               ? filteredLeaves.map((req) => (
                   <Grow key={req.id} in timeout={300}>
                     <TableRow hover>
-                      <TableCell>{mapToSimpleLeaveType(req.leave_type)}</TableCell>
+                      <TableCell>
+                        {req.approval_type
+                          ? req.approval_type.charAt(0).toUpperCase() +
+                            req.approval_type.slice(1)
+                          : "—"}
+                      </TableCell>
+                      <TableCell>{req.employee_balance ?? "—"}</TableCell>
                       <TableCell>{formatToCSTDate(req.start_date)}</TableCell>
                       <TableCell>{formatToCSTDate(req.end_date)}</TableCell>
                       <TableCell>
@@ -216,7 +222,7 @@ export default function MyLeaveRequests() {
                 ))
               : (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                       No leave requests found.
                     </TableCell>
                   </TableRow>

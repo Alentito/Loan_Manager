@@ -36,7 +36,7 @@ const isWeekendFromDateStr = (dateStr) => {
   if (!dateStr) return false;
   const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return false;
-  const dUTCNoon = new Date(Date.UTC(+m[1], +m[2]-1, +m[3], 12));
+  const dUTCNoon = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" }).format(dUTCNoon);
   return weekday === "Sat" || weekday === "Sun";
 };
@@ -46,7 +46,7 @@ const formatSecondsToHHMMSS = (totalSeconds) => {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = Math.floor(totalSeconds % 60);
-  return `${String(hours).padStart(2,"0")}:${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}`;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
 
 // ---------------------- component ----------------------
@@ -83,7 +83,7 @@ const AttendancePage = () => {
     { skip: !employeeIdToFetch }
   );
 
-  const { data: allHolidayData } = useGetHolidaysQuery({ page:1, pageSize:9999 });
+  const { data: allHolidayData } = useGetHolidaysQuery({ page: 1, pageSize: 9999 });
   const { data: meetings = [] } = useGetMeetingsQuery();
   const [markAttendance] = useMarkAttendanceMutation();
 
@@ -128,35 +128,35 @@ const AttendancePage = () => {
     totalPresent, totalLate, totalPaidLeave, totalUnpaidLeave, totalAbsent, totalEarly
   } = useMemo(() => {
     const holidaySet = new Set(allHolidays.map(h => formatToCSTDate(h.date)).filter(Boolean));
-    const attendanceMap = new Map(attendance.map(a => [formatToCSTDate(a.date), a.status?.toUpperCase()]).filter(([k])=>!!k));
+    const attendanceMap = new Map(attendance.map(a => [formatToCSTDate(a.date), a.status?.toUpperCase()]).filter(([k]) => !!k));
 
-    let present=0, late=0, paidLeave=0, unpaidLeave=0, absent=0, early=0;
+    let present = 0, late = 0, paidLeave = 0, unpaidLeave = 0, absent = 0, early = 0;
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-    for (let d=1; d<=daysInMonth; d++) {
-      const dateStr = formatToCSTDate(new Date(Date.UTC(year, month-1, d, 12)));
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = formatToCSTDate(new Date(Date.UTC(year, month - 1, d, 12)));
       if (!dateStr) continue;
       const isFuture = dateStr > todayStr;
       const status = attendanceMap.get(dateStr);
       if (status) {
-        if (status==="PRESENT") present++;
-        else if (status==="LATE") late++;
-        else if (status==="ON_LEAVE") paidLeave++;
-        else if (status==="UNPAID_LEAVE") unpaidLeave++;
-        else if (status==="ABSENT") absent++;
-        else if (status==="EARLY") early++;
+        if (status === "PRESENT") present++;
+        else if (status === "LATE") late++;
+        else if (status === "ON_LEAVE" || status === "PAID_LEAVE") paidLeave++;
+        else if (status === "UNPAID_LEAVE") unpaidLeave++;
+        else if (status === "ABSENT") absent++;
+        else if (status === "EARLY") early++;
       } else if (!isWeekendFromDateStr(dateStr) && !holidaySet.has(dateStr) && !isFuture) {
         absent++;
       }
     }
     return {
-  totalPresent: present,
-  totalLate: late,
-  totalPaidLeave: paidLeave,
-  totalUnpaidLeave: unpaidLeave,
-  totalAbsent: absent,
-  totalEarly: early
-};
+      totalPresent: present,
+      totalLate: late,
+      totalPaidLeave: paidLeave,
+      totalUnpaidLeave: unpaidLeave,
+      totalAbsent: absent,
+      totalEarly: early
+    };
   }, [attendance, allHolidays, month, year, todayStr]);
 
   const totalBreakHHMMSS = useMemo(() => {
@@ -169,12 +169,12 @@ const AttendancePage = () => {
       const d = formatToCSTDate(h.date);
       if (!d) return false;
       const [y, m] = d.split("-");
-      return parseInt(y,10)===year && parseInt(m,10)===month;
+      return parseInt(y, 10) === year && parseInt(m, 10) === month;
     }).length;
   }, [allHolidays, month, year]);
 
   const alreadyMarked = (todayAttendance && formatToCSTDate(todayAttendance.date) === todayStr) ||
-                        attendance.some(a=>formatToCSTDate(a.date)===todayStr);
+    attendance.some(a => formatToCSTDate(a.date) === todayStr);
 
   // ---------------------- Handlers ----------------------
   const handleMarkToday = useCallback(async () => {
@@ -184,7 +184,7 @@ const AttendancePage = () => {
       dispatch(setAuthenticated({ user: authUser, attendance: today }));
       toast.success("Attendance marked for today");
       refetch();
-    } catch(err) {
+    } catch (err) {
       console.error(err);
       toast.error("Failed to mark attendance");
     }
@@ -192,18 +192,18 @@ const AttendancePage = () => {
   console.log("Fetching breaks for employee:", employeeIdToFetch);
 
   const handleDateClick = useCallback(dateStr => {
-    const att = attendance.find(a=>formatToCSTDate(a.date)===dateStr);
-    const holiday = allHolidays.find(h=>formatToCSTDate(h.date)===dateStr);
-    const dayMeetings = meetings.filter(m=>formatToCSTDate(m.date)===dateStr);
+    const att = attendance.find(a => formatToCSTDate(a.date) === dateStr);
+    const holiday = allHolidays.find(h => formatToCSTDate(h.date) === dateStr);
+    const dayMeetings = meetings.filter(m => formatToCSTDate(m.date) === dateStr);
     const dayBreaks = getBreaksForDate(dateStr);
-    const dayTotalBreak = formatSecondsToHHMMSS(dayBreaks.reduce((sum,b)=>b.end_time?sum+(new Date(b.end_time)-new Date(b.start_time))/1000:sum,0));
+    const dayTotalBreak = formatSecondsToHHMMSS(dayBreaks.reduce((sum, b) => b.end_time ? sum + (new Date(b.end_time) - new Date(b.start_time)) / 1000 : sum, 0));
 
     let status = att?.status;
     const isHoliday = !!holiday;
-    const isFuture = dateStr>todayStr;
-    if (!status && !isHoliday && !isWeekendFromDateStr(dateStr) && !isFuture) status="ABSENT";
+    const isFuture = dateStr > todayStr;
+    if (!status && !isHoliday && !isWeekendFromDateStr(dateStr) && !isFuture) status = "ABSENT";
 
-    setSelectedDateInfo({ date: dateStr, attendance:{status}, holiday, meetings:dayMeetings, breaks:dayBreaks, totalBreak:dayTotalBreak });
+    setSelectedDateInfo({ date: dateStr, attendance: { status }, holiday, meetings: dayMeetings, breaks: dayBreaks, totalBreak: dayTotalBreak });
     setDialogOpen(true);
   }, [attendance, allHolidays, meetings, todayStr, getBreaksForDate]);
 
@@ -213,8 +213,8 @@ const AttendancePage = () => {
 
   // ---------------------- Render ----------------------
   return (
-    <Box sx={{ bgcolor:"#f4f6f8", minHeight:"100vh", py:4 }}>
-      <Paper sx={{ maxWidth:900, mx:"auto", p:4, borderRadius:2 }}>
+    <Box sx={{ bgcolor: "#f4f6f8", minHeight: "100vh", py: 4 }}>
+      <Paper sx={{ maxWidth: 900, mx: "auto", p: 4, borderRadius: 2 }}>
         <Typography variant="h4" align="center" fontWeight={600} gutterBottom>
           Employee Attendance
         </Typography>
@@ -227,23 +227,23 @@ const AttendancePage = () => {
         </Box>
 
         {/* Summary Cards */}
-        <Box display="grid" gridTemplateColumns={{ xs:"1fr 1fr", sm:"1fr 1fr 1fr 1fr" }} gap={2} mt={3} mb={3}>
+        <Box display="grid" gridTemplateColumns={{ xs: "1fr 1fr", sm: "1fr 1fr 1fr 1fr" }} gap={2} mt={3} mb={3}>
           {[
-            { key:"present", label:"✅ Present", count:totalPresent, color:"success" },
-            { key:"late", label:"⏰ Late", count:totalLate, color:"warning" },
-            { key:"on_leave", label:"🌴 Paid Leave", count:totalPaidLeave, color:"info" },
-            { key:"unpaid_leave", label:"💸 Unpaid Leave", count:totalUnpaidLeave, color:"secondary" },
-            { key:"absent", label:"❌ Absent", count:totalAbsent, color:"error" },
-            { key:"early", label:"⌚ Early", count:totalEarly, color:"primary" },
-            { key:"holiday", label:"🎉 Holidays", count:holidayCount, color:"secondary" },
-            { key:"break", label:"☕ Break Hours", count:totalBreakHHMMSS, color:"info" }
-          ].map(({key,label,count,color})=>(
+            { key: "present", label: "✅ Present", count: totalPresent, color: "success" },
+            { key: "late", label: "⏰ Late", count: totalLate, color: "warning" },
+            { key: "on_leave", label: "🌴 Paid Leave", count: totalPaidLeave, color: "info" },
+            { key: "unpaid_leave", label: "💸 Unpaid Leave", count: totalUnpaidLeave, color: "secondary" },
+            { key: "absent", label: "❌ Absent", count: totalAbsent, color: "error" },
+            { key: "early", label: "⌚ Early", count: totalEarly, color: "primary" },
+            { key: "holiday", label: "🎉 Holidays", count: holidayCount, color: "secondary" },
+            { key: "break", label: "☕ Break Hours", count: totalBreakHHMMSS, color: "info" }
+          ].map(({ key, label, count, color }) => (
             <Paper key={key} sx={{
-              p:1, borderRadius:1.5, textAlign:"center", cursor:"pointer",
-              bgcolor: filter===key ? `${color}.main` : `${color}.100`,
-              color: filter===key ? "#fff" : `${color}.800`,
-              transition:"0.2s", boxShadow:1, "&:hover":{ transform:"scale(1.03)", boxShadow:2 }
-            }} onClick={()=>setFilter(filter===key?null:key)}>
+              p: 1, borderRadius: 1.5, textAlign: "center", cursor: "pointer",
+              bgcolor: filter === key ? `${color}.main` : `${color}.100`,
+              color: filter === key ? "#fff" : `${color}.800`,
+              transition: "0.2s", boxShadow: 1, "&:hover": { transform: "scale(1.03)", boxShadow: 2 }
+            }} onClick={() => setFilter(filter === key ? null : key)}>
               <Typography variant="subtitle2">{label}</Typography>
               <Typography variant="h6" fontWeight={700}>{count}</Typography>
             </Paper>
@@ -261,14 +261,14 @@ const AttendancePage = () => {
             filter={filter}
             month={month}
             year={year}
-            onMonthChange={(m,y)=>{setMonth(m); setYear(y);}}
+            onMonthChange={(m, y) => { setMonth(m); setYear(y); }}
           />
         </Box>
       </Paper>
 
       <AttendanceDialog
         open={dialogOpen}
-        onClose={()=>setDialogOpen(false)}
+        onClose={() => setDialogOpen(false)}
         date={selectedDateInfo.date}
         attendance={selectedDateInfo.attendance?.status}
         holiday={selectedDateInfo.holiday?.title}

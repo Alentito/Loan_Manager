@@ -7,8 +7,8 @@ from django.conf import settings
 from django.contrib.auth.models import Group
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, time
-from employee.utils import now_cst, CST, to_cst
-
+from employee.utils import now_cst, CST, to_cst, get_cst_date
+from django.db.models import Sum
 
 
 # Create your models here.
@@ -69,14 +69,39 @@ class Employee(models.Model):
 
     login_password = models.CharField(max_length=128, blank=True, null=True, db_index=True)
 
+    yearly_paid_leaves = models.IntegerField(default=12)   # yearly quota
+    leave_balance = models.IntegerField(default=12)  
 
     def save(self, *args, **kwargs):
-    # only update linked user if it exists
+        # Ensure balance never exceeds yearly quota
+        if self.leave_balance > self.yearly_paid_leaves:
+            self.leave_balance = self.yearly_paid_leaves
+
+        # only update linked user if it exists
         if self.login_id and self.user:
             self.user.username = self.login_id
             self.user.save(update_fields=["username"])
         super().save(*args, **kwargs)
 
+    def __str__(self):
+        return f"{self.name} ({self.login_id})"
+    
+    def reset_leave_balance_if_needed(self):
+        """Reset leave balance every January 1st."""
+        today = get_cst_date().date()
+        if today.month == 1 and today.day == 1:
+            self.leave_balance = self.yearly_paid_leaves
+            self.save(update_fields=["leave_balance"])
+
+    def get_yearly_late_minutes(self, year=None):
+        from .models import Attendance
+        if year is None:
+            year = timezone.now().year
+        result = self.attendances.filter(
+            date__year=year,
+            status=Attendance.STATUS_LATE
+        ).aggregate(total_late=Sum('minutes_late'))
+        return result['total_late'] or 0
     
 class PublicHoliday(models.Model):
     date = models.DateField(unique=True)
@@ -138,7 +163,7 @@ class LeaveRequests(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.employee} - {self.leave_type} ({self.status})"
+         return f"{self.employee} - {self.approval_type or 'N/A'} ({self.status})"
 
 
 class Shift(models.Model):

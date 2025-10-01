@@ -34,13 +34,15 @@ export const leaveApi = createApi({
 
     // ✅ Admin/Manager: get all leave requests (with filters + pagination)
     getAllLeaveRequests: builder.query({
-      query: ({ page = 1, page_size = 10, status, employee, search } = {}) => {
+      query: ({ page = 1, page_size = 10, status, employee, search, start_date, end_date } = {}) => {
         const params = new URLSearchParams();
         params.set("page", page);
         params.set("page_size", page_size);
         if (status) params.set("status", status);
         if (employee) params.set("employee", employee);
         if (search) params.set("search", search);
+        if (start_date) params.set("start_date", start_date);
+        if (end_date) params.set("end_date", end_date);
 
         return `/leave-requests/?${params.toString()}`;
       },

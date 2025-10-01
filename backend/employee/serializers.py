@@ -129,16 +129,16 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     employee = EmployeeBasicSerializer(read_only=True)
     approved_by = UserBasicSerializer(read_only=True)
     denied_by = UserBasicSerializer(read_only=True)
-
+    employee_balance = serializers.IntegerField(source="employee.leave_balance", read_only=True)
 
     class Meta:
         model = LeaveRequests
         fields = [
-        'id', 'employee', 'start_date', 'end_date',
+        'id', 'employee','employee_balance', 'start_date', 'end_date',
         'reason', 'status', 'approved_by', 'denied_by', 'approval_type',
         'processed_at', 'created_at'
     ]
-        read_only_fields = ['employee', 'approved_by', 'denied_by', 'processed_at', 'created_at']
+        read_only_fields = ['employee', 'approved_by', 'denied_by', 'processed_at', 'created_at','employee_balance']
 
     def create(self, validated_data):
         request = self.context.get('request')
@@ -309,7 +309,8 @@ class AttendanceSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source="employee.user.username", read_only=True)
     employee_id = serializers.IntegerField(source="employee.id", read_only=True)
     shift_name = serializers.CharField(source="shift.name", read_only=True)
-
+    leave_balance = serializers.SerializerMethodField()
+    yearly_late_seconds = serializers.SerializerMethodField()
     class Meta:
         model = Attendance
         fields = [
@@ -327,7 +328,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
             "worked_minutes",
             "total_break_minutes",
             "net_worked_minutes",
-            "breaks",
+            "breaks", 'leave_balance', 'yearly_late_seconds'
         ]
         read_only_fields = [
             "worked_minutes",
@@ -338,7 +339,18 @@ class AttendanceSerializer(serializers.ModelSerializer):
     def get_net_worked_minutes(self, obj):
         return max(0, (obj.worked_minutes or 0) - (obj.total_break_minutes or 0))
 
+    def get_leave_balance(self, obj):
+        # assuming you pass 'leave_summary' in context
+        leave_summary = self.context.get('leave_summary')
+        if leave_summary:
+            return leave_summary.get('leave_balance', 0)
+        return 0
 
+    def get_yearly_late_seconds(self, obj):
+        leave_summary = self.context.get('leave_summary')
+        if leave_summary:
+            return leave_summary.get('yearly_late_seconds', 0)
+        return 0
 class MonthlyAttendanceSummarySerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source="employee.user.username", read_only=True)
     attendance_details = serializers.SerializerMethodField()

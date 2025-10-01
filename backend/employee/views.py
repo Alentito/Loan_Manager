@@ -831,12 +831,24 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                 # Filter leaves that include the selected day
                 qs = qs.filter(start_date__lte=date_obj, end_date__gte=date_obj)
 
+                return qs
+
+        start_str = self.request.query_params.get("start_date")
+        end_str = self.request.query_params.get("end_date")
+        if start_str and end_str:
+            start_obj = parse_date(start_str)
+            end_obj = parse_date(end_str)
+            if start_obj and end_obj:
+                # include leaves that overlap the requested window
+                qs = qs.filter(start_date__lte=end_obj, end_date__gte=start_obj)
+
         return qs
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve_request(self, request, pk=None):
         with transaction.atomic():
             leave = self.get_object()
+            employee = leave.employee
 
             if leave.employee == request.user.employee:
                 return Response({"detail": "You cannot approve your own leave request."}, status=403)
@@ -857,18 +869,38 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                     status=400
                 )
 
+            # --- Apply balance + fallback logic ---
+            leave_days = (leave.end_date - leave.start_date).days + 1
+            final_type = approval_type
+
+            if approval_type == "paid":
+            # Deduct full leave days from balance, allow negative
+                employee.leave_balance -= leave_days
+                final_type = "paid" if employee.leave_balance >= 0 else "unpaid"
+            else:
+                # Unpaid leave
+                if employee.leave_balance <= 0:
+                    # If balance is 0 or negative, continue decreasing
+                    employee.leave_balance -= leave_days
+                final_type = "unpaid"
+
+            # Save updated leave balance
+            employee.save(update_fields=["leave_balance"])
+
+            # --- Update leave record ---
             leave.status = "approved"
-            leave.approval_type = approval_type
+            leave.approval_type = final_type
             leave.approved_by = request.user
             leave.processed_at = now_cst()
             leave.save()
 
+            # --- Mark attendance ---
             mark_attendance_for_leave(
                 leave.employee,
                 leave.start_date,
                 leave.end_date,
                 approved=True,
-                leave_type=approval_type
+                leave_type=final_type
             )
 
             return Response(LeaveRequestSerializer(leave).data, status=200)
@@ -894,6 +926,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
             leave.status = "denied"
             leave.denied_by = request.user
+            leave.approval_type = None 
             leave.processed_at = now_cst()
             leave.save()
             mark_attendance_for_leave(
@@ -901,7 +934,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                 leave.start_date,
                 leave.end_date,
                 approved=False,
-                leave_type=leave.leave_type
+                leave_type="denied"
             )
 
             return Response(LeaveRequestSerializer(leave).data, status=200)
@@ -1021,7 +1054,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     )
     serializer_class = AttendanceSerializer
     permission_classes = [IsAuthenticated]
-
+    pagination_class = None 
+    
     def get_queryset(self):
         print("Query params:", self.request.query_params)
         user = self.request.user
@@ -1084,8 +1118,44 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
        
-    
+    @action(detail=False, methods=["get"], url_path="summary")
+    def summary(self, request):
 
+        user = request.user
+        employee_id = request.query_params.get("employeeId")
+        year = int(request.query_params.get("year") or timezone.now().year)
+
+        if not employee_id:
+            if hasattr(user, "employee"):
+                employee_id = user.employee.id
+            else:
+                return Response({"detail": "Employee ID is required"}, status=400)
+
+        try:
+            employee = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            return Response({"detail": "Employee not found"}, status=404)
+
+        # Permission check
+        if hasattr(user, "employee") and user.employee.id != employee.id:
+            if not (user.is_superuser or user.has_perm("employee.view_employee")):
+                return Response({"detail": "Not allowed"}, status=403)
+
+        # Prepare summary
+        data = {
+            "employee_id": employee.id,
+            "employee_name": employee.name,
+            "leave_balance": employee.leave_balance,  # or however you store it
+            "yearly_late_minutes": employee.get_yearly_late_minutes(year),
+        }
+
+        return Response(data)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        leave_summary = {}  # fetch or calculate for employee here
+        serializer = self.get_serializer(queryset, many=True, context={'leave_summary': leave_summary})
+        return Response(serializer.data)
 class MonthlyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MonthlyAttendanceSummarySerializer
     permission_classes = [permissions.IsAuthenticated]

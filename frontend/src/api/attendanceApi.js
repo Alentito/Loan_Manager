@@ -57,10 +57,7 @@ export const attendanceApi = createApi({
     getTodayAttendance: builder.query({
       query: () => "attendance/today/",
     }),
-    getMonthlySummary: builder.query({
-      query: ({ employeeId, year, month }) =>
-        `attendance/summary/?employee=${employeeId}&year=${year}&month=${month}`,
-    }),
+    
 
   }),
 });
