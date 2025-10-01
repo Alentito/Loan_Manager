@@ -8,9 +8,9 @@ import {
   useAddTeamMutation,
   useUpdateTeamMutation
 } from '../api/teamApi';
-import { useGetEmployeesQuery } from '../api/employeeApi';
+import { useGetAllEmployeesQuery } from '../api/employeeApi';
 import { useGetShiftsQuery } from '../api/shiftApi';
-import { useGetTeamsQuery } from '../api/teamApi'; // ✅ for checking existing teams
+import { useGetTeamsQuery } from '../api/teamApi';
 
 const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
   const isEdit = Boolean(team);
@@ -27,13 +27,23 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
   const [addTeam] = useAddTeamMutation();
   const [updateTeam] = useUpdateTeamMutation();
 
-  const { data: employeesData } = useGetEmployeesQuery({ page: 1, page_size: 1000 });
+  // ✅ Fetch all employees for dropdown (no pagination)
+  const { data: employeesData, isLoading: employeesLoading } = useGetAllEmployeesQuery();
   const { data: shiftsData } = useGetShiftsQuery({ page_size: 1000 });
-  const { data: teamsData } = useGetTeamsQuery({ page_size: 1000 }); // ✅ get all teams
+  const { data: teamsData } = useGetTeamsQuery({ page_size: 1000 });
+  
+  // Ensure always arrays
+  const employees = Array.isArray(employeesData)
+    ? employeesData
+    : employeesData?.results || [];
 
-  const employees = employeesData?.results || employeesData || [];
-  const shifts = shiftsData?.results || shiftsData || [];
-  const teams = teamsData?.results || [];
+  const shifts = Array.isArray(shiftsData)
+    ? shiftsData
+    : shiftsData?.results || [];
+
+  const teams = Array.isArray(teamsData)
+    ? teamsData
+    : teamsData?.results || [];
 
   useEffect(() => {
     if (open) {
@@ -47,7 +57,7 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
       } else {
         setFormData({ name: '', head: null, manager: null, shift: '' });
       }
-      setError(null); // reset errors
+      setError(null);
     }
   }, [open, team, isEdit]);
 
@@ -106,9 +116,10 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth>
-      
-      <DialogTitle sx={{ m: 0, p: 2, backgroundColor: "#1976d2", color: "#fff" }}>{isEdit ? 'Edit Team' : 'Add Team'}</DialogTitle>
-      
+      <DialogTitle sx={{ m: 0, p: 2, backgroundColor: "#1976d2", color: "#fff" }}>
+        {isEdit ? 'Edit Team' : 'Add Team'}
+      </DialogTitle>
+
       <DialogContent dividers>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -139,6 +150,9 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
           renderInput={(params) => (
             <TextField {...params} label="Team Manager (Login ID)" margin="normal" fullWidth />
           )}
+          ListboxProps={{ style: { maxHeight: 300, overflowY: 'auto' } }}
+          filterSelectedOptions
+          disabled={employeesLoading}
         />
 
         {/* Team Head */}
@@ -157,6 +171,9 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
           renderInput={(params) => (
             <TextField {...params} label="Team Head (Login ID)" margin="normal" fullWidth />
           )}
+          ListboxProps={{ style: { maxHeight: 300, overflowY: 'auto' } }}
+          filterSelectedOptions
+          disabled={employeesLoading}
         />
 
         {/* Shift */}

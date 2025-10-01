@@ -14,6 +14,7 @@ import {
   ListItemText,
 } from "@mui/material";
 import { CalendarToday, Event, AssignmentTurnedIn } from "@mui/icons-material";
+import { formatSecondsToHHMMSS } from "./utils"; // ⬅️ Import your utility
 
 const capitalize = (str) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
@@ -34,7 +35,7 @@ const getStatusColor = (status) => {
   }
 };
 
-const AttendanceDialog = ({ open, onClose, date, attendance, holiday, meetings = [] }) => (
+const AttendanceDialog = ({ open, onClose, date, attendance, holiday, meetings = [], breaks = [] }) => (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
     {/* Header */}
     <DialogTitle>
@@ -60,14 +61,42 @@ const AttendanceDialog = ({ open, onClose, date, attendance, holiday, meetings =
         {attendance ? (
           <Chip
             label={capitalize(attendance)}
-            sx={{
-              bgcolor: getStatusColor(attendance),
-              color: "#fff",
-              fontWeight: 600,
-            }}
+            sx={{ bgcolor: getStatusColor(attendance), color: "#fff", fontWeight: 600 }}
           />
         ) : (
           <Typography color="textSecondary">No attendance marked</Typography>
+        )}
+      </Box>
+
+      <Divider sx={{ my: 2 }} />
+
+      {/* Breaks */}
+      <Box>
+        <Typography gutterBottom fontWeight={600}>
+          ☕ Breaks
+        </Typography>
+        {breaks.length > 0 ? (
+          <List dense>
+            {breaks.map((b) => {
+              const start = new Date(b.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const end = b.end_time ? new Date(b.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Ongoing";
+              const duration = b.duration_seconds ? formatSecondsToHHMMSS(b.duration_seconds) : "Ongoing";
+
+              return (
+                <ListItem key={b.id} alignItems="flex-start">
+                  <Chip
+                    label={`${start} → ${end} (${duration})`}
+                    size="small"
+                    color="info"
+                    sx={{ mr: 1, fontWeight: 600 }}
+                  />
+                  {b.reason && <ListItemText primary={`Reason: ${b.reason}`} />}
+                </ListItem>
+              );
+            })}
+          </List>
+        ) : (
+          <Typography color="textSecondary">No breaks recorded</Typography>
         )}
       </Box>
 
@@ -87,14 +116,8 @@ const AttendanceDialog = ({ open, onClose, date, attendance, holiday, meetings =
                   primary={<strong>{m.title}</strong>}
                   secondary={
                     <>
-                      {m.time && (
-                        <Typography variant="body2" color="text.secondary">
-                          {m.time}
-                        </Typography>
-                      )}
-                      {m.description && (
-                        <Typography variant="body2">{m.description}</Typography>
-                      )}
+                      {m.time && <Typography variant="body2" color="text.secondary">{m.time}</Typography>}
+                      {m.description && <Typography variant="body2">{m.description}</Typography>}
                     </>
                   }
                 />

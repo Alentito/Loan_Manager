@@ -1,5 +1,5 @@
 // src/components/tokens/MyTokens.jsx
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -79,6 +79,20 @@ const TokenDetailDialog = ({ open, onClose, token }) => (
   </Dialog>
 );
 
+// --- Helpers ---
+const toCSTDate = (date) => {
+  if (!date) return null;
+  const cstString = new Date(date).toLocaleString("en-US", { timeZone: "America/Chicago" });
+  const cstDate = new Date(cstString);
+  cstDate.setHours(0, 0, 0, 0);
+  return cstDate;
+};
+
+const formatToCSTDate = (date) => {
+  const cst = toCSTDate(date);
+  return cst ? cst.toISOString().split("T")[0] : "—";
+};
+
 // --- Main Component ---
 export default function MyTokens() {
   const { user } = useSelector((state) => state.auth);
@@ -86,6 +100,8 @@ export default function MyTokens() {
 
   const [page, setPage] = useState(1);
   const [selectedToken, setSelectedToken] = useState(null);
+  const [viewMode, setViewMode] = useState("day"); // day/week/month
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   const { data, isLoading, isError } = useGetTokensQuery(
     { employeeId, page, page_size: ROWS_PER_PAGE },
@@ -95,7 +111,33 @@ export default function MyTokens() {
   const tokens = data?.results || [];
   const total = data?.count || 0;
 
-  // --- Early returns ---
+  // ------------------ Filter tokens ------------------
+  const filteredTokens = useMemo(() => {
+    const currentCST = toCSTDate(currentDate);
+    return tokens.filter((token) => {
+      const tokenCST = toCSTDate(token.created_at); // assuming 'created_at' exists
+      if (!tokenCST) return false;
+
+      if (viewMode === "day") return tokenCST.getTime() === currentCST.getTime();
+
+      if (viewMode === "week") {
+        const startOfWeek = new Date(currentCST);
+        startOfWeek.setDate(currentCST.getDate() - currentCST.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        return tokenCST >= startOfWeek && tokenCST <= endOfWeek;
+      }
+
+      if (viewMode === "month") {
+        return tokenCST.getFullYear() === currentCST.getFullYear() &&
+               tokenCST.getMonth() === currentCST.getMonth();
+      }
+
+      return true;
+    });
+  }, [tokens, viewMode, currentDate]);
+
+  // ------------------ Early returns ------------------
   if (!employeeId) {
     return (
       <Typography color="text.secondary" mt={4} textAlign="center">
@@ -117,6 +159,35 @@ export default function MyTokens() {
       <Typography variant="h5" fontWeight={600} color="primary" mb={2}>
         My Tokens
       </Typography>
+
+      {/* Day/Week/Month + Date picker */}
+      <Box display="flex" gap={1} flexWrap="wrap" alignItems="center" mb={2}>
+        <Button
+          variant={viewMode === "day" ? "contained" : "outlined"}
+          onClick={() => setViewMode("day")}
+        >
+          Day
+        </Button>
+        <Button
+          variant={viewMode === "week" ? "contained" : "outlined"}
+          onClick={() => setViewMode("week")}
+        >
+          Week
+        </Button>
+        <Button
+          variant={viewMode === "month" ? "contained" : "outlined"}
+          onClick={() => setViewMode("month")}
+        >
+          Month
+        </Button>
+
+        <input
+          type="date"
+          value={currentDate.toISOString().split("T")[0]}
+          onChange={(e) => setCurrentDate(new Date(e.target.value))}
+          style={{ height: 32, borderRadius: 4, padding: "0 8px" }}
+        />
+      </Box>
 
       {/* Table */}
       <Paper sx={{ mt: 2, borderRadius: 2, overflow: "hidden" }}>
@@ -140,8 +211,8 @@ export default function MyTokens() {
                   </TableCell>
                 </TableRow>
               ))
-            ) : tokens.length > 0 ? (
-              tokens.map((token) => (
+            ) : filteredTokens.length > 0 ? (
+              filteredTokens.map((token) => (
                 <Grow key={token.id} in timeout={300}>
                   <TableRow hover>
                     <TableCell>{token.title}</TableCell>

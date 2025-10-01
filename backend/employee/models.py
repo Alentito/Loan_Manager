@@ -7,7 +7,8 @@ from django.conf import settings
 from django.contrib.auth.models import Group
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, time
-from employee.utils import now_cst
+from employee.utils import now_cst, CST, to_cst
+
 
 
 # Create your models here.
@@ -80,22 +81,27 @@ class Employee(models.Model):
 class PublicHoliday(models.Model):
     date = models.DateField(unique=True)
     title = models.CharField(max_length=100)
+    is_public = models.BooleanField(default=False, help_text="True if imported from official public holiday calendar")
+    source = models.CharField(max_length=50, blank=True, null=True, help_text="e.g. 'python-holidays:US-IL' or 'manual'")
+
+    class Meta:
+        ordering = ("date",)
+        indexes = [
+            models.Index(fields=["date"]),
+        ]
 
     def __str__(self):
         return f"{self.title} on {self.date}"
 
-
 class Meeting(models.Model):
     title = models.CharField(max_length=100)
     description = models.TextField(blank=True)
-    date = models.DateField()
-    time = models.TimeField()
+    datetime = models.DateTimeField(null=True, blank=True)  # store combined date + time
     employees = models.ManyToManyField('Employee', related_name='meetings')
 
     def __str__(self):
-        return f"{self.title} - {self.date}"
-
-
+        dt_cst = to_cst(self.datetime) if self.datetime else None
+        return f"{self.title} - {dt_cst.strftime('%Y-%m-%d %H:%M') if dt_cst else 'No time set'}"
 
 class LeaveRequests(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='leave_requests')
@@ -105,7 +111,13 @@ class LeaveRequests(models.Model):
     reason = models.TextField()
     status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('approved', 'Approved'), ('denied', 'Denied')], default='pending')
     created_at = models.DateTimeField(default=now_cst, editable=False)
-
+    
+    approval_type = models.CharField(  # <- New
+        max_length=20,
+        choices=[('paid', 'Paid'), ('unpaid', 'Unpaid')],
+        null=True,
+        blank=True
+    )
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True, blank=True,

@@ -1,5 +1,5 @@
 // src/admin/LeaveApprovalPage.jsx
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -18,7 +18,6 @@ import {
   IconButton,
   Pagination,
   CircularProgress,
-  Snackbar,
   Grow,
 } from "@mui/material";
 import { Clear } from "@mui/icons-material";
@@ -32,26 +31,21 @@ import {
 
 const pageSizeDefault = 10;
 
-/* ------------------ Helpers ------------------ */
-// Format date into YYYY-MM-DD in CST
+// ------------------ Helpers ------------------
 const formatToCSTDate = (input) => {
   if (!input) return "—";
-
   if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
-  
   const date = new Date(input);
   if (isNaN(date)) return "—";
   return date.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 };
 
-// Keep only Paid / Unpaid types
 const mapToSimpleLeaveType = (type) => {
   if (type === "Paid Leave") return "Paid Leave";
   if (type === "Unpaid Leave") return "Unpaid Leave";
   return type || "—";
 };
 
-/* ------------------ Debounce Hook ------------------ */
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -61,6 +55,16 @@ function useDebounce(value, delay) {
   return debounced;
 }
 
+// Convert any date to CST midnight
+const toCSTDate = (date) => {
+  if (!date) return null;
+  const cstString = date.toLocaleString("en-US", { timeZone: "America/Chicago" });
+  const cstDate = new Date(cstString);
+  cstDate.setHours(0, 0, 0, 0);
+  return cstDate;
+};
+
+// ------------------ Main Component ------------------
 export default function LeaveApprovalPage() {
   const user = useSelector((state) => state.auth.user);
   const userId = user?.id;
@@ -82,6 +86,9 @@ export default function LeaveApprovalPage() {
   const debouncedSearch = useDebounce(search, 300);
   const [page, setPage] = useState(1);
   const [rowsPerPage] = useState(pageSizeDefault);
+  const [viewMode, setViewMode] = useState("day"); // day/week/month
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [approvalTypes, setApprovalTypes] = useState({});
 
   const { data, isLoading, refetch } = useGetAllLeaveRequestsQuery({
     page,
@@ -93,14 +100,62 @@ export default function LeaveApprovalPage() {
   const [approveLeave] = useApproveLeaveMutation();
   const [denyLeave] = useDenyLeaveMutation();
 
-  const handleDecision = async (id, decision, employee) => {
+  useEffect(() => setPage(1), [currentDate, viewMode, statusFilter, debouncedSearch]);
+
+  const total = data?.count || 0;
+  const leaves = data?.results || [];
+  const emptyRows = rowsPerPage - leaves.length;
+
+  // ------------------ Filter leaves by CST date ------------------
+  const filteredLeaves = useMemo(() => {
+    const currentCST = toCSTDate(currentDate);
+    return leaves.filter((req) => {
+      const startCST = toCSTDate(new Date(req.start_date));
+      const endCST = toCSTDate(new Date(req.end_date));
+
+      if (!startCST || !endCST || !currentCST) return false;
+
+      if (viewMode === "day") return currentCST >= startCST && currentCST <= endCST;
+
+      if (viewMode === "week") {
+        const startOfWeek = new Date(currentCST);
+        startOfWeek.setDate(currentCST.getDate() - currentCST.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        return startCST <= endOfWeek && endCST >= startOfWeek;
+      }
+
+      if (viewMode === "month") {
+        const sameMonth =
+          (startCST.getFullYear() === currentCST.getFullYear() &&
+            startCST.getMonth() === currentCST.getMonth()) ||
+          (endCST.getFullYear() === currentCST.getFullYear() &&
+            endCST.getMonth() === currentCST.getMonth());
+        return sameMonth;
+      }
+
+      return true;
+    });
+  }, [leaves, viewMode, currentDate]);
+
+  // ------------------ Handlers ------------------
+  const handleDecision = async (id, decision, employee, approvalType = null) => {
     if (employee?.id === userId) {
       toast.error("⚠️ You cannot approve/deny your own leave request.");
       return;
     }
+
     try {
-      if (decision === "approved") await approveLeave(id).unwrap();
-      else await denyLeave(id).unwrap();
+      if (decision === "approved") {
+        if (!approvalType) {
+          toast.error("Please select Paid or Unpaid before approving.");
+          return;
+        }
+        await approveLeave({ id, approval_type: approvalType }).unwrap();
+      } else {
+        await denyLeave(id).unwrap();
+      }
+
       toast.success(`Leave ${decision}`);
       refetch();
     } catch {
@@ -108,16 +163,13 @@ export default function LeaveApprovalPage() {
     }
   };
 
-  const total = data?.count || 0;
-  const leaves = data?.results || [];
-  const emptyRows = rowsPerPage - leaves.length;
-
-  // Styled Status Box
   const StatusBox = ({ status }) => {
     const bgColor =
-      status === "approved" ? "#2e7d32" :
-      status === "denied" ? "#d32f2f" :
-      "#ed6c02";
+      status === "approved"
+        ? "#2e7d32"
+        : status === "denied"
+        ? "#d32f2f"
+        : "#ed6c02";
     return (
       <Box
         sx={{
@@ -142,6 +194,7 @@ export default function LeaveApprovalPage() {
     );
   };
 
+  // ------------------ Render ------------------
   return (
     <Box p={3}>
       {/* Header + Filters */}
@@ -157,7 +210,34 @@ export default function LeaveApprovalPage() {
           Employee Leave Requests
         </Typography>
 
+        {/* Day/Week/Month + Date picker + Search + Status */}
         <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
+          <Button
+            variant={viewMode === "day" ? "contained" : "outlined"}
+            onClick={() => setViewMode("day")}
+          >
+            Day
+          </Button>
+          <Button
+            variant={viewMode === "week" ? "contained" : "outlined"}
+            onClick={() => setViewMode("week")}
+          >
+            Week
+          </Button>
+          <Button
+            variant={viewMode === "month" ? "contained" : "outlined"}
+            onClick={() => setViewMode("month")}
+          >
+            Month
+          </Button>
+
+          <TextField
+            type="date"
+            value={currentDate.toISOString().split("T")[0]}
+            onChange={(e) => setCurrentDate(new Date(e.target.value))}
+            size="small"
+          />
+
           <TextField
             size="small"
             label="Search"
@@ -174,6 +254,7 @@ export default function LeaveApprovalPage() {
               ),
             }}
           />
+
           <Select
             size="small"
             value={statusFilter}
@@ -209,6 +290,7 @@ export default function LeaveApprovalPage() {
               ))}
             </TableRow>
           </TableHead>
+
           <TableBody>
             {isLoading ? (
               <TableRow>
@@ -216,8 +298,8 @@ export default function LeaveApprovalPage() {
                   <CircularProgress size={30} />
                 </TableCell>
               </TableRow>
-            ) : leaves.length > 0 ? (
-              leaves.map((req) => (
+            ) : filteredLeaves.length > 0 ? (
+              filteredLeaves.map((req) => (
                 <Grow key={req.id} in timeout={300}>
                   <TableRow hover sx={{ "& > *": { height: 60 } }}>
                     <TableCell sx={{ px: 2 }}>
@@ -235,7 +317,9 @@ export default function LeaveApprovalPage() {
                     <TableCell sx={{ px: 2 }}>
                       <StatusBox status={req.status} />
                     </TableCell>
-                    <TableCell sx={{ px: 2 }}>{req.reason || "—"}</TableCell>
+                    <TableCell sx={{ px: 2 }}>
+                      {req.reason || "—"}
+                    </TableCell>
                     <TableCell sx={{ px: 2 }}>
                       {req.approved_by?.username ||
                         req.denied_by?.username ||
@@ -244,24 +328,58 @@ export default function LeaveApprovalPage() {
                     <TableCell sx={{ px: 2 }}>
                       {req.status === "pending" &&
                         req.employee?.id !== userId && (
-                          <Box display="flex" gap={1}>
+                          <Box
+                            display="flex"
+                            gap={1}
+                            alignItems="center"
+                            position="relative"
+                          >
                             {canApprove && (
-                              <Button
-                                size="small"
-                                color="success"
-                                variant="contained"
-                                sx={{
-                                  opacity: 0.9,
-                                  borderRadius: "16px",
-                                  textTransform: "none",
-                                  minWidth: 90,
-                                }}
-                                onClick={() =>
-                                  handleDecision(req.id, "approved", req.employee)
-                                }
-                              >
-                                Approve
-                              </Button>
+                              <>
+                                <Select
+                                  size="small"
+                                  value={approvalTypes[req.id] || ""}
+                                  onChange={(e) =>
+                                    setApprovalTypes((prev) => ({
+                                      ...prev,
+                                      [req.id]: e.target.value,
+                                    }))
+                                  }
+                                  displayEmpty
+                                  sx={{ minWidth: 140, zIndex: 1000 }}
+                                >
+                                  <MenuItem value="" disabled>
+                                    Select Type
+                                  </MenuItem>
+                                  <MenuItem value="paid">
+                                    Paid Leave
+                                  </MenuItem>
+                                  <MenuItem value="Unpaid">
+                                    Unpaid Leave
+                                  </MenuItem>
+                                </Select>
+                                <Button
+                                  size="small"
+                                  color="success"
+                                  variant="contained"
+                                  sx={{
+                                    opacity: 0.9,
+                                    borderRadius: "16px",
+                                    textTransform: "none",
+                                    minWidth: 90,
+                                  }}
+                                  onClick={() =>
+                                    handleDecision(
+                                      req.id,
+                                      "approved",
+                                      req.employee,
+                                      approvalTypes[req.id]
+                                    )
+                                  }
+                                >
+                                  Approve
+                                </Button>
+                              </>
                             )}
                             {canDeny && (
                               <Button
@@ -296,7 +414,7 @@ export default function LeaveApprovalPage() {
             )}
 
             {emptyRows > 0 &&
-              leaves.length > 0 &&
+              filteredLeaves.length > 0 &&
               Array.from(Array(emptyRows)).map((_, idx) => (
                 <TableRow key={`empty-${idx}`} style={{ height: 60 }}>
                   <TableCell colSpan={8} />
@@ -318,8 +436,6 @@ export default function LeaveApprovalPage() {
           showLastButton
         />
       </Box>
-
-      <Snackbar open={false} autoHideDuration={3000} message="" />
     </Box>
   );
 }

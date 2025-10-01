@@ -44,8 +44,9 @@
 
 /* ---------- Holidays & Weekends ---------- */
 .status-holiday {
-  background-color: #c2185b !important; /* Festive pink-red */
+  background-color: #eb3980 !important; /* Festive pink-red */
   color: #fff !important;
+  opacity: 0.9;
 }
 
 .status-weekend {
@@ -87,3 +88,4 @@
   color: #1976d2 !important;
   font-weight: 700 !important;
 }
+

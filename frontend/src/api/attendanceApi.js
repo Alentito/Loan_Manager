@@ -8,9 +8,11 @@ export const attendanceApi = createApi({
   tagTypes: ["Attendance"],
   endpoints: (builder) => ({
     // ✅ Get attendance for the logged-in employee (month + year filter)
+    // ✅ Get attendance for the logged-in employee OR a specific employee (admin)
     getEmployeeAttendance: builder.query({
-      query: ({ month, year } = {}) => {
+      query: ({ employeeId, month, year } = {}) => {
         const params = new URLSearchParams();
+        if (employeeId) params.append("employeeId", employeeId);
         if (month) params.append("month", month);
         if (year) params.append("year", year);
         const queryString = params.toString();
@@ -26,6 +28,7 @@ export const attendanceApi = createApi({
           ]
           : [{ type: "Attendance", id: "LIST" }],
     }),
+
 
     // ✅ Mark today's attendance for an employee
     markAttendance: builder.mutation({
@@ -55,9 +58,9 @@ export const attendanceApi = createApi({
       query: () => "attendance/today/",
     }),
     getMonthlySummary: builder.query({
-  query: ({ employeeId, year, month }) =>
-    `attendance/summary/?employee=${employeeId}&year=${year}&month=${month}`,
-}),
+      query: ({ employeeId, year, month }) =>
+        `attendance/summary/?employee=${employeeId}&year=${year}&month=${month}`,
+    }),
 
   }),
 });

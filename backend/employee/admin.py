@@ -17,3 +17,5 @@ admin.site.register(Lender)
 admin.site.register(EmployeeToken)
 admin.site.register(EmployeeBreak)
 
+
+

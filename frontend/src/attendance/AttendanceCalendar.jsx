@@ -52,6 +52,7 @@ export default function AttendanceCalendar({
   attendance = [],
   holidays = [],
   meetings = [],
+  breaks = [],
   onDateClick,
   loading,
   onMonthChange,
@@ -66,7 +67,14 @@ export default function AttendanceCalendar({
       </Box>
     );
   }
-
+  const formatDurationHHMMSS = (start, end) => {
+  if (!start || !end) return "00:00:00";
+  const totalSeconds = (new Date(end) - new Date(start)) / 1000;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+};
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
   // Attendance events
@@ -85,6 +93,18 @@ export default function AttendanceCalendar({
       classNames: [`status-${normalized}`],
     });
   });
+  const eventsFromBreaks = [];
+breaks.forEach(({ id, start_time, end_time }) => {
+  const dateStr = formatToCSTDate(start_time);
+  if (!dateStr) return;
+  const durationHHMMSS = end_time ? formatDurationHHMMSS(start_time, end_time) : "Ongoing";
+  eventsFromBreaks.push({
+    id: `break-${id}`,
+    title: `☕ Break (${durationHHMMSS})`,
+    date: dateStr,
+    classNames: ["status-break"],
+  });
+});
 
   // Holiday events
   const holidayDates = new Set();
@@ -120,11 +140,7 @@ export default function AttendanceCalendar({
       });
     }
 
-    // mark Absent if:
-    // - not weekend
-    // - not holiday
-    // - no attendance record
-    // - in the past
+
     if (
       !isWeekendYMD(year, month, d) &&
       !holidayDates.has(dateStr) &&
@@ -154,20 +170,26 @@ export default function AttendanceCalendar({
   });
 
   // Merge
-  const allEvents = [
-    ...eventsFromAttendance,
-    ...eventsFromHolidays,
-    ...generatedEvents,
-    ...eventsFromMeetings,
-  ];
+  const allEvents = useMemo(() => {
+    return [
+      ...eventsFromAttendance,
+      ...eventsFromHolidays,
+      ...generatedEvents,
+      ...eventsFromMeetings,
+      ...eventsFromBreaks,
+    ];
+  }, [eventsFromAttendance, eventsFromHolidays, generatedEvents, eventsFromMeetings, eventsFromBreaks]);
 
-  // Apply filter
-  const filteredEvents = filter
-    ? allEvents.filter((e) => e.classNames?.includes(`status-${filter}`))
-    : allEvents;
+  const filteredEvents = useMemo(() => {
+    return filter
+      ? allEvents.filter((e) => e.classNames?.includes(`status-${filter}`))
+      : allEvents;
+  }, [allEvents, filter]);
+
 
   return (
     <FullCalendar
+      
       timeZone="America/Chicago"
       plugins={[dayGridPlugin, interactionPlugin]}
       initialView="dayGridMonth"

@@ -1,10 +1,14 @@
 # employee/utils.py
+import holidays
 from datetime import timedelta
 from django.utils import timezone
 from zoneinfo import ZoneInfo
 from django.db import transaction
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timezone as dt_timezone, date
 from django.db.models import Sum
+
+
+
 
 CST = ZoneInfo("America/Chicago")
 
@@ -38,11 +42,63 @@ def to_cst(value, assume_utc_for_naive=True):
     return dt.astimezone(CST)
 
 
-def to_cst_date(value, assume_utc_for_naive=True):
+def to_cst_date(dt):
     """
-    Convert datetime or ISO string to CST date only (no time).
+    Convert datetime/date to America/Chicago date.
     """
-    return to_cst(value, assume_utc_for_naive).date()
+    if hasattr(dt, "tzinfo") and dt.tzinfo is not None:
+        return dt.astimezone(CST).date()
+    return dt  # assume naive date is already correct
+
+def add_us_holidays(years=None, state="IL"):
+    """
+    Add U.S. public holidays for given years into PublicHoliday table.
+    """
+    from .models import PublicHoliday
+
+    if years is None:
+        current_year = date.today().year
+        years = [current_year + i for i in range(10)]  # next 10 years
+
+    us_holidays = holidays.US(years=years, state=state, observed=True)
+
+    for hol_date, name in us_holidays.items():
+        norm_date = to_cst_date(hol_date)
+        PublicHoliday.objects.get_or_create(
+            date=norm_date,
+            defaults={
+                "title": name,
+                "is_public": True,
+                "source": f"python-holidays:US-{state}"
+            }
+        )
+    print(f"US holidays for years {years} added.")
+
+
+def get_cst_date(value):
+
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        # naive datetime assumed UTC
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(CST).date()
+
+    elif isinstance(value, str):
+        # parse ISO string
+        dt = datetime.fromisoformat(value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(CST).date()
+
+    elif isinstance(value, date):
+        # already date -> treat as CST date (all-day event)
+        return value
+
+    else:
+        raise ValueError(f"Invalid value for get_cst_date: {value}")
 
 
 def now_cst():
@@ -118,7 +174,8 @@ def today_cst():
 
 @transaction.atomic
 def mark_attendance_on_login(user, login_dt=None):
-    from .models import Attendance
+
+    from .models import Attendance, PublicHoliday
 
     try:
         employee = user.employee
@@ -130,64 +187,72 @@ def mark_attendance_on_login(user, login_dt=None):
     login_dt_cst = to_cst(login_dt)
 
     shift, shift_start, shift_end = pick_shift_for_login(employee, login_dt_cst)
-
-    
     att_date = shift_start.date() if shift else login_dt_cst.date()
+
+    # Check if this att_date is a public holiday (in CST normalized date)
+    holiday_obj = PublicHoliday.objects.filter(date=att_date, is_public=True).first()
 
     # If attendance already exists and is leave → don’t overwrite
     attendance = Attendance.objects.filter(employee=employee, date=att_date).first()
-
-# If approved leave (paid/unpaid), never overwrite
+    
     if attendance and attendance.status in [Attendance.STATUS_ON_LEAVE, Attendance.STATUS_UNPAID_LEAVE]:
-        return attendance  
+        if login_dt_cst:
+            status, minutes_late, counted_from = _decide_status(shift, login_dt_cst)
+            attendance.status = status
+            attendance.minutes_late = minutes_late
+            attendance.counted_from = counted_from
+            attendance.login_time = login_dt_cst
+            attendance.worked_minutes = max(0, int((shift_end - counted_from).total_seconds() // 60))
+            attendance.save(update_fields=[
+                "status", "minutes_late", "counted_from", "login_time", "worked_minutes", "updated_at"
+            ])
+            update_monthly_summary(attendance)
+        return attendance
 
-# If was Absent (from denied leave), allow login to flip to Present/Late/Early
-# (so do nothing here — let the rest of the logic update it)
-    print("LOGIN DEBUG:", employee.id, login_dt_cst, shift, shift_start, shift_end)
+    # Debug log (helpful when troubleshooting)
+    # print("LOGIN DEBUG:", employee.id, login_dt_cst, shift, shift_start, shift_end, "holiday:", bool(holiday_obj))
 
-
-    # Decide status
-    grace = timedelta(minutes=shift.grace_period_minutes or 0)
-    if login_dt_cst < shift_start:
-        if employee.alternate_shift and employee.alternate_shift != shift:
-            alt = employee.alternate_shift
-            alt_start, alt_end = alt.get_span_for_date(login_dt_cst.date(), tz=CST)
-
-            if alt_start <= login_dt_cst <= alt_end:
-                # ✅ Use grace like normal shift
-                grace = timedelta(minutes=alt.grace_period_minutes or 0)
-
-                if login_dt_cst <= alt_start + grace:
-                    status, minutes_late, counted_from = Attendance.STATUS_PRESENT, 0, alt_start
+    # Decide status (preserve your existing alternate-shift handling)
+    if not shift:
+        # No shift info: treat as present with zero minutes late and counted_from=login
+        status, minutes_late, counted_from = Attendance.STATUS_PRESENT, 0, login_dt_cst
+        potential_worked = 0
+    else:
+        grace = timedelta(minutes=shift.grace_period_minutes or 0)
+        # if login before primary shift start, check alternate shift possibility (your existing logic)
+        if login_dt_cst < shift_start:
+            if employee.alternate_shift and employee.alternate_shift != shift:
+                alt = employee.alternate_shift
+                alt_start, alt_end = alt.get_span_for_date(login_dt_cst.date(), tz=CST)
+                if alt_start <= login_dt_cst <= alt_end:
+                    grace = timedelta(minutes=alt.grace_period_minutes or 0)
+                    if login_dt_cst <= alt_start + grace:
+                        status, minutes_late, counted_from = Attendance.STATUS_PRESENT, 0, alt_start
+                    else:
+                        delta = login_dt_cst - alt_start
+                        status = Attendance.STATUS_LATE
+                        minutes_late = int(delta.total_seconds() // 60)
+                        counted_from = login_dt_cst
+                    combined_start = alt_start
+                    combined_end = max(shift_end, alt_end)
+                    shift_start, shift_end = combined_start, combined_end
+                    shift = alt
                 else:
-                    delta = login_dt_cst - alt_start
-                    status = Attendance.STATUS_LATE
-                    minutes_late = int(delta.total_seconds() // 60)
-                    counted_from = login_dt_cst
-
-                # ✅ Extend attendance to cover both shifts (alt + primary)
-                combined_start = alt_start
-                combined_end = max(shift_end, alt_end)
-                shift_start, shift_end = combined_start, combined_end
-                shift = alt 
-
-
+                    status, minutes_late, counted_from = Attendance.STATUS_EARLY, 0, shift_start
             else:
                 status, minutes_late, counted_from = Attendance.STATUS_EARLY, 0, shift_start
         else:
-            status, minutes_late, counted_from = Attendance.STATUS_EARLY, 0, shift_start
-    else:
-        if login_dt_cst <= shift_start + grace:
-            status, minutes_late, counted_from = Attendance.STATUS_PRESENT, 0, shift_start
-        else:
-            delta = login_dt_cst - shift_start
-            status = Attendance.STATUS_LATE
-            minutes_late = int(delta.total_seconds() // 60)
-            counted_from = login_dt_cst
+            if login_dt_cst <= shift_start + grace:
+                status, minutes_late, counted_from = Attendance.STATUS_PRESENT, 0, shift_start
+            else:
+                delta = login_dt_cst - shift_start
+                status = Attendance.STATUS_LATE
+                minutes_late = int(delta.total_seconds() // 60)
+                counted_from = login_dt_cst
 
-    potential_worked = max(0, int((shift_end - counted_from).total_seconds() // 60))
+        potential_worked = max(0, int((shift_end - counted_from).total_seconds() // 60))
 
-    # Upsert attendance
+    # Upsert attendance (create or update)
     attendance, created = Attendance.objects.get_or_create(
         employee=employee,
         date=att_date,
@@ -203,36 +268,69 @@ def mark_attendance_on_login(user, login_dt=None):
 
     old_status = None if created else attendance.status
 
+    # Attach holiday metadata if found and if Attendance model supports fields
+    if holiday_obj:
+        # safe set of common fields if present
+        try:
+            # If model has boolean is_holiday
+            if hasattr(attendance, "is_holiday"):
+                attendance.is_holiday = True
+        except Exception:
+            pass
+
+        try:
+            if hasattr(attendance, "holiday_title"):
+                attendance.holiday_title = holiday_obj.title
+            if hasattr(attendance, "holiday_id"):
+                attendance.holiday_id = holiday_obj.id
+        except Exception:
+            pass
+
     if not created:
-    # ✅ Only update if this login is EARLIER than the stored one
+        # Update only if this login is earlier (better) than stored one
         if not attendance.login_time or login_dt_cst < attendance.login_time:
             attendance.login_time = login_dt_cst
 
-            # 🔒 Don't downgrade status: keep the "best" one
-            if attendance.status not in [Attendance.STATUS_PRESENT, Attendance.STATUS_EARLY]:
+            # Preserve "better" status. If stored status is worse than current, update.
+            # We avoid overwriting PRESENT/EARLY with LATE, etc.
+            prefer_update = attendance.status not in [Attendance.STATUS_PRESENT, Attendance.STATUS_EARLY]
+            if prefer_update:
                 attendance.status = status
                 attendance.minutes_late = minutes_late
 
             attendance.counted_from = counted_from
             attendance.worked_minutes = potential_worked
             attendance.shift = shift
-            attendance.save(update_fields=[
-                "login_time",
-                "counted_from",
-                "status",
-                "minutes_late",
-                "worked_minutes",
-                "shift",
-                "updated_at",
-        ])
+
+            # Save holiday metadata if any
+            save_fields = [
+                "login_time", "counted_from", "status", "minutes_late",
+                "worked_minutes", "shift", "updated_at"
+            ]
+            if holiday_obj:
+                if hasattr(attendance, "is_holiday"):
+                    save_fields.append("is_holiday")
+                if hasattr(attendance, "holiday_title"):
+                    save_fields.append("holiday_title")
+                if hasattr(attendance, "holiday_id"):
+                    save_fields.append("holiday_id")
+
+            attendance.save(update_fields=save_fields)
     else:
-        # ✅ Later logins → just update logout_time, don’t touch status
+        # If created, but the login we just recorded is actually a later login
+        # (rare) we still ensure logout_time contains something meaningful
         attendance.logout_time = login_dt_cst
         attendance.updated_at = timezone.now()
-        attendance.save(update_fields=["logout_time", "updated_at"])
+        # include possible holiday fields
+        try:
+            attendance.save()
+        except Exception:
+            # fallback to saving only minimal fields in case of custom model constraints
+            attendance.save(update_fields=["logout_time", "updated_at"])
 
-
+    # After changes update summary
     update_monthly_summary(attendance, old_status=old_status)
+
     return attendance
 
 
@@ -250,17 +348,12 @@ def mark_attendance_on_logout(user, logout_dt=None):
         logout_dt = timezone.now()
     logout_dt_cst = to_cst(logout_dt)
 
-    # Pick the same shift window as we did at login
+    # Pick shift for this logout datetime
     shift, shift_start, shift_end = pick_shift_for_login(employee, logout_dt_cst)
     att_date = shift_start.date() if shift else logout_dt_cst.date()
 
-    # Get attendance record for this shift/date
-    attendance = (
-        Attendance.objects.filter(employee=employee, date=att_date)
-        .order_by("-date")
-        .first()
-    )
-
+    # Get today's attendance record
+    attendance = Attendance.objects.filter(employee=employee, date=att_date).first()
     if not attendance:
         return None  # no login record exists
 
@@ -268,28 +361,45 @@ def mark_attendance_on_logout(user, logout_dt=None):
     if attendance.status in [Attendance.STATUS_ON_LEAVE, Attendance.STATUS_UNPAID_LEAVE]:
         return attendance
 
-    # If already logged out later → don’t overwrite
+    # Already logged out later → don’t overwrite
     if attendance.logout_time and attendance.logout_time >= logout_dt_cst:
         return attendance
 
-    # Calculate worked minutes (exclude breaks)
-    worked = 0
-    if attendance.counted_from:
-        worked = int((logout_dt_cst - attendance.counted_from).total_seconds() // 60)
-        worked -= attendance.total_break_minutes or 0
-        if worked < 0:
-            worked = 0
+    old_status = attendance.status
 
-    old_status = attendance.status  # keep for summary update
+    # Determine counted_from based on login & shift
+    if shift_start:
+        if attendance.login_time:
+            # If employee is early, count from shift_start
+            if attendance.login_time < shift_start:
+                counted_from = shift_start
+            # If late, count from actual login
+            else:
+                counted_from = attendance.login_time
+        else:
+            counted_from = shift_start
+    else:
+        counted_from = attendance.login_time or logout_dt_cst
 
-    # Update logout details
+    # Update attendance fields
     attendance.logout_time = logout_dt_cst
-    attendance.worked_minutes = worked
-    attendance.save(update_fields=["logout_time", "worked_minutes", "updated_at"])
-    
+    attendance.counted_from = counted_from
+    attendance.shift = shift
+
+    # Recalculate worked minutes dynamically considering breaks
+    attendance.recalc_worked_minutes(logout_dt=logout_dt_cst)
+
+    # Update monthly summary
     update_monthly_summary(attendance, old_status=old_status)
 
+    # Save attendance
+    attendance.save(update_fields=[
+        "logout_time", "counted_from", "shift", "worked_minutes",
+        "total_break_minutes", "updated_at"
+    ])
+
     return attendance
+
 
 
 def update_monthly_summary(attendance, old_status=None):
@@ -351,19 +461,17 @@ def update_monthly_summary(attendance, old_status=None):
     ])
 
 
-@transaction.atomic
 def mark_attendance_for_leave(employee, start_date, end_date, approved=True, leave_type=None):
     from .models import Attendance
 
-    # ensure date objects
     if isinstance(start_date, datetime):
         start_date = start_date.date()
     if isinstance(end_date, datetime):
         end_date = end_date.date()
 
     status = (
-        Attendance.STATUS_ON_LEAVE if approved and leave_type == "Paid Leave" else
-        Attendance.STATUS_UNPAID_LEAVE if approved else
+        Attendance.STATUS_ON_LEAVE if approved and leave_type == "paid" else
+        Attendance.STATUS_UNPAID_LEAVE if approved and leave_type == "unpaid" else
         Attendance.STATUS_ABSENT
     )
 

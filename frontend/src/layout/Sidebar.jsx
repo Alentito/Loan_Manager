@@ -42,9 +42,8 @@ export default function Sidebar() {
     { path: "/leaves/my-requests", label: "My Leaves", icon: <FaClipboardList />, permission: "employee.view_leaverequests" },
     { path: "/leaves/request", label: "Leave Request", icon: <FaClipboardList />, permission: "employee.add_leaverequests" },
     { path: "/admin/leave-approvals", label: "Leave Approvals", icon: <FaClipboardList />, permission: "employee.approve_leave" },
-    { path: "/admin/meetings", label: "Meetings", icon: <FaClipboardList />, permission: "employee.view_meeting" },
-    { path: "/admin/holidays", label: "Holidays", icon: <FaClipboardList />, permission: "employee.view_publicholiday" },
-  
+    
+    { path: "/admin/holidays", label: "Holidays", icon: <FaClipboardList />, permission: "employee.view_publicholiday" }, 
     { path: "/lenders", label: "Lenders", icon: <FaClipboardList />, permission: "employee.view_lender" },
     { path: "/attendance/summary", label: "Monthly Summary", icon: <FaClipboardList />, permission: "employee.view_attendancesummary" },
     { path: "/tokens/my-tokens", label: "My Tokens", icon: <FaClipboardList />, permission: "employee.view_tokens" },

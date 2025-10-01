@@ -1,4 +1,27 @@
 cd backend
+venv\Scripts\activate
+python manage.py runserver
+
+
+cd frontend
+npm run dev
+
+
+cd backend
+venv\Scripts\activate
+daphne -b 0.0.0.0 -p 8000 config.asgi:application
+
+cd backend
+source venv_celery/bin/activate
+celery -A config worker --loglevel=info
+
+
+sudo apt install redis-server
+sudo service redis start
+
+
+
+
 source venv/bin/activate
 python manage.py runserver
 

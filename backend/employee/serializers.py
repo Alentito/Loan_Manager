@@ -3,9 +3,12 @@ from employee.models import Broker, LoanOfficer, Employee, PublicHoliday, Meetin
 from django.contrib.auth.models import Group  # or from userauth.models import Role if custom
 from django.contrib.auth import get_user_model
 import pytz
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from django.utils import timezone
 from datetime import datetime, date as date_class
+from employee.utils import to_cst, to_cst_date
+
+
 
 CST = pytz.timezone("America/Chicago")
 
@@ -35,11 +38,33 @@ class MeetingSerializer(serializers.ModelSerializer):
     employees = serializers.PrimaryKeyRelatedField(
         queryset=Employee.objects.all(), many=True, required=False
     )
-    date = serializers.DateField(format="%Y-%m-%d")
+    date = serializers.DateField(write_only=True, required=True)
+    time = serializers.TimeField(write_only=True, required=True)
+    datetime = serializers.SerializerMethodField(read_only=True)  # ✅ formatted CST
 
     class Meta:
         model = Meeting
-        fields = '__all__'
+        fields = ['id', 'title', 'description', 'datetime', 'date', 'time', 'employees']
+
+    def get_datetime(self, obj):
+        dt_cst = to_cst(obj.datetime)
+        return dt_cst.strftime("%Y-%m-%dT%H:%M:%S") if dt_cst else None
+
+    def create(self, validated_data):
+        date = validated_data.pop('date')
+        time = validated_data.pop('time')
+        # ✅ combine and store as UTC
+        dt_cst = datetime.combine(date, time, tzinfo=CST)
+        validated_data['datetime'] = dt_cst.astimezone(dt_timezone.utc)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        date = validated_data.pop('date', None)
+        time = validated_data.pop('time', None)
+        if date and time:
+            dt_cst = datetime.combine(date, time, tzinfo=CST)
+            validated_data['datetime'] = dt_cst.astimezone(dt_timezone.utc)
+        return super().update(instance, validated_data)
 
 class EmployeeSerializer(serializers.ModelSerializer):
     roles = serializers.PrimaryKeyRelatedField(
@@ -109,8 +134,8 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeaveRequests
         fields = [
-        'id', 'employee', 'leave_type', 'start_date', 'end_date',
-        'reason', 'status', 'approved_by', 'denied_by',
+        'id', 'employee', 'start_date', 'end_date',
+        'reason', 'status', 'approved_by', 'denied_by', 'approval_type',
         'processed_at', 'created_at'
     ]
         read_only_fields = ['employee', 'approved_by', 'denied_by', 'processed_at', 'created_at']
@@ -128,29 +153,26 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This request has already been processed.")
         return super().update(instance, validated_data)
 
-    def validate_leave_type(self, value):
-        if value not in ["Paid Leave", "Unpaid Leave"]:
-            raise serializers.ValidationError("Leave type must be either 'Paid Leave' or 'Unpaid Leave'.")
-        return value
-
     def validate(self, data):
-        request = self.context.get('request')
-        if request and hasattr(request.user, 'employee'):
+        request = self.context.get("request")
+        if request and hasattr(request.user, "employee"):
             employee = request.user.employee
         else:
             raise serializers.ValidationError("User is not associated with an employee.")
 
-        start_date = data.get('start_date')
-        end_date = data.get('end_date')
+        # ✅ only enforce overlap validation during create
+        if request and request.method == "POST" and request.parser_context["view"].action == "create":
+            start_date = data.get("start_date")
+            end_date = data.get("end_date")
 
-        # Check for overlapping leave
-        exists = LeaveRequests.objects.filter(
-            employee=employee,
-            start_date__lte=end_date,
-            end_date__gte=start_date
-        ).exists()
-        if exists:
-            raise serializers.ValidationError("You already have a leave request on this date.")
+            if start_date and end_date:
+                exists = LeaveRequests.objects.filter(
+                    employee=employee,
+                    start_date__lte=end_date,
+                    end_date__gte=start_date
+                ).exists()
+                if exists:
+                    raise serializers.ValidationError("You already have a leave request on this date.")
 
         return data
 

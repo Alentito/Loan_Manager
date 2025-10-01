@@ -1,6 +1,6 @@
-// src/components/redux/meetingApi.js
+// src/api/meetingApi.js
 import { createApi } from '@reduxjs/toolkit/query/react';
-import baseQueryWithReauth from "./baseApi";
+import baseQueryWithReauth from './baseApi';
 
 export const meetingApi = createApi({
   reducerPath: 'meetingApi',
@@ -20,21 +20,25 @@ export const meetingApi = createApi({
     }),
 
     addMeeting: builder.mutation({
-      query: (meeting) => ({
+      query: ({ title, description, date, time, employees }) => ({
         url: 'meetings/',
         method: 'POST',
-        body: meeting,
+        body: { title, description, date, time, employees },
       }),
+      // Refetch the list after adding
       invalidatesTags: [{ type: 'Meeting', id: 'LIST' }],
     }),
 
     updateMeeting: builder.mutation({
-      query: ({ id, ...patch }) => ({
+      query: ({ id, title, description, date, time, employees }) => ({
         url: `meetings/${id}/`,
         method: 'PUT',
-        body: patch,
+        body: { title, description, date, time, employees },
       }),
-      invalidatesTags: (result, error, { id }) => [{ type: 'Meeting', id }],
+      invalidatesTags: (result, error, { id }) => [
+        { type: 'Meeting', id },
+        { type: 'Meeting', id: 'LIST' },
+      ],
     }),
 
     deleteMeeting: builder.mutation({
@@ -42,7 +46,10 @@ export const meetingApi = createApi({
         url: `meetings/${id}/`,
         method: 'DELETE',
       }),
-      invalidatesTags: (result, error, id) => [{ type: 'Meeting', id }],
+      invalidatesTags: (result, error, id) => [
+        { type: 'Meeting', id },
+        { type: 'Meeting', id: 'LIST' },
+      ],
     }),
   }),
 });

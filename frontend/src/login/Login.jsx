@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { setAuthenticated } from "../api/authSlice";
 import { useMarkAttendanceMutation, useLazyGetTodayAttendanceQuery } from "../api/attendanceApi";
+import { useLazyGetActiveBreakQuery } from "../api/breakApi";
+
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -16,7 +18,8 @@ export default function Login() {
   const [errorMsg, setErrorMsg] = useState("");
   const [markAttendance] = useMarkAttendanceMutation();
   const [triggerGetTodayAttendance] = useLazyGetTodayAttendanceQuery();
-
+  const [triggerGetActiveBreak] = useLazyGetActiveBreakQuery();
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg("");
@@ -51,7 +54,17 @@ export default function Login() {
           user,
           attendance: today,
         })
-      );
+      );  
+
+      try {
+      const activeBreak = await triggerGetActiveBreak().unwrap();
+      if (activeBreak.has_active_break) {
+        navigate(`/breaks/${activeBreak.break.id}`);
+        return; // stop here so it doesn’t fall through
+      }
+    } catch (err) {
+      console.warn("Active break check failed:", err);
+    }
 
       // 6️⃣ Navigate
       navigate("/dashboard");

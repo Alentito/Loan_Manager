@@ -56,15 +56,14 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.middleware import csrf
 from django.contrib.auth.models import Group
-from employee.dates import get_cst_date
 from rest_framework.permissions import DjangoModelPermissions
 from django.db.models import Count
 from .utils import today_cst, mark_attendance_for_leave
 from .utils import now_cst
 from django.db.models import Prefetch
 from django.db.models import Sum, F, ExpressionWrapper, DurationField
-from .utils import to_cst
-
+from .utils import to_cst, add_us_holidays, get_cst_date
+from django.utils.dateparse import parse_date
 
 
 class StrictDjangoModelPermissions(DjangoModelPermissions):
@@ -464,6 +463,9 @@ def export_loan_officers_csv(request):
 
 class EmployeePagination(PageNumberPagination):
     page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 1000  # now can fetch all employees
+
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     permission_classes = [StrictDjangoModelPermissions]
@@ -746,48 +748,51 @@ class PublicHolidayViewSet(viewsets.ModelViewSet):
         date = serializer.validated_data.get("date")
         serializer.save(date=get_cst_date(date))
     
+    @action(detail=False, methods=["post"], url_path="sync-us", permission_classes=[IsAuthenticated])
+    def sync_us(self, request):
+
+        add_us_holidays()
+        return Response({"detail": "US holidays added successfully."}, status=status.HTTP_200_OK)
     
+class UnlimitedPagination(PageNumberPagination):
+    page_size = 10000  # or any very high number
+    page_size_query_param = None
+
 class MeetingViewSet(viewsets.ModelViewSet):
-    queryset = Meeting.objects.all().order_by('-date')
     serializer_class = MeetingSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+    pagination_class = UnlimitedPagination
 
     def get_queryset(self):
-        return Meeting.objects.all().order_by('-date')
+        user = self.request.user
+        if hasattr(user, 'employee'):
+            return Meeting.objects.filter(employees=user.employee)
+        return Meeting.objects.none()
 
     def perform_create(self, serializer):
-        date = serializer.validated_data.get("date")
-        time = serializer.validated_data.get("time")
-        serializer.save(
-            date=get_cst_date(date),
-            time=time  # stays same unless you want tz-aware conversion
-        )
+        meeting = serializer.save()
+        if hasattr(self.request.user, 'employee'):
+            meeting.employees.add(self.request.user.employee)
 
     def perform_update(self, serializer):
-        date = serializer.validated_data.get("date")
-        time = serializer.validated_data.get("time")
-        serializer.save(
-            date=get_cst_date(date),
-            time=time
-        )
+        meeting = serializer.save()
+        # Ensure the updating user is still included in employees
+        if hasattr(self.request.user, 'employee'):
+            meeting.employees.add(self.request.user.employee)
 
-# class IsAdminOrTeamManager(permissions.BasePermission):
-    
-#     def has_permission(self, request, view):
-#         user = request.user
-#         if not user or not user.is_authenticated:
-#             return False
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        events = []
+        for m in queryset:
+            dt_cst = to_cst(m.datetime)
+            events.append({
+                "id": m.id,
+                "title": m.title,
+                "start": dt_cst.isoformat(),  # ISO string with CST offset
+                "description": m.description,
+            })
+        return Response(events)
 
-#         # Admin always allowed
-#         if user.is_staff:
-#             return True
-
-#         # Check if user has employee profile and role = 'team_manager'
-#         if hasattr(user, 'employee') and user.employee.position == 'team_manager':
-#             return True
-
-
-        return False
 
 User = get_user_model()
 
@@ -817,23 +822,24 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        # Approver can see all
-        if user.has_perm("employee.approve_leave") or user.has_perm("employee.deny_leave"):
-            return LeaveRequests.objects.all()
-        # Employee sees only their own
-        return LeaveRequests.objects.filter(employee=user.employee)
+        qs = LeaveRequests.objects.all() if user.has_perm("employee.approve_leave") or user.has_perm("employee.deny_leave") else LeaveRequests.objects.filter(employee=user.employee)
+
+        date_str = self.request.query_params.get("date")
+        if date_str:
+            date_obj = parse_date(date_str)
+            if date_obj:
+                # Filter leaves that include the selected day
+                qs = qs.filter(start_date__lte=date_obj, end_date__gte=date_obj)
+
+        return qs
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve_request(self, request, pk=None):
         with transaction.atomic():
             leave = self.get_object()
 
-            # Prevent self-approval
             if leave.employee == request.user.employee:
-                return Response(
-                    {"detail": "You cannot approve your own leave request."},
-                    status=403
-                )
+                return Response({"detail": "You cannot approve your own leave request."}, status=403)
 
             if not request.user.has_perm("employee.approve_leave"):
                 return Response({"detail": "Not authorized"}, status=403)
@@ -841,7 +847,18 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             if leave.status != "pending":
                 return Response({"detail": "Already processed"}, status=400)
 
+            approval_type = request.data.get("approval_type")
+            if approval_type:
+                approval_type = str(approval_type).strip().lower()
+
+            if approval_type not in ["paid", "unpaid"]:
+                return Response(
+                    {"detail": "approval_type must be 'paid' or 'unpaid'."},
+                    status=400
+                )
+
             leave.status = "approved"
+            leave.approval_type = approval_type
             leave.approved_by = request.user
             leave.processed_at = now_cst()
             leave.save()
@@ -851,7 +868,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                 leave.start_date,
                 leave.end_date,
                 approved=True,
-                leave_type=leave.leave_type
+                leave_type=approval_type
             )
 
             return Response(LeaveRequestSerializer(leave).data, status=200)
@@ -935,7 +952,7 @@ class ShiftViewSet(viewsets.ModelViewSet):
         return qs
 
 class TeamPagination(PageNumberPagination):
-    page_size = 10  # or whatever default page size you prefer
+    page_size = 1000  # or whatever default page size you prefer
     page_size_query_param = 'page_size'
     max_page_size = 1000
 
@@ -1006,25 +1023,53 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        print("Query params:", self.request.query_params)
         user = self.request.user
         qs = super().get_queryset()
 
-        # Employee sees only their own records unless superuser
-        if hasattr(user, "employee") and not user.is_superuser:
-            qs = qs.filter(employee=user.employee)
+        employee_id = self.request.query_params.get("employeeId")
 
-        # Query params: month/year
+        if employee_id:
+            try:
+                employee_id = int(employee_id)
+                employee_obj = Employee.objects.get(pk=employee_id)
+            except (ValueError, Employee.DoesNotExist):
+                return qs.none()
+
+            # Case 1: self-view → always allow
+            if hasattr(user, "employee") and user.employee.id == employee_id:
+                qs = qs.filter(employee=employee_obj)
+
+            # Case 2: others → need permission
+            elif user.is_superuser or user.has_perm("employee.view_employee"):
+                qs = qs.filter(employee=employee_obj)
+
+            # Case 3: not allowed
+            else:
+                return qs.none()
+
+        else:
+            # No employeeId given → default to logged-in employee
+            if hasattr(user, "employee") and not user.is_superuser:
+                qs = qs.filter(employee=user.employee)
+            elif user.is_superuser:
+                # superuser can see all if no filter
+                pass
+            else:
+                return qs.none()
+
+        # Month/year filtering
         month = self.request.query_params.get("month")
         year = self.request.query_params.get("year")
 
         if month and year:
             qs = qs.filter(date__month=int(month), date__year=int(year))
         else:
-            # Default: current CST month/year
             today = today_cst()
             qs = qs.filter(date__month=today.month, date__year=today.year)
 
         return qs.order_by("date")
+
 
     @action(detail=False, methods=["get"], url_path="today")
     def today_attendance(self, request):
@@ -1183,14 +1228,46 @@ class EmployeeBreakViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
 
     def get_queryset(self):
-        # Only return breaks for the current employee
-        return EmployeeBreak.objects.filter(employee=self.request.user)
+        user = self.request.user
+        qs = EmployeeBreak.objects.all()
+
+        emp_id = self.request.query_params.get("employeeId")
+
+        if emp_id:
+            try:
+                emp_id = int(emp_id)
+            except ValueError:
+                return EmployeeBreak.objects.none()
+
+            # Fetch the User linked to the employee
+            from employee.models import Employee
+            try:
+                employee_obj = Employee.objects.get(pk=emp_id)
+            except Employee.DoesNotExist:
+                return EmployeeBreak.objects.none()
+
+            # Only allow fetching other employee if user has permission or is superuser
+            if (hasattr(user, "employee") and user.employee.id == emp_id) or user.is_superuser or user.has_perm("employee.view_employee"):
+                qs = qs.filter(employee=employee_obj.user)  # <-- Use user
+            else:
+                qs = qs.filter(employee=user)
+        else:
+            # Default: logged-in employee
+            qs = qs.filter(employee=user)  # <-- Use user
+
+        # Month/year filter
+        month = self.request.query_params.get("month")
+        year = self.request.query_params.get("year")
+        if month and year:
+            qs = qs.filter(start_time__month=int(month), start_time__year=int(year))
+        print("DEBUG total_break_time queryset:", qs.values("id", "employee_id", "start_time", "end_time"))
+
+        return qs.order_by("-start_time")
+
 
     def perform_create(self, serializer):
-        # Convert start_time to CST
-        
+        # Save start_time as now in CST
         serializer.save(employee=self.request.user, start_time=now_cst())
-
 
     @action(detail=True, methods=["post"])
     def break_out(self, request, pk=None):
@@ -1198,21 +1275,86 @@ class EmployeeBreakViewSet(viewsets.ModelViewSet):
         if break_instance.end_time is not None:
             return Response({"detail": "Already clocked out"}, status=400)
         
-        # Convert end_time to CST
         break_instance.end_time = to_cst(timezone.now())
         break_instance.save()
         return Response(self.get_serializer(break_instance).data)
 
     @action(detail=False, methods=["get"])
     def total_break_time(self, request):
-        """
-        Return total break time in seconds for current employee in CST.
-        """
-        breaks = self.get_queryset()
-        total = breaks.annotate(
+        emp_id = request.query_params.get("employee") or request.query_params.get("employeeId")
+        qs = EmployeeBreak.objects.all()
+
+        if emp_id:
+            try:
+                emp_id = int(emp_id)
+                from employee.models import Employee
+                employee_obj = Employee.objects.get(pk=emp_id)
+                # permission check
+                if (hasattr(request.user, "employee") and request.user.employee.id == emp_id) \
+                or request.user.is_superuser \
+                or request.user.has_perm("employee.view_employee"):
+                    qs = qs.filter(employee=employee_obj.user)
+                else:
+                    qs = qs.filter(employee=request.user)
+            except (ValueError, Employee.DoesNotExist):
+                qs = qs.none()
+        else:
+            qs = qs.filter(employee=request.user)
+
+        month = request.query_params.get("month")
+        year = request.query_params.get("year")
+        if month and year:
+            qs = qs.filter(start_time__month=int(month), start_time__year=int(year))
+
+        total = qs.annotate(
+            duration=ExpressionWrapper(F('end_time') - F('start_time'), output_field=DurationField())
+        ).aggregate(total_duration=Sum('duration'))
+
+        return Response({"total_break_seconds": total['total_duration'].total_seconds() if total['total_duration'] else 0})
+
+
+    @action(detail=False, methods=["get"])
+    def daily_break_summary(self, request):
+        qs = self.get_queryset()
+        month = request.query_params.get("month")
+        year = request.query_params.get("year")
+        if month and year:
+            qs = qs.filter(
+                start_time__month=int(month),
+                start_time__year=int(year)
+            )
+
+        qs = qs.annotate(
             duration=ExpressionWrapper(
                 F('end_time') - F('start_time'),
                 output_field=DurationField()
             )
-        ).aggregate(total_duration=Sum('duration'))['total_duration']
-        return Response({"total_break_seconds": total.total_seconds() if total else 0})
+        ).values('start_time__date').annotate(
+            total_day_duration=Sum('duration')
+        ).order_by('start_time__date')
+
+        data = {
+            str(item['start_time__date']): item['total_day_duration'].total_seconds()
+            for item in qs if item['total_day_duration']
+        }
+        return Response(data)
+    
+
+    @action(detail=False, methods=["get"], url_path="active")
+    def active_break(self, request):
+        user = request.user  # User instance
+        active_break = EmployeeBreak.objects.filter(
+            employee=user,  # employee field points to User, not Employee
+            end_time__isnull=True
+        ).first()
+
+        if active_break:
+            return Response({
+                "has_active_break": True,
+                "break": {
+                    "id": active_break.id,
+                    "started_at": active_break.start_time,  # use 'start_time' instead of 'break_in'
+                }
+            })
+
+        return Response({"has_active_break": False})

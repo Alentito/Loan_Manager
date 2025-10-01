@@ -23,12 +23,7 @@ const parseCSTDate = (dateString) => {
 };
 
 // Format JS Date to YYYY-MM-DD string in CST
-const formatCSTDate = (date) => {
-  if (!date) return "";
-  return date.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
-};
 
-const leaveTypes = ["Paid Leave", "Unpaid Leave"];
 
 const LeaveRequestForm = () => {
   const navigate = useNavigate();
@@ -47,7 +42,7 @@ const LeaveRequestForm = () => {
   }, []);
 
   const [form, setForm] = useState({
-    leave_type: "",
+  
     start_date: todayCST,
     end_date: todayCST,
     reason: "",
@@ -85,10 +80,10 @@ const LeaveRequestForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { leave_type, start_date, end_date, reason } = form;
+    const { start_date, end_date, reason } = form;
 
     // Validation
-    if (!leave_type || !start_date || !end_date || !reason) {
+    if (!start_date || !end_date || !reason) {
       return setSnackbar({
         open: true,
         message: "⚠️ Please fill in all fields.",
@@ -121,7 +116,6 @@ const LeaveRequestForm = () => {
       });
 
       setForm({
-        leave_type: "",
         start_date: todayCST,
         end_date: todayCST,
         reason: "",
@@ -148,22 +142,7 @@ const LeaveRequestForm = () => {
         </Typography>
 
         <form onSubmit={handleSubmit}>
-          <TextField
-            select
-            name="leave_type"
-            label="Leave Type"
-            fullWidth
-            value={form.leave_type}
-            onChange={handleChange}
-            margin="normal"
-          >
-            {leaveTypes.map((type) => (
-              <MenuItem key={type} value={type}>
-                {type}
-              </MenuItem>
-            ))}
-          </TextField>
-
+        
           <TextField
             name="start_date"
             label="Start Date"

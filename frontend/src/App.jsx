@@ -1,5 +1,5 @@
 // frontend/src/App.jsx
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation  } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -40,20 +40,39 @@ import MyTokens from "./tokens/MyTokens"; // Employee token list & modal view
 import TokenApprovalPage from "./tokens/TokenApprovalPage"; // Admin approval page (if you build it)
 import TokenForm from "./tokens/TokenForm"; // New token request form
 import BreakPage from "./breaks/BreakPage"; 
-
+import { useGetActiveBreakQuery } from "./api/breakApi"; 
 
 
 
 function App() {
   useInitializeAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, initialized } = useSelector((state) => state.auth);
+
+  const { data: activeBreak, isSuccess } = useGetActiveBreakQuery(undefined, {
+    skip: !isAuthenticated,  // only run if logged in
+    refetchOnMountOrArgChange: true,
+  });
 
   useEffect(() => {
     if (initialized && !isAuthenticated) {
       navigate("/login", { replace: true });
     }
   }, [initialized, isAuthenticated, navigate]);
+
+  useEffect(() => {
+  if (isAuthenticated && isSuccess) {
+    if (activeBreak?.has_active_break && !location.pathname.startsWith("/breaks/")) {
+      navigate(`/breaks/${activeBreak.break.id}`, { replace: true });
+    } 
+    // Optional: If break ended, and user is still on /breaks/:id, send them back to dashboard
+    else if (!activeBreak?.has_active_break && location.pathname.startsWith("/breaks/")) {
+      navigate("/dashboard", { replace: true });
+    }
+  }
+}, [isAuthenticated, isSuccess, activeBreak, navigate, location.pathname]);
+
 
   const [mode, setMode] = useState("light");
   const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
@@ -90,6 +109,7 @@ function App() {
 
             {/* New Features */}
             <Route path="/attendance" element={<AttendancePage />} />
+            <Route path="/attendance/:employeeId" element={<AttendancePage />} />
             <Route path="/attendance/summary" element={<MonthlySummaryTable />} />
             <Route path="/leaves/request" element={<LeaveRequestForm />} />
             <Route path="/leaves/my-requests" element={<MyLeaveRequests />} />
@@ -103,6 +123,8 @@ function App() {
             <Route path="/admin/token-approvals" element={<TokenApprovalPage />} />
             <Route path="/token/new" element={<TokenForm />} />
             <Route path="/breaks" element={<BreakPage />} />
+            <Route path="/breaks/:id" element={<BreakPage />} />
+
           </Route>
         </Route>
       </Routes>

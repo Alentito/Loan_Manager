@@ -25,6 +25,9 @@ import { useGetShiftsQuery } from '../api/shiftApi';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from "react-redux";
+import { selectCurrentUser } from "../api/authSlice";
+
 
 const pageSizeDefault = 10;
 
@@ -57,6 +60,8 @@ const EmployeeList = () => {
   const { data: teamsData } = useGetTeamsQuery({ page: 1, page_size: 100 });
   const { data: shiftsData } = useGetShiftsQuery({ page: 1, page_size: 100 });
 
+  const currentUser = useSelector(selectCurrentUser);
+  const userPermissions = currentUser?.permissions || [];
   // ▶️ Query employees (active or archived)
   const { data, error, isLoading, refetch } = useGetEmployeesQuery({
     page,
@@ -95,8 +100,13 @@ const EmployeeList = () => {
   };
 
   const handleRowClick = (empId) => {
+  if (userPermissions.includes("employee.view_employee")) {
     navigate(`/attendance/${empId}`);
-  };
+  } else {
+    toast.error("You do not have permission to view employee attendance.");
+  }
+};
+
 
   const handleSelectOne = (e, id) => {
     e.stopPropagation();

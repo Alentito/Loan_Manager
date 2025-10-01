@@ -56,3 +56,4 @@ xmltodict==0.14.2
 gunicorn==22.2.0
 whitenoise==7.1.0
 zope.interface==7.2
+holidays>=0.26

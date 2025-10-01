@@ -130,7 +130,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Chicago'
 USE_I18N = True
 USE_TZ = True
 
@@ -211,47 +211,28 @@ CACHES = {
 
 # -------------------------------
 # Celery - Core
-# -------------------------------
-CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"     # Redis DB 0 → Broker
-CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/1" # Redis DB 1 → Results
-CELERY_TIMEZONE = "America/Chicago"                # CST
-CELERY_TASK_TRACK_STARTED = True                   # Track task start times
-CELERY_TASK_TIME_LIMIT = 60 * 30                   # Hard timeout: 30 min
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_ENABLE_UTC = False  # Important since we force CST
-CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True   # Ensures Celery waits for broker
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"   # Use Redis as broker
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/1"  
 
-# -------------------------------
-# Celery - Task Retry Defaults
-# -------------------------------
-# Instead of hardcoding retries inside every task,
-# you can configure global retry defaults here.
-CELERY_TASK_DEFAULT_RETRY_DELAY = 30   # Initial retry delay in seconds
-CELERY_TASK_ACKS_LATE = True           # Re-queue if worker crashes
-CELERY_TASK_REJECT_ON_WORKER_LOST = True
-CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
 
-# -------------------------------
-# Celery Beat Schedule
-# -------------------------------
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True # celery >=5.2
+
 CELERY_BEAT_SCHEDULE = {
-    # Every 2 seconds → Outbox publisher
     "publish-outbox-every-2s": {
-        "task": "loan.tasks.publish_outbox",
+        "task": "loan.tasks.publish_outbox",  # create a wrapper Celery task that calls publish_outbox_batch
         "schedule": 2.0,
     },
-
-    # Daily at 23:59 CST → Auto mark absent or leave
-    "auto-mark-attendance": {
-        "task": "employee.tasks.auto_mark_absent_or_leave",
-        "schedule": crontab(hour=23, minute=59),
-    },
-
-    # Daily at 12:00 CST → Check for late arrivals
-    "check-late-midday": {
-        "task": "employee.tasks.update_late_status",
-        "schedule": crontab(hour=12, minute=0),
+    "send-late-notifications": {
+        "task": "employee.tasks.send_late_notifications",
+        "schedule": crontab(hour=12, minute=5),
     },
 }
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "yourcompany@gmail.com"
+EMAIL_HOST_PASSWORD = "your_app_password"  # use app-specific password

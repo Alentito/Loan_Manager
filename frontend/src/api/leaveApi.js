@@ -17,18 +17,18 @@ export const leaveApi = createApi({
         const params = new URLSearchParams();
         params.set("page", page);
         params.set("page_size", page_size);
-        
+
         return `/leave-requests/employee/${employeeId}/?${params.toString()}`;
       },
       providesTags: (result) =>
         result?.results?.length
           ? [
-              ...result.results.map(({ id }) => ({
-                type: "LeaveRequest",
-                id,
-              })),
-              { type: "LeaveRequest", id: "LIST" },
-            ]
+            ...result.results.map(({ id }) => ({
+              type: "LeaveRequest",
+              id,
+            })),
+            { type: "LeaveRequest", id: "LIST" },
+          ]
           : [{ type: "LeaveRequest", id: "LIST" }],
     }),
 
@@ -47,12 +47,12 @@ export const leaveApi = createApi({
       providesTags: (result) =>
         result?.results?.length
           ? [
-              ...result.results.map(({ id }) => ({
-                type: "LeaveRequest",
-                id,
-              })),
-              { type: "LeaveRequest", id: "LIST" },
-            ]
+            ...result.results.map(({ id }) => ({
+              type: "LeaveRequest",
+              id,
+            })),
+            { type: "LeaveRequest", id: "LIST" },
+          ]
           : [{ type: "LeaveRequest", id: "LIST" }],
     }),
 
@@ -68,9 +68,10 @@ export const leaveApi = createApi({
 
     // ✅ Manager/HR: approve leave
     approveLeave: builder.mutation({
-      query: (id) => ({
+      query: ({ id, approval_type }) => ({
         url: `/leave-requests/${id}/approve/`,
         method: "POST",
+        body: { approval_type },   // 👈 backend will set paid/unpaid here
       }),
       invalidatesTags: ["LeaveRequest"],
     }),
