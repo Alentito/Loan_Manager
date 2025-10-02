@@ -57,8 +57,15 @@ export const attendanceApi = createApi({
     getTodayAttendance: builder.query({
       query: () => "attendance/today/",
     }),
-    
-
+    getAttendanceSummary: builder.query({
+      query: ({ employeeId, year } = {}) => {
+        const params = new URLSearchParams();
+        if (employeeId) params.append("employeeId", employeeId);
+        if (year) params.append("year", year);
+        const queryString = params.toString();
+        return `attendance/summary/${queryString ? "?" + queryString : ""}`;
+      },
+    }),
   }),
 });
 
@@ -68,4 +75,5 @@ export const {
   useGetAllAttendanceQuery,
   useGetTodayAttendanceQuery,
   useLazyGetTodayAttendanceQuery,
+  useGetAttendanceSummaryQuery,
 } = attendanceApi;

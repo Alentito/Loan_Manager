@@ -1120,7 +1120,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
        
     @action(detail=False, methods=["get"], url_path="summary")
     def summary(self, request):
-
         user = request.user
         employee_id = request.query_params.get("employeeId")
         year = int(request.query_params.get("year") or timezone.now().year)
@@ -1141,21 +1140,73 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             if not (user.is_superuser or user.has_perm("employee.view_employee")):
                 return Response({"detail": "Not allowed"}, status=403)
 
-        # Prepare summary
+        # Total late minutes including grace
+        total_minutes = Attendance.objects.filter(
+            employee=employee,
+            date__year=year
+        ).aggregate(total_late=Sum("minutes_late"))["total_late"] or 0
+
+        # Total grace minutes for the year
+        total_grace = Attendance.objects.filter(
+            employee=employee,
+            date__year=year,
+            shift__isnull=False
+        ).annotate(grace_minutes=F("shift__grace_period_minutes")).aggregate(
+            total_grace=Sum("grace_minutes")
+        )["total_grace"] or 0
+
+        # Adjust late minutes by subtracting grace
+        adjusted_minutes = max(0, total_minutes - total_grace)
+        total_seconds = adjusted_minutes * 60
+
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        hh_mm_ss = f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+
         data = {
             "employee_id": employee.id,
             "employee_name": employee.name,
-            "leave_balance": employee.leave_balance,  # or however you store it
-            "yearly_late_minutes": employee.get_yearly_late_minutes(year),
+            "leave_balance": employee.leave_balance,
+            "yearly_late_hhmmss": hh_mm_ss,
+            "yearly_late_seconds": total_seconds,
         }
 
         return Response(data)
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        leave_summary = {}  # fetch or calculate for employee here
-        serializer = self.get_serializer(queryset, many=True, context={'leave_summary': leave_summary})
+        employee = queryset.first().employee if queryset.exists() else None
+
+        leave_summary = {}
+        if employee:
+            # Year for summary
+            year = int(request.query_params.get("year") or timezone.now().astimezone(CST).year)
+
+            # Calculate yearly late in seconds
+            total_minutes = Attendance.objects.filter(
+                employee=employee,
+                date__year=year
+            ).aggregate(total_late=Sum("minutes_late"))["total_late"] or 0
+
+            total_seconds = total_minutes * 60
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            hh_mm_ss = f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+
+            leave_summary = {
+                "leave_balance": employee.leave_balance,
+                "yearly_late_hhmmss": hh_mm_ss,
+                "yearly_late_seconds": total_seconds,  # ✅ new field
+            }
+
+        serializer = self.get_serializer(
+            queryset, many=True, context={"leave_summary": leave_summary}
+        )
         return Response(serializer.data)
+    
+
 class MonthlyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MonthlyAttendanceSummarySerializer
     permission_classes = [permissions.IsAuthenticated]

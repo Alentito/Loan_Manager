@@ -11,6 +11,8 @@ import { setAuthenticated } from "../api/authSlice";
 import {
   useGetEmployeeAttendanceQuery,
   useMarkAttendanceMutation,
+  useGetAttendanceSummaryQuery,
+
 } from "../api/attendanceApi";
 import { useGetHolidaysQuery } from "../api/holidayApi";
 import { useGetMeetingsQuery } from "../api/meetingApi";
@@ -65,6 +67,10 @@ const AttendancePage = () => {
   const { data: employeeData } = useGetEmployeeByIdQuery(employeeIdToFetch, {
     skip: !employeeIdToFetch,
   });
+  
+  // ---------------------- Attendance summary ----------------------
+
+
 
   const displayedEmployee = useMemo(() => {
     if (employeeData) return employeeData;
@@ -80,6 +86,11 @@ const AttendancePage = () => {
   // ---------------------- API calls ----------------------
   const { data: attendance = [], isLoading, refetch } = useGetEmployeeAttendanceQuery(
     { employeeId: employeeIdToFetch, month, year },
+    { skip: !employeeIdToFetch }
+  );
+
+  const { data: attendanceSummary } = useGetAttendanceSummaryQuery(
+    { employeeId: employeeIdToFetch, year },
     { skip: !employeeIdToFetch }
   );
 
@@ -122,6 +133,13 @@ const AttendancePage = () => {
       refetchTotalBreakTime();
     }
   }, [employeeIdToFetch, month, year, refetchBreaks, refetchTotalBreakTime]);
+
+
+  const leaveBalance = useMemo(() => attendanceSummary?.leave_balance ?? 0, [attendanceSummary]);
+  const yearlyLateHHMMSS = useMemo(() => {
+  if (!attendanceSummary?.yearly_late_seconds) return "00:00:00";
+  return formatSecondsToHHMMSS(attendanceSummary.yearly_late_seconds);
+}, [attendanceSummary]);
 
   // ---------------------- Attendance summary ----------------------
   const {
@@ -236,7 +254,9 @@ const AttendancePage = () => {
             { key: "absent", label: "❌ Absent", count: totalAbsent, color: "error" },
             { key: "early", label: "⌚ Early", count: totalEarly, color: "primary" },
             { key: "holiday", label: "🎉 Holidays", count: holidayCount, color: "secondary" },
-            { key: "break", label: "☕ Break Hours", count: totalBreakHHMMSS, color: "info" }
+            { key: "break", label: "☕ Break Hours", count: totalBreakHHMMSS, color: "info" },
+            { key: "leave_balance", label: "📝 Leave Balance", count: leaveBalance, color: "info" },
+            { key: "yearly_late", label: "⏱️ Yearly Late", count: yearlyLateHHMMSS, color: "warning" },
           ].map(({ key, label, count, color }) => (
             <Paper key={key} sx={{
               p: 1, borderRadius: 1.5, textAlign: "center", cursor: "pointer",

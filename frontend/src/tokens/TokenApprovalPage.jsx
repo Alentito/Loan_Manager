@@ -266,7 +266,14 @@ export default function TokenApprovalPage() {
               filteredTokens.map((token) => (
                 <Grow key={token.id} in timeout={300}>
                   <TableRow hover sx={{ "& > *": { height: 60 } }}>
-                    <TableCell>{token.employee?.login_id || "—"}</TableCell>
+                    <TableCell>
+  {token.employee
+    ? `${token.employee} - ${token.employee_name || "—"}`
+    : "—"}
+</TableCell>
+
+
+
                     <TableCell>{token.title}</TableCell>
                     <TableCell>{token.description}</TableCell>
                     <TableCell><StatusChip status={token.status} /></TableCell>

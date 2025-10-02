@@ -7,7 +7,7 @@ from datetime import datetime, timezone as dt_timezone
 from django.utils import timezone
 from datetime import datetime, date as date_class
 from employee.utils import to_cst, to_cst_date
-
+from django.db.models import Sum,F
 
 
 CST = pytz.timezone("America/Chicago")
@@ -347,10 +347,36 @@ class AttendanceSerializer(serializers.ModelSerializer):
         return 0
 
     def get_yearly_late_seconds(self, obj):
+    # Fetch total yearly late from context or DB
         leave_summary = self.context.get('leave_summary')
         if leave_summary:
-            return leave_summary.get('yearly_late_seconds', 0)
-        return 0
+            total_seconds = leave_summary.get('yearly_late_seconds', 0)
+            total_minutes = total_seconds // 60
+        else:
+            total_minutes = Attendance.objects.filter(
+                employee=obj.employee,
+                date__year=obj.date.year
+            ).aggregate(total_late=Sum("minutes_late"))["total_late"] or 0
+
+        # Subtract grace from each attendance record
+        grace_total = Attendance.objects.filter(
+            employee=obj.employee,
+            date__year=obj.date.year,
+            shift__isnull=False
+        ).annotate(
+            grace_minutes=F("shift__grace_period_minutes")
+        ).aggregate(total_grace=Sum("grace_minutes"))["total_grace"] or 0
+
+        adjusted_minutes = max(0, total_minutes - grace_total)
+        return adjusted_minutes * 60  # convert back to seconds
+
+
+    def get_status(self, obj):
+        if obj.minutes_late > 0:
+            return "LATE"
+        return obj.status.upper() if obj.status else "ABSENT"
+    
+
 class MonthlyAttendanceSummarySerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source="employee.user.username", read_only=True)
     attendance_details = serializers.SerializerMethodField()
@@ -474,7 +500,7 @@ class TeamManagerSerializer(serializers.ModelSerializer):
 class EmployeeTokenSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.username', read_only=True)
     responder_name = serializers.CharField(source='responder.username', read_only=True)
-
+    
     class Meta:
         model = EmployeeToken
         fields = [
