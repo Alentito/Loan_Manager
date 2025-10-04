@@ -8,11 +8,11 @@ export const loanOfficerApi = createApi({
   tagTypes: ['LoanOfficer'],
   endpoints: (builder) => ({
     getLoanOfficers: builder.query({
-      query: (params) => ({
-        url: 'loan-officers/',
-        method: 'GET',
-        params,
-      }),
+      query: ({ brokerId } = {}) => {
+        const params = new URLSearchParams({ archived: "false", page_size: 100 });
+        if (brokerId) params.append("broker_id", brokerId);
+        return `loan-officers/?${params.toString()}`;
+      },
       providesTags: ['LoanOfficer'],
     }),
     getLoanOfficerById: builder.query({

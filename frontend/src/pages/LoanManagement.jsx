@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect,useMemo } from "react";
 import { useTheme } from "@mui/material/styles";
 import { useSearchParams } from "react-router-dom";
 import { Routes, Route } from "react-router-dom";
@@ -173,17 +173,28 @@ export default function LoanManagement() {
     2: "Funded",
     3: "Busted",
   };
-  const milestoneFilter = activeTab === "all" ? undefined : activeTab;
-  //const milestoneFilter = milestoneMap[activeTab];
+  const milestoneFilter =
+    activeTab === "all" || activeTab === "archived" ? undefined : activeTab;
 
-  const { data, isLoading, isError } = useGetLoansQuery({
-    page,
-    pageSize: rowsPerPage,
-    milestone: milestoneFilter,
-    search,
-    ordering,
-    ...filters,
-  });
+  const includeArchived = activeTab === "archived";
+const loanQueryArgs = useMemo(() => {
+    const base = {
+      page,
+      pageSize: rowsPerPage,
+      milestone: milestoneFilter,
+      search,
+      ordering,
+      ...filters,
+    };
+    return includeArchived
+      ? { ...base, include_archived: true, is_archived: true }
+      : base;
+  }, [page, rowsPerPage, milestoneFilter, search, ordering, includeArchived, filters]);
+
+  const { data, isLoading, isError } = useGetLoansQuery(loanQueryArgs);
+
+
+ 
   const loans = data?.results || [];
   const totalLoans = data?.count || 0;
   const pageCount = Math.ceil(totalLoans / rowsPerPage);
@@ -192,17 +203,10 @@ export default function LoanManagement() {
   // Handle incoming WebSocket push
   const debouncedRefetch = useCallback(
     debounce(() => {
-      triggerRefetch({
-        page,
-        pageSize: rowsPerPage,
-        milestone: milestoneFilter,
-        search,
-        ordering,
-      });
+      triggerRefetch(loanQueryArgs);
     }, 1000),
-    [page, rowsPerPage, milestoneFilter, search, ordering]
+    [triggerRefetch, loanQueryArgs]
   );
-
   // 👇 This listens to WebSocket loan update events
   useLoanSocket(debouncedRefetch);
 
@@ -382,6 +386,8 @@ export default function LoanManagement() {
         <Tab label="Active Loans" value="Application" />
         <Tab label="Funded Loans" value="funded" />
         <Tab label="Busted Loans" value="busted" />
+        <Tab label="Archived Loans" value="archived" />
+
       </Tabs>
 
       {/* Search + Filter Bar */}

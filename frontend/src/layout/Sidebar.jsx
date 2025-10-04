@@ -1,203 +1,153 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import {
-  FaUserTie,
-  FaFileInvoiceDollar,
-  FaTachometerAlt,
-  FaMoneyCheckAlt,
-  FaTasks,
-  FaUsers,
-  FaBuilding,
-  FaFileAlt,
-  FaCog,
-  FaSignOutAlt,
-  FaClipboardList,
-} from "react-icons/fa";
-import { useLogoutMutation } from "../api/authApi";
 import React from "react";
-import { useSelector } from "react-redux";
-import { useDispatch } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import {
+  LayoutDashboard,
+  Wallet,
+  Flag,
+  ListChecks,
+  UserRound,
+  Building2,
+  Users,
+  BadgeDollarSign,
+  FileText,
+  Settings,
+  LogOut,
+  ClipboardList,
+  UsersRound,
+  Clock,
+  CalendarCheck2,
+} from "lucide-react";
+import { useLogoutMutation } from "../api/authApi";
+import { useTheme } from "@mui/material/styles";
 
 export default function Sidebar() {
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((s) => s.auth);
   const [logout] = useLogoutMutation();
   const location = useLocation();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
 
   if (!isAuthenticated) return null;
 
-  // Permissions array from user object
   const userPermissions = user?.permissions || [];
+  const isActive = (path) => location.pathname === path;
 
-  // Define nav items with required permissions
   const navItems = [
-    {
-      path: "/dashboard",
-      label: "Dashboard",
-      icon: <FaTachometerAlt />,
-      permission: "loan.view_loan",
-    },
-    {
-      path: "/loan-management",
-      label: "Loan Management",
-      icon: <FaMoneyCheckAlt />,
-      permission: "loan.view_loan",
-    },
-    {
-      path: "/tasks",
-      label: "Tasks",
-      icon: <FaTasks />,
-      permission: "loan.view_task",
-    },
-    {
-      path: "/brokers",
-      label: "Brokers",
-      icon: <FaUserTie />,
-      permission: "employee.view_broker",
-    },
-    {
-      path: "/loan-officers",
-      label: "Loan Officers",
-      icon: <FaBuilding />,
-      permission: "employee.view_loanofficer",
-    },
-    {
-      path: "/employees",
-      label: "Employees",
-      icon: <FaUsers />,
-      permission: "employee.view_employee",
-    },
-    {
-      path: "/payroll",
-      label: "Payroll",
-      icon: <FaFileInvoiceDollar />,
-      permission: "employee.view_payroll",
-    },
-    {
-      path: "/reports",
-      label: "Reports",
-      icon: <FaFileAlt />,
-      permission: "loan.view_report",
-    },
-    {
-      path: "/audit",
-      label: "Audit",
-      icon: <FaClipboardList />,
-      permission: "audit.view_auditevent",
-    },
-    {
-      path: "/role-management",
-      label: "Role Management",
-      icon: <FaClipboardList />,
-      permission: "auth.view_group",
-    },
-    {
-      path: "/teams",
-      label: "Teams",
-      icon: <FaUsers />,
-      permission: "employee.view_team",
-    },
-    {
-      path: "/shifts",
-      label: "Shifts",
-      icon: <FaClipboardList />,
-      permission: "employee.view_shift",
-    },
-    {
-      path: "/attendance",
-      label: "Attendance",
-      icon: <FaClipboardList />,
-      permission: "employee.view_attendance",
-    },
-    {
-      path: "/leaves/my-requests",
-      label: "My Leaves",
-      icon: <FaClipboardList />,
-      permission: "employee.view_leaverequests",
-    },
-    {
-      path: "/admin/meetings",
-      label: "Meetings",
-      icon: <FaClipboardList />,
-      permission: "employee.view_meeting",
-    },
-    {
-      path: "/admin/holidays",
-      label: "Holidays",
-      icon: <FaClipboardList />,
-      permission: "employee.view_publicholiday",
-    },
-    {
-      path: "/admin/leave-approvals",
-      label: "Leave Approvals",
-      icon: <FaClipboardList />,
-      permission: "employee.view_leaverequests",
-    },
+    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "loan.view_loan" },
+    { path: "/loan-management", label: "Loan Management", icon: Wallet, permission: "loan.view_loan" },
+    { path: "/milestones", label: "Milestones", icon: Flag, permission: "loan.view_milestone" },
+    { path: "/tasks", label: "Tasks", icon: ListChecks, permission: "loan.view_task" },
+    { path: "/brokers", label: "Brokers", icon: UserRound, permission: "employee.view_broker" },
+    { path: "/loan-officers", label: "Loan Officers", icon: Building2, permission: "employee.view_loanofficer" },
+    { path: "/employees", label: "Employees", icon: Users, permission: "employee.view_employee" },
+    { path: "/payroll", label: "Payroll", icon: BadgeDollarSign, permission: "employee.view_payroll" },
+    { path: "/reports", label: "Reports", icon: FileText, permission: "loan.view_report" },
+    { path: "/audit", label: "Audit", icon: ClipboardList, permission: "audit.view_auditevent" },
+    { path: "/role-management", label: "Role Management", icon: UsersRound, permission: "auth.view_group" },
+    { path: "/teams", label: "Teams", icon: Users, permission: "employee.view_team" },
+    { path: "/shifts", label: "Shifts", icon: Clock, permission: "employee.view_shift" },
+    { path: "/attendance", label: "Attendance", icon: CalendarCheck2, permission: "employee.view_attendance" },
+    { path: "/leaves/my-requests", label: "My Leaves", icon: ClipboardList, permission: "employee.view_leaverequests" },
+    { path: "/admin/meetings", label: "Meetings", icon: ClipboardList, permission: "employee.view_meeting" },
+    { path: "/admin/holidays", label: "Holidays", icon: ClipboardList, permission: "employee.view_publicholiday" },
+    { path: "/admin/leave-approvals", label: "Leave Approvals", icon: ClipboardList, permission: "employee.view_leaverequests" },
   ];
 
-  // Filter nav items by user permissions
   const filteredNavItems = navItems.filter(
-    (item) => !item.permission || userPermissions.includes(item.permission)
+    (i) => !i.permission || userPermissions.includes(i.permission)
   );
-
-  if (filteredNavItems.length === 0) return null;
-
-  const dispatch = useDispatch();
 
   const handleLogout = async () => {
     try {
-      await logout().unwrap(); // API call to backend
+      await logout().unwrap();
     } catch (e) {
       console.error("Logout error", e);
     }
-
-    // 🔑 Reset local state after logout
-    dispatch(logoutAction()); // clear auth state (token, user)
-    dispatch(setSelectedLoans([])); // clear UI selection (optional)
-    dispatch(loanApi.util.resetApiState()); // clear cached queries + mutations
-
     navigate("/login");
   };
 
+  // Light = modern blue gradient; Dark = slate
+  const asideBase = "hidden lg:flex flex-col w-64 h-screen border-r";
+  const asideTone = isDark
+    ? "bg-slate-900 text-slate-100 border-slate-800"
+    : "bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white shadow-lg border-transparent";
+
+  const sectionBorder = isDark ? "border-slate-800" : "border-white/10";
+
+  const itemBase = "group relative flex items-center gap-3 rounded-lg px-3 py-2 transition-colors";
+  const itemTone = (active) =>
+    isDark
+      ? active
+        ? "bg-slate-800/70"
+        : "hover:bg-slate-800/40"
+      : active
+        ? "bg-white/15"
+        : "hover:bg-white/10";
+
+  const indicatorTone = isDark ? "bg-blue-400" : "bg-white";
+
+  const iconTone = (active) =>
+    isDark
+      ? active
+        ? "text-blue-400"
+        : "text-slate-300 group-hover:text-slate-100"
+      : active
+        ? "text-white"
+        : "text-white/80 group-hover:text-white";
+
+  const textTone = (active) =>
+    isDark
+      ? active
+        ? "text-slate-100"
+        : "text-slate-300 group-hover:text-slate-100"
+      : active
+        ? "text-white"
+        : "text-white/90 group-hover:text-white";
+
   return (
-    <div className="hidden lg:flex flex-col w-64 h-screen bg-gradient-to-b from-blue-600 to-blue-800 text-white shadow-lg">
-      {/* Logo/Header */}
-      <div className="p-4">
-        <h1 className="text-2xl font-bold">Entregar Solutions</h1>
+    <aside className={`${asideBase} ${asideTone}`}>
+      <div className={`px-4 py-5 border-b ${sectionBorder}`}>
+        <div className="text-xl font-semibold tracking-tight">Entregar Solutions</div>
       </div>
 
-      {/* Scrollable nav */}
-      <div className="flex-1 overflow-y-auto px-4 space-y-2">
-        <nav className="pb-16">
-          {filteredNavItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-3 py-2 rounded hover:bg-blue-700 transition ${
-                location.pathname === item.path ? "bg-blue-900" : ""
-              }`}
-            >
-              <span className="text-lg">{item.icon}</span>
-              <span>{item.label}</span>
+      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+        {filteredNavItems.map((item) => {
+          const ActiveIcon = item.icon;
+          const active = isActive(item.path);
+          return (
+            <Link key={item.path} to={item.path} className={`${itemBase} ${itemTone(active)}`}>
+              <span
+                className={`absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r ${indicatorTone} transition-opacity duration-300
+                ${active ? "opacity-100" : "opacity-0 group-hover:opacity-60"}`}
+              />
+              <ActiveIcon size={18} className={`shrink-0 transition-colors ${iconTone(active)}`} strokeWidth={2} />
+              <span className={`text-sm transition-colors ${textTone(active)}`}>{item.label}</span>
             </Link>
-          ))}
-        </nav>
-      </div>
+          );
+        })}
+      </nav>
 
-      {/* Bottom (fixed) */}
-      <div className="px-4 py-3 border-t border-blue-500 bg-blue-700">
+      <div className={`px-4 py-3 border-t ${sectionBorder}`}>
         <Link
           to="/settings"
-          className="flex items-center gap-2 text-sm text-gray-200"
+          className={`flex items-center gap-2 text-sm transition-colors ${
+            isDark ? "text-slate-300 hover:text-slate-100" : "text-white/90 hover:text-white"
+          }`}
         >
-          <FaCog /> Settings
+          <Settings size={18} /> Settings
         </Link>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 text-sm text-gray-200 w-full mt-2 hover:text-red-300"
+          className={`mt-2 flex items-center gap-2 text-sm transition-colors ${
+            isDark ? "text-slate-300 hover:text-rose-300" : "text-white/90 hover:text-white"
+          }`}
         >
-          <FaSignOutAlt /> Logout
+          <LogOut size={18} /> Logout
         </button>
       </div>
-    </div>
+    </aside>
   );
 }

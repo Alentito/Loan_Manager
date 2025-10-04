@@ -33,6 +33,23 @@ export const authApi = createApi({
         body,
       }),
     }),
+
+    updateGroup: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `groups/${id}/`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Auth"],
+    }),
+    deleteGroup: builder.mutation({
+      query: (id) => ({
+        url: `groups/${id}/`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Auth"],
+    }),
+
     logout: builder.mutation({
       query: () => ({
         url: "logout/",
@@ -56,4 +73,6 @@ export const {
   useLazyGetPermissionsQuery,
   useGetMeQuery,
   useLazyGetMeQuery,
+  useDeleteGroupMutation,
+  useUpdateGroupMutation,
 } = authApi;

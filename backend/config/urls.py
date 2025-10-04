@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
-from loan.views import LoanViewSet, ChecklistQuestionViewSet,LoanContactViewSet,DocOrderViewSet, LoanDocStatusViewSet,TaskViewSet,XMLUploadViewSet,NotificationViewSet
+from loan.views import LoanViewSet, ChecklistQuestionViewSet,LoanContactViewSet,DocOrderViewSet, LoanDocStatusViewSet,TaskViewSet,XMLUploadViewSet,NotificationViewSet, MilestoneViewSet
 from audit.views import AuditViewSet
 from userauth.views import CookieTokenObtainPairView, CookieTokenRefreshView , LogoutView, PermissionViewSet, GroupViewSet, MeView
 from django.conf import settings
@@ -29,6 +29,9 @@ from django.conf.urls.static import static
 
 
 router = DefaultRouter()
+
+router.register(r'milestones', MilestoneViewSet)
+
 
 router.register(r'loan', LoanViewSet, basename='loan')
 router.register(r'checklist-questions', ChecklistQuestionViewSet, basename='checklist-question')

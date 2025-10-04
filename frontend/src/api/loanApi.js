@@ -8,12 +8,16 @@ export const loanApi = createApi({
   tagTypes: ["Loan"], // For caching and invalidation
   endpoints: (builder) => ({
     getLoans: builder.query({
-      query: ({ page = 1, pageSize, milestone, search,ordering, assigned_to }) => {
+      query: ({ page = 1, pageSize, milestone, search,ordering, assigned_to,include_archived,is_archived, }) => {
         let url = `loan/?page=${page}&page_size=${pageSize}`;
         if (milestone) url += `&milestone=${milestone}`;
         if (search) url += `&search=${encodeURIComponent(search)}`;
         if (ordering) url += `&ordering=${ordering}`; // <-- new line
         if (assigned_to) url += `&assigned_to=${encodeURIComponent(assigned_to)}`; // pass "me" or id
+        if (include_archived !== undefined)
+          url += `&include_archived=${include_archived ? "true" : "false"}`;
+        if (is_archived !== undefined)
+          url += `&is_archived=${is_archived ? "true" : "false"}`;
         return url;
       },
       providesTags: (result) =>
@@ -31,6 +35,26 @@ export const loanApi = createApi({
         body: data,
       }),
       invalidatesTags: ["Loan"],
+    }),
+    archiveLoan: builder.mutation({
+      query: (id) => ({
+        url: `loan/${id}/archive/`,
+        method: "POST",
+      }),
+      invalidatesTags: (_res, _err, id) => [
+        { type: "Loan", id },
+        { type: "Loan", id: "LIST" },
+      ],
+    }),
+   unarchiveLoan: builder.mutation({
+      query: (id) => ({
+        url: `loan/${id}/unarchive/?include_archived=true`,
+        method: "POST",
+      }),
+      invalidatesTags: (_res,_err,id) => [
+        { type: "Loan", id },
+        { type: "Loan", id: "LIST" },
+      ],
     }),
     updateLoan: builder.mutation({
       query: ({ id, data }) => ({
@@ -165,14 +189,14 @@ getLoanDocStatus: builder.query({
   },
 }),
     listLoanTasks: builder.query({
-      query: (loanId) => `loan/${loanId}/tasks/`,
-        providesTags: (res, err, loanId) => {
-    const items = Array.isArray(res) ? res : res?.results || [];
-    return [
-      ...items.map(({ id }) => ({ type: 'Task', id })),
-      { type: 'Task', id: `LOAN-${loanId}` },
-    ];
-  },
+      query: (loanId) => `tasks/?loan=${loanId}`,
+      providesTags: (res) =>
+        res
+          ? [
+              ...res.map((t) => ({ type: "Task", id: t.id })),
+              { type: "Task", id: "LIST" },
+            ]
+          : [{ type: "Task", id: "LIST" }],
     }),
 
     createTask: builder.mutation({
@@ -240,5 +264,7 @@ export const {
   useUpdateTaskMutation,
   useDeleteTaskMutation,
   useUploadXmlMutation,
-  useListAllTasksQuery
+  useListAllTasksQuery,
+  useArchiveLoanMutation,
+  useUnarchiveLoanMutation
 } = loanApi;

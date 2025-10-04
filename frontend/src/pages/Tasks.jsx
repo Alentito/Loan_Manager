@@ -5,8 +5,11 @@ import ListTaskView from "../layout/ListTaskView"; // adjust path if needed
 
 import ViewKanbanIcon from "@mui/icons-material/ViewKanban";
 import ViewListIcon from "@mui/icons-material/ViewList";
+
+import { Kanban,List } from 'lucide-react';
+
 import AddIcon from "@mui/icons-material/Add";
-import { IconButton, Button, Box } from "@mui/material";
+import { IconButton, Button, Box, Tooltip } from "@mui/material";
 import AddTaskModal from "../components/loandetail/AddTaskModal"; // adjust path if needed
 import { useGetEmployeesQuery } from "../api/employeeApi"; // adjust path if needed
 
@@ -32,7 +35,7 @@ export default function Tasks({ loanId }) {
   const { data: employeeData, isLoading: employeesLoading } = useGetEmployeesQuery({ page: 1, page_size: 1000 });
 const employees = employeeData?.results || [];
 const getUserById = (id) => employees.find(emp => emp.id === id);
-  const loan = 23; // TODO: dynamically pass this from route, context, or selection
+  //const loan = 23; // TODO: dynamically pass this from route, context, or selection
   const { data, isLoading } = useListAllTasksQuery();
   const [createTask] = useCreateTaskMutation();
   const [updateTask] = useUpdateTaskMutation();
@@ -43,16 +46,20 @@ console.log("Tasks data:", taskList); // <--- Add this
 
 const [viewType, setViewType] = useState("kanban"); // or "list" as default
   
-  const cards = taskList.map((task) => ({
-    // <--- Add this
+   const cards = taskList.map(task => ({
     id: String(task.id),
     title: task.title,
     column: task.status,
     description: task.description,
     position: task.position,
-    assignee: getUserById(task.assignee), // <-- map ID to user object
-    assigner: getUserById(task.assigner), // <-- map ID to user object
-}));
+    assignee: task.assignee
+      ? { id: task.assignee, name: task.assignee_name }
+      : null,
+    assigner: {
+      id: task.assigner_id,
+      name: task.assigner_name || task.assigner_username,
+    },
+  }));
 
   //const [cards, setCards] = useState([]);
   // Handle Kanban changes
@@ -135,20 +142,25 @@ const handleModalSubmit = async (values) => {
   return (
     <div className="flex h-full w-full p-4 flex-col gap-3 overflow-hidden ">
       <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+        <Tooltip title="kanban View">
   <IconButton
     color={viewType === "kanban" ? "primary" : "default"}
     onClick={() => setViewType("kanban")}
     sx={{ mr: 1 }}
   >
-    <ViewKanbanIcon />
+    <Kanban />
   </IconButton>
+  </Tooltip>
+  <Tooltip title="List View">
+
   <IconButton
     color={viewType === "list" ? "primary" : "default"}
     onClick={() => setViewType("list")}
     sx={{ mr: 2 }}
   >
-    <ViewListIcon />
+    <List />
   </IconButton>
+  </Tooltip>
   <Button
     variant="contained"
     startIcon={<AddIcon />}
@@ -177,15 +189,18 @@ const handleModalSubmit = async (values) => {
     cards={cards}
     onAddCard={handleAddCard}
     onDeleteCard={handleDeleteCard}
+    onRowClick={handleEditCard}
     // ...other props
   />
 )}
 
 <AddTaskModal
   open={openModal}
-  onClose={() => setOpenModal(false)}
-  onSubmit={handleAddCard}
+  onClose={handleModalClose}
+  onSubmit={handleModalSubmit}
   columns={columns}
+  initialValues={editingTask}
+  onDelete={handleDeleteCard}
 />
       {/* optional placeholder text */}
       {/* <Typography>This is the Tasks page.</Typography> */}

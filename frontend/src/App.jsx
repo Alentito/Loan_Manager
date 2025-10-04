@@ -30,11 +30,28 @@ import LeaveApprovalPage from "./admin/LeaveApprovalPage";
 import HolidayAdminPage from "./holidays/HolidayAdminPage";
 import ShiftList from "./shifts/ShiftList";
 import TeamList from "./teams/TeamList";
+import MilestoneManagement from "./components/milestone/MilestoneManagement";
+import useMediaQuery from "@mui/material/useMediaQuery";
 
 function App() {
   useInitializeAuth();
   const navigate = useNavigate();
+  const initial = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+  const [mode, setMode] = useState(() => localStorage.getItem("themeMode") || initial);
+
   const { isAuthenticated, initialized } = useSelector((state) => state.auth);
+  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
+
+  useEffect(() => {
+    localStorage.setItem("themeMode", mode);
+  }, [mode]);
+
+  // Toggle Tailwind dark classes
+  useEffect(() => {
+    const root = document.documentElement;
+    if (mode === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
+  }, [mode]);
 
   useEffect(() => {
     if (initialized && !isAuthenticated) {
@@ -42,8 +59,9 @@ function App() {
     }
   }, [initialized, isAuthenticated, navigate]);
 
-  const [mode, setMode] = useState("light");
-  const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
+  //const [mode, setMode] = useState("light");
+    const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
+
 
   if (!initialized) return null; // prevent flicker
 
@@ -65,6 +83,7 @@ function App() {
               path="/loan-management/loan-details/:id"
               element={<LoanDetails />}
             />
+            <Route path="/milestones" element={<MilestoneManagement />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/brokers" element={<BrokerList />} />
             <Route path="/loan-officers" element={<LoanOfficerList />} />

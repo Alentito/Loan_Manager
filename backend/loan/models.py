@@ -9,6 +9,100 @@ User = get_user_model()
 import uuid
 from django.db import models
 
+from django.db import models
+from django.contrib.auth import get_user_model
+from django.core.validators import RegexValidator
+
+# ...existing models...
+
+class Milestone(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('archived', 'Archived'),
+    ]
+    
+    name = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Name of the milestone (e.g., Application, Underwriting)"
+    )
+    description = models.TextField(
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="Optional description of this milestone"
+    )
+    
+    # Color fields with hex validation
+    color = models.CharField(
+        max_length=7,
+        default='#2563EB',
+        validators=[
+            RegexValidator(
+                regex='^#[0-9A-Fa-f]{6}$',
+                message='Color must be a valid hex code (e.g., #FF0000)'
+            )
+        ],
+        help_text="Text color in hex format"
+    )
+    background_color = models.CharField(
+        max_length=7,
+        default='#EEF2FF',
+        validators=[
+            RegexValidator(
+                regex='^#[0-9A-Fa-f]{6}$',
+                message='Background color must be a valid hex code (e.g., #FF0000)'
+            )
+        ],
+        help_text="Background color in hex format"
+    )
+    
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active',
+        help_text="Current status of this milestone"
+    )
+    
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Order in which milestones appear (lower numbers first)"
+    )
+    
+    # Audit fields
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_milestones'
+    )
+    updated_by = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_milestones'
+    )
+    
+    class Meta:
+        ordering = ['sort_order', 'name']
+        # Remove the custom permissions - Django auto-creates these:
+        # - loan.add_milestone
+        # - loan.change_milestone  
+        # - loan.delete_milestone
+        # - loan.view_milestone
+    
+    def __str__(self):
+        return self.name
+    
+    @property
+    def is_active(self):
+        return self.status == 'active'
+
 class EventOutbox(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     aggregate = models.CharField(max_length=40)          # "loan","task"
@@ -198,6 +292,8 @@ class Loan(models.Model):
         default="manual",
         help_text="Whether record was created by user or XML"
     )
+    is_archived = models.BooleanField(default=False)  # ➕ add flag
+
     purpose      = models.CharField(max_length=50, null=True, blank=True)
     note_amount  = models.DecimalField(max_digits=12, decimal_places=2,
                                    null=True, blank=True)

@@ -1,3 +1,4 @@
+import React, { useMemo } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -11,12 +12,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Box,
 } from "@mui/material";
 import LenderFields from "./LenderFields";
 import { useGetBrokersQuery } from "../../api/brokerApi";
 import { useGetLoanOfficersQuery } from "../../api/loanOfficerApi";
 import { useGetEmployeesQuery } from "../../api/employeeApi";
+import { useGetMilestonesQuery } from "../../api/milestoneApi";
 
 export default function LoanFormDialog({
   open,
@@ -26,35 +27,63 @@ export default function LoanFormDialog({
   setNewLoan,
   lenders,
   setLenders,
-
-  milestones,
 }) {
-  const { data: brokersData = [], isLoading: loadingBrokers } =
-    useGetBrokersQuery({
-      page: 1,
-      page_size: 1000,
-    });
+  // Brokers
+  const { data: brokersData = {}, isLoading: loadingBrokers } =
+    useGetBrokersQuery({ page: 1, page_size: 1000 });
   const brokers = brokersData.results || [];
 
-  const { data: loanOfficersData = [] } = useGetLoanOfficersQuery(
-    newLoan.broker_id ? { broker_company: newLoan.broker_id } : {},
-    { skip: !newLoan.broker_id }
-  );
+  // Milestones
+  const { data: milestonesData = {}, isLoading: loadingMilestones } =
+    useGetMilestonesQuery({ page: 1, page_size: 1000 });
+  const milestoneOptions = milestonesData.results || [];
+
+  // Loan Officers (fetch only after broker selected)
+  const { data: loanOfficersData = {}, isLoading: loadingLoanOfficers } =
+    useGetLoanOfficersQuery(
+      newLoan.broker_id ? { brokerId: newLoan.broker_id } : {},
+      { skip: !newLoan.broker_id }
+    );
   const loanOfficers = loanOfficersData.results || [];
 
-  const { data: teamLeadsData = [] } = useGetEmployeesQuery({
+  const loanOfficersFiltered = useMemo(() => {
+    if (!newLoan.broker_id) return [];
+    const brokerId = String(newLoan.broker_id);
+    return loanOfficers.filter((o) => {
+      const ids = [
+        o.broker_id,
+        o.broker_company,
+        o.broker?.id,
+        o.brokerCompany,
+        o.company_id,
+        o.company?.id,
+      ]
+        .filter((v) => v !== null && v !== undefined)
+        .map(String);
+      return ids.includes(brokerId);
+    });
+  }, [loanOfficers, newLoan.broker_id]);
+
+  const loanOfficerNoOptionsText = useMemo(() => {
+    if (!newLoan.broker_id) return "Select a broker first";
+    if (loadingLoanOfficers) return "Loading loan officers...";
+    return "No loan officers for selected broker";
+  }, [newLoan.broker_id, loadingLoanOfficers]);
+
+  // Employees
+  const { data: teamLeadsData = {} } = useGetEmployeesQuery({
     position: "team_lead",
     page_size: 100,
   });
-  const { data: teamManagersData = [] } = useGetEmployeesQuery({
+  const { data: teamManagersData = {} } = useGetEmployeesQuery({
     position: "team_manager",
     page_size: 100,
   });
-  const { data: processorsData = [] } = useGetEmployeesQuery({
+  const { data: processorsData = {} } = useGetEmployeesQuery({
     position: "processor",
     page_size: 100,
   });
-  const { data: supportsData = [] } = useGetEmployeesQuery({
+  const { data: supportsData = {} } = useGetEmployeesQuery({
     position: "junior_processor",
     page_size: 100,
   });
@@ -70,13 +99,12 @@ export default function LoanFormDialog({
       <DialogContent>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
-            {/* ...TextFields and Selects for loan fields... */}
-            {/* Example: */}
+            {/* Basic */}
             <TextField
               label="First Name"
               fullWidth
               margin="normal"
-              value={newLoan.first_name}
+              value={newLoan.first_name || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, first_name: e.target.value })
               }
@@ -85,39 +113,53 @@ export default function LoanFormDialog({
               label="Last Name"
               fullWidth
               margin="normal"
-              value={newLoan.last_name}
+              value={newLoan.last_name || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, last_name: e.target.value })
               }
             />
-            <FormControl size="medium" fullWidth margin="normal">
+
+            {/* Broker */}
+            <FormControl fullWidth margin="normal">
               <Autocomplete
                 options={brokers}
-                getOptionLabel={(option) => option.name}
-                value={brokers.find((b) => b.id === newLoan.broker_id) || null}
-                onChange={(event, newValue) => {
+                getOptionLabel={(option) => option?.name ?? ""}
+                value={
+                  brokers.find(
+                    (b) => String(b.id) === String(newLoan.broker_id)
+                  ) || null
+                }
+                onChange={(_e, newValue) => {
                   setNewLoan({
                     ...newLoan,
                     broker_id: newValue ? newValue.id : "",
-                    loan_officer_id: "", // reset loan officer when broker changes
+                    loan_officer_id: "",
                   });
                 }}
                 renderInput={(params) => (
                   <TextField {...params} label="Broker" variant="outlined" />
                 )}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
+                isOptionEqualToValue={(option, value) =>
+                  String(option?.id) === String(value?.id)
+                }
                 loading={loadingBrokers}
+                clearOnEscape
               />
             </FormControl>
+
+            {/* Loan Officer (always visible) */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
-                options={loanOfficers}
-                getOptionLabel={(option) => option.name}
-                value={
-                  loanOfficers.find((o) => o.id === newLoan.loan_officer_id) ||
-                  null
+                options={
+                  newLoan.broker_id ? loanOfficersFiltered : []
                 }
-                onChange={(event, newValue) => {
+                getOptionLabel={(option) => option?.name ?? ""}
+                value={
+                  loanOfficersFiltered.find(
+                    (o) => String(o.id) === String(newLoan.loan_officer_id)
+                  ) || null
+                }
+                onChange={(_e, newValue) => {
                   setNewLoan({
                     ...newLoan,
                     loan_officer_id: newValue ? newValue.id : "",
@@ -128,32 +170,57 @@ export default function LoanFormDialog({
                     {...params}
                     label="Loan Officer"
                     variant="outlined"
+                    helperText={
+                      !newLoan.broker_id
+                        ? "Select a broker to load loan officers"
+                        : ""
+                    }
                   />
                 )}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
+                isOptionEqualToValue={(option, value) =>
+                  String(option?.id) === String(value?.id)
+                }
+                clearOnEscape
+                loading={loadingLoanOfficers && !!newLoan.broker_id}
+                noOptionsText={loanOfficerNoOptionsText}
+                disabled={loadingLoanOfficers && !!newLoan.broker_id}
               />
             </FormControl>
+
+            {/* Milestone */}
             <FormControl fullWidth margin="normal">
               <InputLabel>Milestone</InputLabel>
               <Select
                 label="Milestone"
-                value={newLoan.milestone}
+                value={newLoan.milestone || ""}
                 onChange={(e) =>
                   setNewLoan({ ...newLoan, milestone: e.target.value })
                 }
               >
-                {milestones.map((m) => (
-                  <MenuItem key={m} value={m}>
-                    {m}
+                {loadingMilestones ? (
+                  <MenuItem value="">
+                    <em>Loading milestones...</em>
                   </MenuItem>
-                ))}
+                ) : milestoneOptions.length > 0 ? (
+                  milestoneOptions.map((m) => (
+                    <MenuItem key={m.id} value={m.name}>
+                      {m.name}
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem value="">
+                    <em>No milestones available</em>
+                  </MenuItem>
+                )}
               </Select>
             </FormControl>
+
+            {/* Other fields */}
             <TextField
               label="Compensation"
               fullWidth
               margin="normal"
-              value={newLoan.compensation}
+              value={newLoan.compensation || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, compensation: e.target.value })
               }
@@ -162,7 +229,7 @@ export default function LoanFormDialog({
               label="Lock Status"
               fullWidth
               margin="normal"
-              value={newLoan.lock_status}
+              value={newLoan.lock_status || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, lock_status: e.target.value })
               }
@@ -173,17 +240,16 @@ export default function LoanFormDialog({
               fullWidth
               margin="normal"
               InputLabelProps={{ shrink: true }}
-              value={newLoan.closing_date}
+              value={newLoan.closing_date || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, closing_date: e.target.value })
               }
             />
-
             <TextField
               label="Point File"
               fullWidth
               margin="normal"
-              value={newLoan.point_file}
+              value={newLoan.point_file || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, point_file: e.target.value })
               }
@@ -192,7 +258,7 @@ export default function LoanFormDialog({
               label="Subject Property"
               fullWidth
               margin="normal"
-              value={newLoan.subject_property}
+              value={newLoan.subject_property || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, subject_property: e.target.value })
               }
@@ -203,45 +269,52 @@ export default function LoanFormDialog({
               multiline
               rows={3}
               margin="normal"
-              value={newLoan.loan_comment}
+              value={newLoan.loan_comment || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, loan_comment: e.target.value })
               }
             />
-            {/* ...other fields... */}
+
+            {/* Lenders */}
             <LenderFields lenders={lenders} setLenders={setLenders} />
+
+            {/* Team Lead */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
                 options={teamLeads}
-                getOptionLabel={(option) => option.name}
+                getOptionLabel={(option) => option?.name ?? ""}
                 value={
-                  teamLeads.find((t) => t.id === newLoan.team_leader_id) || null
+                  teamLeads.find(
+                    (t) => String(t.id) === String(newLoan.team_leader_id)
+                  ) || null
                 }
-                onChange={(event, newValue) => {
+                onChange={(_e, newValue) => {
                   setNewLoan({
                     ...newLoan,
                     team_leader_id: newValue ? newValue.id : "",
                   });
                 }}
                 renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Team Leader"
-                    variant="outlined"
-                  />
+                  <TextField {...params} label="Team Leader" variant="outlined" />
                 )}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
+                isOptionEqualToValue={(option, value) =>
+                  String(option?.id) === String(value?.id)
+                }
+                clearOnEscape
               />
             </FormControl>
+
+            {/* Team Manager */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
                 options={teamManagers}
-                getOptionLabel={(option) => option.name}
+                getOptionLabel={(option) => option?.name ?? ""}
                 value={
-                  teamManagers.find((t) => t.id === newLoan.team_manager_id) ||
-                  null
+                  teamManagers.find(
+                    (t) => String(t.id) === String(newLoan.team_manager_id)
+                  ) || null
                 }
-                onChange={(event, newValue) => {
+                onChange={(_e, newValue) => {
                   setNewLoan({
                     ...newLoan,
                     team_manager_id: newValue ? newValue.id : "",
@@ -254,17 +327,24 @@ export default function LoanFormDialog({
                     variant="outlined"
                   />
                 )}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
+                isOptionEqualToValue={(option, value) =>
+                  String(option?.id) === String(value?.id)
+                }
+                clearOnEscape
               />
             </FormControl>
+
+            {/* Processor */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
                 options={processors}
-                getOptionLabel={(option) => option.name}
+                getOptionLabel={(option) => option?.name ?? ""}
                 value={
-                  processors.find((p) => p.id === newLoan.processor_id) || null
+                  processors.find(
+                    (p) => String(p.id) === String(newLoan.processor_id)
+                  ) || null
                 }
-                onChange={(event, newValue) => {
+                onChange={(_e, newValue) => {
                   setNewLoan({
                     ...newLoan,
                     processor_id: newValue ? newValue.id : "",
@@ -273,15 +353,24 @@ export default function LoanFormDialog({
                 renderInput={(params) => (
                   <TextField {...params} label="Processor" variant="outlined" />
                 )}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
+                isOptionEqualToValue={(option, value) =>
+                  String(option?.id) === String(value?.id)
+                }
+                clearOnEscape
               />
             </FormControl>
+
+            {/* Support */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
                 options={supports}
-                getOptionLabel={(option) => option.name}
-                value={supports.find((s) => s.id === newLoan.support_id) || null}
-                onChange={(event, newValue) => {
+                getOptionLabel={(option) => option?.name ?? ""}
+                value={
+                  supports.find(
+                    (s) => String(s.id) === String(newLoan.support_id)
+                  ) || null
+                }
+                onChange={(_e, newValue) => {
                   setNewLoan({
                     ...newLoan,
                     support_id: newValue ? newValue.id : "",
@@ -290,13 +379,16 @@ export default function LoanFormDialog({
                 renderInput={(params) => (
                   <TextField {...params} label="Support" variant="outlined" />
                 )}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
+                isOptionEqualToValue={(option, value) =>
+                  String(option?.id) === String(value?.id)
+                }
+                clearOnEscape
               />
             </FormControl>
-            {/* ...team lead, manager, processor, support selects... */}
           </Grid>
         </Grid>
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose} color="secondary">
           Cancel

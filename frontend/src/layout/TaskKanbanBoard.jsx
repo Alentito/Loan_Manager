@@ -99,7 +99,7 @@ export default function TaskKanbanBoard({
         <MenuItem onClick={handleDelete}> <Trash size={16} /> Delete</MenuItem>
       </Menu>
 
-      <BurnBarrel onDeleteCard={onDeleteCard} />
+      {/* <BurnBarrel onDeleteCard={onDeleteCard} /> */}
     </div>
   );
 }

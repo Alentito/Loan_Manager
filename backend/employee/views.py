@@ -307,6 +307,7 @@ class LoanOfficerViewSet(viewsets.ModelViewSet):
     permission_classes = [StrictDjangoModelPermissions]
 
     
+    
     def perform_create(self, serializer):
         instance = serializer.save()
         # if created already marked archived, set archived_at
@@ -333,6 +334,14 @@ class LoanOfficerViewSet(viewsets.ModelViewSet):
         else:
             # default behavior: show only active (not archived)
             queryset = queryset.filter(is_archived=False)
+
+        broker = self.request.query_params.get('broker')
+        broker_id = self.request.query_params.get('broker_id')
+
+        if broker:
+            queryset = queryset.filter(broker_company__name__icontains=broker)
+        if broker_id:
+            queryset = queryset.filter(broker_company_id=broker_id)
 
         # optional additional filters
         search = self.request.query_params.get('search')

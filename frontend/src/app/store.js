@@ -1,6 +1,7 @@
 // src/app/store.js
 import { configureStore } from '@reduxjs/toolkit';
 import selectedLoansReducer from "../api/selectedLoansSlice";
+import { milestoneApi } from '../api/milestoneApi';
 
 import { loanApi } from '../api/loanApi';
 import { auditApi } from '../api/auditApi';
@@ -37,6 +38,8 @@ export const store = configureStore({
     [leaveApi.reducerPath]: leaveApi.reducer,
     [shiftApi.reducerPath]: shiftApi.reducer,
     [teamApi.reducerPath]: teamApi.reducer,
+    [milestoneApi.reducerPath]: milestoneApi.reducer,
+
     
   },
 
@@ -53,6 +56,7 @@ export const store = configureStore({
       .concat(leaveApi.middleware)
       .concat(shiftApi.middleware)
       .concat(teamApi.middleware)
+      .concat(milestoneApi.middleware)
       
 });
 

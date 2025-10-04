@@ -1,3 +1,7 @@
+import { store } from '../app/store'; // Import your store
+import { loanApi } from '../api/loanApi'; // Import your APIs
+import { authApi } from '../api/authApi';
+
 export const logout = async () => {
   const refresh_token = localStorage.getItem('refresh_token');
   const access_token = localStorage.getItem('access_token');
@@ -17,6 +21,10 @@ export const logout = async () => {
     }
   }
 
+  // Clear RTK Query cache
+  store.dispatch(loanApi.util.resetApiState());
+  store.dispatch(authApi.util.resetApiState());
+  
   localStorage.clear();
   window.location.href = '/employee-login';
 };

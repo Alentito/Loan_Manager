@@ -1,4 +1,3 @@
-// components/AddTaskModal.jsx
 import React from "react";
 import {
   Dialog,
@@ -16,31 +15,58 @@ export default function AddTaskModal({
   open,
   onClose,
   onSubmit,
+  onDelete, // <-- Add this prop
   columns,
+  initialValues = {},
 }) {
-
-    const { data, isLoading } = useGetEmployeesQuery({ page: 1, page_size: 1000 });
+  const { data, isLoading } = useGetEmployeesQuery({ page: 1, page_size: 1000 });
   const employees = data?.results || [];
-
-  
 
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [status, setStatus] = React.useState(columns[0]?.key || "To Do");
-const [assignedTo, setAssignedTo] = React.useState("");
+  const [assignedTo, setAssignedTo] = React.useState(
+    initialValues && initialValues.assignee
+      ? employees.find(e => e.id === initialValues.assignee) || initialValues.assignee
+      : ""
+  );
+
+  React.useEffect(() => {
+    setTitle(initialValues?.title || "");
+    setDescription(initialValues?.description || "");
+    setStatus(initialValues?.status || columns[0]?.key || "To Do");
+    setAssignedTo(
+      initialValues && initialValues.assignee
+        ? employees.find(e => e.id === initialValues.assignee) || initialValues.assignee
+        : ""
+    );
+  }, [initialValues, employees, columns]);
+
   const handleSubmit = async () => {
-  if (!title.trim()) return;
-  await onSubmit(status, title, description, assignedTo);
-  setTitle("");
-  setDescription("");
-  setAssignedTo("");
-  setStatus(columns[0]?.key || "To Do");
-  onClose();
-};
+    if (!title.trim()) return;
+    await onSubmit({
+      status,
+      title,
+      description,
+      assignee: assignedTo?.id || assignedTo || null,
+    });
+    setTitle("");
+    setDescription("");
+    setAssignedTo("");
+    setStatus(columns[0]?.key || "To Do");
+    onClose();
+  };
+
+  const handleDelete = async () => {
+    if (onDelete && initialValues?.id) {
+      await onDelete(initialValues.id);
+      onClose();
+    }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Add New Task</DialogTitle>
+      <DialogTitle>{initialValues?.id ? "Edit Task" : "Add New Task"}</DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
@@ -75,7 +101,7 @@ const [assignedTo, setAssignedTo] = React.useState("");
             </MenuItem>
           ))}
         </TextField>
-       <Autocomplete
+        <Autocomplete
           options={employees}
           getOptionLabel={(option) =>
             option.name ||
@@ -98,9 +124,14 @@ const [assignedTo, setAssignedTo] = React.useState("");
         />
       </DialogContent>
       <DialogActions>
+        {initialValues?.id && (
+          <Button color="error" onClick={handleDelete}>
+            Delete
+          </Button>
+        )}
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="contained" onClick={handleSubmit}>
-          Add
+          {initialValues?.id ? "Save" : "Add"}
         </Button>
       </DialogActions>
     </Dialog>

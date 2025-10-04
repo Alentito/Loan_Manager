@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useTheme } from "@mui/material/styles";
 import useLoanSocket from "./useLoanSocket";
+import UnarchiveIcon from "@mui/icons-material/Unarchive";
+
+import ArchiveIcon from "@mui/icons-material/Archive";
+import { useArchiveLoanMutation,useUnarchiveLoanMutation } from "../../api/loanApi";
 
 import {
   Table,
@@ -124,6 +128,11 @@ export default function LoanTable({
   setSortField,
   setSortDirection,
 }) {
+
+
+    const [archiveLoan] = useArchiveLoanMutation();
+  const [unarchiveLoan] = useUnarchiveLoanMutation();
+
 
   useLoanSocket();
   const Permissions = useSelector(
@@ -462,8 +471,21 @@ export default function LoanTable({
       );
     }
 
-    if (id === "milestone") {
-      return <MilestoneChip status={loan.milestone} />;
+     if (id === "milestone") {
+      const milestoneData =
+        typeof loan.milestone === "object" && loan.milestone !== null
+          ? loan.milestone
+          : null;
+      const milestoneLabel =
+        milestoneData?.name ??
+        (typeof loan.milestone === "string" ? loan.milestone : "Unknown");
+
+      return (
+        <MilestoneChip
+          status={milestoneLabel}
+          milestone={milestoneData}
+        />
+      );
     }
 
     if (id === "managed_by") {
@@ -525,6 +547,7 @@ export default function LoanTable({
       return (
         <>
           {Permissions.includes("loan.change_loan") && (
+             <Tooltip title="Edit Loan">
             <Button
               variant="contained"
               startIcon={<EditIcon />}
@@ -558,8 +581,10 @@ export default function LoanTable({
                 Edit
               </Box>
             </Button>
+            </Tooltip>
           )}
           {Permissions.includes("loan.delete_loan") && (
+            <Tooltip title="Delete Loan">
             <IconButton
               onClick={(e) => {
                 e.stopPropagation();
@@ -568,6 +593,19 @@ export default function LoanTable({
             >
               <DeleteIcon />
             </IconButton>
+            </Tooltip>
+          )}
+         {Permissions.includes("loan.change_loan") && (
+          <Tooltip title={loan.is_archived ? "Unarchive Loan" : "Archive Loan"}>
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                loan.is_archived ? unarchiveLoan(loan.id) : archiveLoan(loan.id);
+              }}
+            >
+              {loan.is_archived ? <UnarchiveIcon /> : <ArchiveIcon />}
+            </IconButton>
+          </Tooltip>
           )}
         </>
       );

@@ -72,6 +72,133 @@ def _has_field(model, name):
         return False
 
 
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.db.models import Q
+from .models import Milestone
+from .serializers import MilestoneSerializer, MilestoneListSerializer
+
+
+
+
+class StrictDjangoModelPermissions(DjangoModelPermissions):
+    # Require view permission for GET
+    perms_map = {
+        'GET': ['%(app_label)s.view_%(model_name)s'],
+        'OPTIONS': [],
+        'HEAD': [],
+        'POST': ['%(app_label)s.add_%(model_name)s'],
+        'PUT': ['%(app_label)s.change_%(model_name)s'],
+        'PATCH': ['%(app_label)s.change_%(model_name)s'],
+        'DELETE': ['%(app_label)s.delete_%(model_name)s'],
+    }
+
+
+class MilestoneViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing milestones
+    """
+    queryset = Milestone.objects.all()
+    serializer_class = MilestoneSerializer
+    pagination_class = CustomPageNumberPagination
+    permission_classes = [IsAuthenticated, StrictDjangoModelPermissions]
+
+    def check_permissions(self, request):
+        """
+        Custom permission check that allows superusers full access
+        """
+        super().check_permissions(request)
+        
+        # Allow superusers to bypass all permission checks
+        if request.user.is_superuser:
+            return
+        
+        # For non-superusers, check specific permissions based on action
+        action_permissions = {
+            'list': 'loan.view_milestone',
+            'retrieve': 'loan.view_milestone',
+            'create': 'loan.add_milestone', 
+            'update': 'loan.change_milestone',
+            'partial_update': 'loan.change_milestone',
+            'destroy': 'loan.delete_milestone',
+            'bulk_delete': 'loan.delete_milestone',
+        }
+        
+        required_perm = action_permissions.get(self.action)
+        if required_perm and not request.user.has_perm(required_perm):
+            self.permission_denied(
+                request, 
+                message=f"You do not have permission to {self.action} milestones"
+            )
+    
+    def get_queryset(self):
+        """Filter milestones based on search and status"""
+        queryset = Milestone.objects.all()
+        
+        # Search functionality
+        search = self.request.query_params.get('search', '')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(description__icontains=search)
+            )
+        
+        # Status filter
+        status_filter = self.request.query_params.get('status', '')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        return queryset.order_by('sort_order', 'name')
+    
+    def get_serializer_class(self):
+        """Use simplified serializer for list view"""
+        if self.action == 'list':
+            return MilestoneListSerializer
+        return MilestoneSerializer
+    
+    def perform_create(self, serializer):
+        """Set created_by field"""
+        serializer.save(created_by=self.request.user)
+    
+    def perform_update(self, serializer):
+        """Set updated_by field"""
+        serializer.save(updated_by=self.request.user)
+    
+    @action(detail=False, methods=['delete'])
+    def bulk_delete(self, request):
+        """Bulk delete milestones"""
+        ids = request.data.get('ids', [])
+        
+        if not ids:
+            return Response(
+                {'error': 'No IDs provided'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check permissions - use Django's auto-generated permission
+        if not request.user.has_perm('loan.delete_milestone'):
+            return Response(
+                {'error': 'Permission denied'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        deleted_count = Milestone.objects.filter(id__in=ids).count()
+        Milestone.objects.filter(id__in=ids).delete()
+        
+        return Response({
+            'message': f'{deleted_count} milestones deleted successfully',
+            'deleted_count': deleted_count
+        })
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get only active milestones"""
+        active_milestones = Milestone.objects.filter(status='active')
+        serializer = MilestoneListSerializer(active_milestones, many=True)
+        return Response(serializer.data)
+
+
 class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
@@ -93,17 +220,7 @@ def emit_event(aggregate: str, event_type: str, tenant_id: str, payload: dict, a
     )
 
 
-class StrictDjangoModelPermissions(DjangoModelPermissions):
-    # Require view permission for GET
-    perms_map = {
-        'GET': ['%(app_label)s.view_%(model_name)s'],
-        'OPTIONS': [],
-        'HEAD': [],
-        'POST': ['%(app_label)s.add_%(model_name)s'],
-        'PUT': ['%(app_label)s.change_%(model_name)s'],
-        'PATCH': ['%(app_label)s.change_%(model_name)s'],
-        'DELETE': ['%(app_label)s.delete_%(model_name)s'],
-    }
+
 # where you keep push_loan_update / push_notification
 def push_task_update(payload: dict):
     channel_layer = get_channel_layer()
@@ -209,57 +326,71 @@ class XMLUploadViewSet(viewsets.ModelViewSet):
 
 from rest_framework.permissions import BasePermission
 
-class IsTaskAssigneeOrAssignerOrStaff(BasePermission):
+class IsTaskAssigneeOrAssigner(BasePermission):
     """
-    Object-level permission to allow only the assignee, assigner, or staff to access/modify the Task.
+    Only allow:
+      - assigner (Task.assigner User FK)
+      - assignee (Task.assignee Employee FK -> employee.user)
+    No staff/superuser override (enforces strict visibility).
     """
-
     def has_object_permission(self, request, view, obj):
-        # obj is a Task instance
-        user = request.user
-        if not user or not user.is_authenticated:
+        if not request.user.is_authenticated:
             return False
-        if user.is_staff or user.is_superuser or user.has_perm("tasks.view_all_tasks"):
+        if obj.assigner_id == request.user.id:
             return True
-        # allow if user is assignee or assigner
-        if obj.assignee_id and obj.assignee_id == user.id:
-            return True
-        if obj.assigner_id and obj.assigner_id == user.id:
+        assignee = getattr(obj, "assignee", None)
+        if assignee and getattr(assignee, "user_id", None) == request.user.id:
             return True
         return False
 
     
 class TaskViewSet(viewsets.ModelViewSet):
-    """
-    Pure-DRF ViewSet: /api/tasks/
-    Use query params `?loan=<id>` and `?status=` for filtering.
-    """
     serializer_class   = TaskSerializer
-    permission_classes = [IsAuthenticated, IsTaskAssigneeOrAssignerOrStaff]
-    pagination_class = None
-
-    filter_backends  = [DjangoFilterBackend,
-                        filters.SearchFilter,
-                        filters.OrderingFilter]
-    filterset_fields = ["loan", "status", "assignee"]
-    search_fields    = ["title", "description"]
-    ordering_fields  = ["position", "created_at", "updated_at"]
+    permission_classes = [IsAuthenticated, IsTaskAssigneeOrAssigner]
+    pagination_class   = None
+    filter_backends    = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields   = ["status"]   # keep simple
+    search_fields      = ["title", "description"]
+    ordering_fields    = ["position", "created_at", "updated_at"]
 
     def get_queryset(self):
-            user = self.request.user
-            qs = Task.objects.select_related("loan", "assignee", "assigner")
+        user = self.request.user
+        if not user.is_authenticated:
+            return Task.objects.none()
 
-            # nested route support / loan filter param
-            loan_id = self.kwargs.get("loan_pk") or self.request.query_params.get("loan")
-            if loan_id:
-                qs = qs.filter(loan_id=loan_id)
+        qs = Task.objects.select_related("loan", "assignee__user", "assigner")
 
-            # staff / special perm sees everything
-            if user and (user.is_staff or user.is_superuser or user.has_perm("tasks.view_all_tasks")):
-                return qs
+        loan_id = self.request.query_params.get("loan")
+        
+        # Visible only if (assigner=user) OR (assignee.employee.user=user)
+        try:
+            employee = Employee.objects.get(user=user)
+        except Employee.DoesNotExist:
+            employee = None
 
-            # otherwise only tasks where user is assignee or assigner
-            return qs.filter(Q(assignee=user) | Q(assigner=user)).distinct()
+        visible_q = Q(assigner=user)
+        if employee:
+            visible_q |= Q(assignee=employee)
+        qs = qs.filter(visible_q)
+
+        # Optional narrowing filters (cannot expand visibility)
+        qp = self.request.query_params
+        loan_id = qp.get("loan")
+        if loan_id:
+            qs = qs.filter(loan_id=loan_id)
+        status_val = qp.get("status")
+        if status_val:
+            qs = qs.filter(status=status_val)
+
+        assignee_param = qp.get("assignee")
+        if assignee_param and assignee_param.isdigit():
+            qs = qs.filter(assignee_id=int(assignee_param))
+
+        assigner_param = qp.get("assigner")
+        if assigner_param and assigner_param.isdigit():
+            qs = qs.filter(assigner_id=int(assigner_param))
+
+        return qs.distinct()
 
     def perform_create(self, serializer):
         status_val = serializer.validated_data.get("status")
@@ -310,16 +441,17 @@ class TaskViewSet(viewsets.ModelViewSet):
 
             recipients = [self.request.user.id]
             if task.assignee:
-                recipients.append(task.assignee.id)
+                if getattr(task.assignee, "user_id", None):
+                    recipients.append(task.assignee.user_id)
 
             notif_payload = {
-            "task_id": str(task.id),
-            "title": task.title,
-            "status": task.status,
-            "loan_id": str(task.loan_id) if task.loan_id else None,
-            "created_by": self.request.user.id,
-            "assignee": task.assignee.id if task.assignee else None,
-        }
+                "task_id": str(task.id),
+                "title": task.title,
+                "status": task.status,
+                "loan_id": str(task.loan_id) if task.loan_id else None,
+                "created_by": self.request.user.id,
+                "assignee": task.assignee_id,
+            }
 
         push_notification_minimal(
             {
@@ -433,7 +565,7 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
     
 
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = [ 'first_name', 'milestone', 'created_at', 'closing_date', 'broker']
+    filterset_fields = [ 'first_name', 'milestone', 'created_at', 'closing_date', 'broker' ,'is_archived']
 
     
     search_fields = ['first_name', 'last_name', 'broker__name']
@@ -449,44 +581,66 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
         
 
         qs = Loan.objects.all()
-        select_candidates = [f for f in ("broker", "loan_officer", "team_leader", "team_manager", "processor", "support") if _has_field(Loan, f)]
 
-        # Staff/privileged users see all loans
-        if user and (user.is_staff or user.is_superuser or user.has_perm("loan.view_all_loans")):
-            try:
-                if select_candidates:
-                    qs = qs.select_related(*select_candidates)
-            except Exception:
-                logger.exception("select_related failed for staff path; returning base qs")
-            return qs
-
-        try:
-            employee = Employee.objects.get(user=user)
-            print (f"Employee found: {employee}")
-        except Employee.DoesNotExist:
-            return Loan.objects.none()
-
-        # Regular users: only loans where user is assigned
-        assigned_q = Q()
-        if _has_field(Loan, "team_manager"):
-            assigned_q |= Q(team_manager=employee)
-        if _has_field(Loan, "team_leader"):
-            assigned_q |= Q(team_leader=employee)
-        if _has_field(Loan, "processor"):
-            assigned_q |= Q(processor=employee)
-        if _has_field(Loan, "support"):
-            assigned_q |= Q(support=employee)
-
-        if assigned_q == Q():
-            return Loan.objects.none()
-
-        qs = qs.filter(assigned_q).distinct()
-        try:
-            if select_candidates:
-                qs = qs.select_related(*select_candidates)
-        except Exception:
-            logger.exception("select_related failed on default path; continuing without it")
+        include_archived = self.request.query_params.get("include_archived", "").lower()
+        if include_archived != "true":
+            qs = qs.filter(is_archived=False)
         return qs
+
+        select_candidates = [
+            f for f in ("broker","loan_officer","team_leader","team_manager","processor","support")
+            if _has_field(Loan, f)
+        ]
+        # Staff/privileged users see all loans
+        if not (user and (user.is_staff or user.is_superuser or user.has_perm("loan.view_all_loans"))):
+            try:
+                employee = Employee.objects.get(user=user)
+            except Employee.DoesNotExist:
+                return Loan.objects.none()
+
+            assigned_q = Q()
+            if _has_field(Loan, "team_manager"):
+                assigned_q |= Q(team_manager=employee)
+            if _has_field(Loan, "team_leader"):
+                assigned_q |= Q(team_leader=employee)
+            if _has_field(Loan, "processor"):
+                assigned_q |= Q(processor=employee)
+            if _has_field(Loan, "support"):
+                assigned_q |= Q(support=employee)
+
+            if assigned_q:
+                qs = qs.filter(assigned_q).distinct()
+            else:
+                return Loan.objects.none()
+
+        # Archive filtering (skip for archive/unarchive actions so we can find the record)
+        action = getattr(self, "action", None)
+        if action not in ("archive", "unarchive"):
+            include_archived = self.request.query_params.get("include_archived", "").lower()
+            if include_archived != "true":
+                qs = qs.filter(is_archived=False)
+
+        if select_candidates:
+            try:
+                qs = qs.select_related(*select_candidates)
+            except Exception:
+                logger.exception("select_related failed")
+
+        return qs
+        
+    @action(detail=True, methods=['post'], permission_classes=[StrictDjangoModelPermissions])
+    def archive(self, request, pk=None):
+        loan = self.get_object()
+        loan.is_archived = True
+        loan.save(update_fields=["is_archived"])
+        return Response({"status": "archived"})
+        
+    @action(detail=True, methods=["post"], permission_classes=[StrictDjangoModelPermissions])
+    def unarchive(self, request, pk=None):
+        loan = self.get_object()
+        loan.is_archived = False
+        loan.save(update_fields=["is_archived"])
+        return Response({"status": "unarchived"})
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

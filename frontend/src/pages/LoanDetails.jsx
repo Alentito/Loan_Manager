@@ -1,6 +1,11 @@
 // LoanDetails.jsx (drop-in replacement)
-import React, { Suspense, lazy, useEffect, useState } from "react";
+import React, { Suspense,useMemo, lazy, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+
+import { useTheme } from "@mui/material/styles";
+
+import MilestoneChip from "../layout/MilestoneChip";
+
 
 import { useSelector } from "react-redux";
 
@@ -43,6 +48,10 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 
 // Lazy children (keep your existing components)
+const IncomeAssetNotes = lazy(() => 
+  import("../components/loandetail/IncomeAssetNotes")
+);
+
 const ContactTable = lazy(() =>
   import("../components/loandetail/ContactTable")
 );
@@ -69,6 +78,9 @@ const preloadSubmissionChecklist = () =>
   import("../components/loandetail/SubmissionChecklist");
 const preloadTask = () => import("../components/loandetail/LoanTask");
 const preloadAudit = () => import("../components/loandetail/Audit");
+// Add this to your preload functions
+const preloadIncomeAssetNotes = () => 
+  import("../components/loandetail/IncomeAssetNotes");
 
 const handleTabHover = (tabIndex) => {
   switch (tabIndex) {
@@ -79,7 +91,7 @@ const handleTabHover = (tabIndex) => {
       preloadContactTable();
       break;
     case 3:
-      preloadDocOrderTable();
+      preloadIncomeAssetNotes();
       break;
     case 4:
       preloadTask();
@@ -109,6 +121,34 @@ const localTheme = createTheme({
 });
 
 export default function LoanDetails() {
+
+
+  
+
+const outerTheme = useTheme();
+  const localTheme = useMemo(
+    () =>
+      createTheme({
+        ...outerTheme,
+        typography: {
+          ...outerTheme.typography,
+          fontFamily: "'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif",
+          fontSize: 14,
+          h6: { ...(outerTheme.typography?.h6 || {}), fontSize: "1rem", fontWeight: 600 },
+          body2: { ...(outerTheme.typography?.body2 || {}), fontSize: "0.95rem" },
+          caption: { ...(outerTheme.typography?.caption || {}), fontSize: "0.8rem" },
+        },
+        components: {
+          ...outerTheme.components,
+          MuiButton: {
+            ...(outerTheme.components?.MuiButton || {}),
+            defaultProps: { size: "medium" },
+          },
+        },
+      }),
+    [outerTheme]
+  );
+
   const Permissions = useSelector(
     (state) => state.auth.user?.permissions || []
   );
@@ -120,6 +160,18 @@ export default function LoanDetails() {
 
   const { data: loan, isLoading, isError, refetch } = useGetLoanQuery(id);
   const [deleteLoan] = useDeleteLoanMutation();
+
+
+  const milestoneValue = React.useMemo(() => {
+    if (!loan?.milestone) return null;
+    if (typeof loan.milestone === "object") return loan.milestone.name;
+    return loan.milestone;
+  }, [loan]);
+
+  const milestoneData =
+    typeof loan?.milestone === "object" && loan?.milestone !== null
+      ? loan.milestone
+      : null;
 
   // keep your tabs unchanged
   const [tab, setTab] = useState(0);
@@ -310,11 +362,10 @@ export default function LoanDetails() {
                                 </Typography>
                               </Box>
                             </Stack>
-                            <Chip
-                              label={loan.milestone ?? "Unknown"}
-                              color="primary"
-                              size="small"
-                            />
+                            <MilestoneChip
+                                status={milestoneValue}
+                                milestone={milestoneData}
+                              />
                           </Stack>
 
                           <Divider sx={{ mb: 2 }} />
@@ -506,7 +557,7 @@ export default function LoanDetails() {
 
                   {/* other tabs unchanged */}
                   {tab === 1 && <ContactTable loanId={loan.id} />}
-                  {tab === 2 && <Box>{/* Income & Assets */}</Box>}
+                  {tab === 2 && <IncomeAssetNotes loanId={loan.id} />}
                   {tab === 3 && <LoanTask loanId={loan.id} />}
                   {tab === 4 && <Audit loanId={loan.id} />}
                 </Box>
