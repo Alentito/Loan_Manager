@@ -10,7 +10,7 @@ from django.db.models import Q
 from .serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer,  PublicHolidaySerializer, MeetingSerializer, LeaveRequestSerializer, ShiftSerializer, TeamSerializer, BreakSerializer, AttendanceSerializer,  MonthlyAttendanceSummarySerializer, LenderSerializer, TeamLeadSerializer, TeamManagerSerializer,EmployeeTokenSerializer, EmployeeBreakSerializer
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.decorators import api_view, action
+from rest_framework.decorators import api_view, action, permission_classes
 from django.http import JsonResponse
 from rest_framework.response import Response
 from datetime import timedelta
@@ -64,6 +64,10 @@ from django.db.models import Prefetch
 from django.db.models import Sum, F, ExpressionWrapper, DurationField
 from .utils import to_cst, add_us_holidays, get_cst_date
 from django.utils.dateparse import parse_date
+from django.contrib.auth.decorators import permission_required
+from django.views.decorators.csrf import csrf_exempt
+
+
 
 
 class StrictDjangoModelPermissions(DjangoModelPermissions):
@@ -229,60 +233,100 @@ def broker_stats(request):
     })
 
 
+from django.http import HttpResponse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+import openpyxl
+from openpyxl.utils import get_column_letter
+from openpyxl import Workbook
+from io import BytesIO
+from loan.models import Broker  # update import as needed
+
+
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def export_brokers_excel(request):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Brokers"
 
-    headers = ['Name', 'Email', 'NMLS', 'Primary Phone', 'Phone', 'Address', 'Company Address', 'Created At', 'Updated At']
+    headers = [
+        'Name', 'Email', 'NMLS', 'Primary Phone', 'Phone',
+        'Address', 'Company Address', 'Created At', 'Updated At', 'Archived At'
+    ]
     ws.append(headers)
 
-    for broker in Broker.objects.all():
+    for broker in Broker.objects.all().order_by('-created_at'):
         ws.append([
-            broker.name,
-            broker.email,
-            broker.NMLS,
-            broker.primary_phone,
-            broker.phone,
-            broker.address,
-            broker.company_address,
-            broker.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            broker.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
+            broker.name or '-',
+            broker.email or '-',
+            broker.NMLS or '-',
+            broker.primary_phone or '-',
+            broker.phone or '-',
+            broker.address or '-',
+            broker.company_address or '-',
+            broker.created_at.strftime('%Y-%m-%d %H:%M:%S') if broker.created_at else '-',
+            broker.updated_at.strftime('%Y-%m-%d %H:%M:%S') if broker.updated_at else '-',
+            broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '-',
         ])
 
+    # Auto-adjust column width
     for col_num, _ in enumerate(headers, 1):
-        ws.column_dimensions[get_column_letter(col_num)].width = 20
+        ws.column_dimensions[get_column_letter(col_num)].width = 25
 
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
     response['Content-Disposition'] = 'attachment; filename="brokers.xlsx"'
-    wb.save(response)
     return response
 
+
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def export_brokers_pdf(request):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
-    y = 750
+    width, height = letter
+    y = height - 50
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(200, y, "Broker Details Report")
+    y -= 30
     p.setFont("Helvetica", 10)
 
-    p.drawString(200, 800, "Broker List")
+    brokers = Broker.objects.all().order_by('-created_at')
+    for broker in brokers:
+        details = [
+            f"Name: {broker.name or '-'}",
+            f"Email: {broker.email or '-'}",
+            f"NMLS: {broker.NMLS or '-'}",
+            f"Primary Phone: {broker.primary_phone or '-'}",
+            f"Phone: {broker.phone or '-'}",
+            f"Address: {broker.address or '-'}",
+            f"Company Address: {broker.company_address or '-'}",
+            f"Created At: {broker.created_at.strftime('%Y-%m-%d %H:%M:%S') if broker.created_at else '-'}",
+            f"Updated At: {broker.updated_at.strftime('%Y-%m-%d %H:%M:%S') if broker.updated_at else '-'}",
+            f"Archived At: {broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '-'}",
+        ]
 
-    headers = ['Name', 'Email', 'NMLS', 'Primary Phone']
-    p.drawString(50, y, ' | '.join(headers))
-    y -= 20
+        for line in details:
+            p.drawString(50, y, line)
+            y -= 15
+            if y < 50:  # new page if needed
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y = height - 50
 
-    for broker in Broker.objects.all():
-        line = f"{broker.name} | {broker.email} | {broker.NMLS} | {broker.primary_phone}"
-        p.drawString(50, y, line)
+        y -= 10
+        p.line(50, y, width - 50, y)
         y -= 20
-        if y < 50:
-            p.showPage()
-            y = 750
 
     p.save()
     buffer.seek(0)
-
     return HttpResponse(buffer, content_type='application/pdf', headers={
         'Content-Disposition': 'attachment; filename="brokers.pdf"',
     })
@@ -418,48 +462,84 @@ def validate_loan_officer(request):
     return Response({'errors': errors})
 
 
+@api_view(['GET']) 
+@permission_classes([AllowAny])
+def export_loan_officers_excel(request):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Loan Officers"
 
+    headers = ['Name', 'Email', 'Contact Number', 'NMLS', 'Broker Company', 'Created At', 'Updated At']
+    ws.append(headers)
 
-@api_view(['GET'])
-def export_loan_officers_xml(request):
-    officers = LoanOfficer.objects.select_related('broker_company').all()
-
-    root = ET.Element('LoanOfficers')
-
-    for o in officers:
-        officer_elem = ET.SubElement(root, 'LoanOfficer')
-        ET.SubElement(officer_elem, 'Name').text = o.name or ''
-        ET.SubElement(officer_elem, 'Email').text = o.email or ''
-        ET.SubElement(officer_elem, 'Phone').text = o.contact_number or ''
-        ET.SubElement(officer_elem, 'NMLS').text = o.NMLS or ''
-        ET.SubElement(officer_elem, 'BrokerCompany').text = o.broker_company.name if o.broker_company else ''
-        ET.SubElement(officer_elem, 'CreatedAt').text = o.created_at.isoformat() if o.created_at else ''
-
-    xml_bytes = ET.tostring(root, encoding='utf-8', xml_declaration=True)
-    response = HttpResponse(xml_bytes, content_type='application/xml')
-    response['Content-Disposition'] = 'attachment; filename="loan_officers.xml"'
-    return response
-
-
-@api_view(['GET'])
-def export_loan_officers_csv(request):
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="loan_officers.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow(['Name', 'Email', 'Phone', 'NMLS', 'BrokerCompany', 'CreatedAt'])
-
-    for o in LoanOfficer.objects.select_related('broker_company').all():
-        writer.writerow([
-            o.name,
-            o.email,
-            o.contact_number,
-            o.NMLS,
-            o.broker_company.name if o.broker_company else '',
-            o.created_at.strftime('%Y-%m-%d %H:%M:%S') if o.created_at else '',
+    for officer in LoanOfficer.objects.select_related('broker_company').all():
+        ws.append([
+            officer.name or '',
+            officer.email or '',
+            officer.contact_number or '',
+            officer.NMLS or '',
+            officer.broker_company.name if officer.broker_company else '',
+            officer.created_at.strftime('%Y-%m-%d %H:%M:%S') if officer.created_at else '',
+            officer.updated_at.strftime('%Y-%m-%d %H:%M:%S') if officer.updated_at else '',
         ])
 
+    for col_num, _ in enumerate(headers, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 20
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="loan_officers.xlsx"'
+    wb.save(response)
     return response
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def export_loan_officers_pdf(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
+
+    # Title
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(200, y, "Loan Officer Details Report")
+    y -= 30
+    p.setFont("Helvetica", 10)
+
+    officers = LoanOfficer.objects.select_related('broker_company').all().order_by('-created_at')
+
+    for officer in officers:
+        details = [
+            f"Name: {officer.name or '-'}",
+            f"Email: {officer.email or '-'}",
+            f"Contact Number: {officer.contact_number or '-'}",
+            f"NMLS: {officer.NMLS or '-'}",
+            f"Broker Company: {officer.broker_company.name if officer.broker_company else '-'}",
+            f"Created At: {officer.created_at.strftime('%Y-%m-%d %H:%M:%S') if officer.created_at else '-'}",
+            f"Updated At: {officer.updated_at.strftime('%Y-%m-%d %H:%M:%S') if officer.updated_at else '-'}",
+        ]
+
+        for line in details:
+            p.drawString(50, y, line)
+            y -= 15
+            if y < 50:  # new page if needed
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y = height - 50
+
+        y -= 10
+        p.line(50, y, width - 50, y)
+        y -= 20
+
+    p.save()
+    buffer.seek(0)
+
+    return HttpResponse(buffer, content_type='application/pdf', headers={
+        'Content-Disposition': 'attachment; filename="loan_officers.pdf"',
+    })
+
 
 class EmployeePagination(PageNumberPagination):
     page_size = 10
@@ -555,24 +635,25 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         
     def perform_update(self, serializer):
-        instance = serializer.save()
+        instance = serializer.save()  # team & shift logic already handled
+
         user = getattr(instance, "user", None)
         data = self.request.data
 
         if user:
-            # --- Sync login_id ---
+            # Sync login_id
             new_login_id = data.get("login_id")
             if new_login_id and user.username != new_login_id:
                 if User.objects.filter(username=new_login_id).exclude(pk=user.pk).exists():
                     raise ValidationError({"login_id": "This login_id is already taken."})
                 user.username = new_login_id
 
-            # --- Sync password ---
+            # Sync password
             new_password = data.get("login_password")
             if new_password:
                 user.set_password(new_password)
 
-            # --- Sync roles ---
+            # Sync roles
             roles = data.get("roles", [])
             if isinstance(roles, str):
                 try:
@@ -588,7 +669,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             if hasattr(instance, "roles"):
                 instance.roles.set(groups_qs)
 
-            # --- Archive flag ---
+            # Archive flag
             if getattr(instance, 'is_archived', False):
                 if not instance.archived_at:
                     instance.archived_at = timezone.now()
@@ -599,17 +680,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
             user.save()
 
-            # --- Issue new tokens ---
+            # Issue new tokens
             refresh = RefreshToken.for_user(user)
             instance._new_tokens = {
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
             }
 
-        instance.save()
         return instance
-
-    
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
@@ -694,35 +772,90 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
     
     
-
-
 @api_view(['GET'])
-def export_employees_csv(request):
+@permission_classes([AllowAny])
+def export_employees_excel(request):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Employees"
 
+    headers = ['Name', 'Email', 'Contact Number', 'Designation', 'Team', 'Joining Date', 'Created At', 'Updated At']
+    ws.append(headers)
 
-    employees = Employee.objects.all()
-
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="employees.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow(['ID', 'Name', 'Email', 'Phone'])  # Add more fields if needed
+    employees = Employee.objects.select_related('designation', 'team').all().order_by('-created_at')
 
     for emp in employees:
-        writer.writerow([emp.id, emp.name, emp.company_email, emp.contact_number])
+        ws.append([
+            emp.name or '',
+            emp.company_email or '',
+            emp.contact_number or '',
+            emp.designation.name if emp.designation else '',
+            emp.team.name if emp.team else '',
+            getattr(emp, 'joining_date', '-') if getattr(emp, 'joining_date', None) else '-',
+            emp.created_at.strftime('%Y-%m-%d %H:%M:%S') if emp.created_at else '',
+            emp.updated_at.strftime('%Y-%m-%d %H:%M:%S') if emp.updated_at else '',
+        ])
 
+    for col_num, _ in enumerate(headers, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 20
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="employees.xlsx"'
+    wb.save(response)
     return response
 
 
 @api_view(['GET'])
-def export_employees_xml(request):
+@permission_classes([AllowAny])
+def export_employees_pdf(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
 
-    employees = Employee.objects.all()
-    data = serializers.serialize('xml', employees)
+    # Title
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(180, y, "Employee Details Report")
+    y -= 30
+    p.setFont("Helvetica", 10)
 
-    response = HttpResponse(data, content_type='application/xml')
-    response['Content-Disposition'] = 'attachment; filename="employees.xml"'
-    return response
+    employees = Employee.objects.select_related('designation', 'team').all().order_by('-created_at')
+
+    for emp in employees:
+        details = [
+            f"Name: {emp.name or '-'}",
+            f"Email: {emp.company_email or '-'}",
+            f"Contact Number: {emp.contact_number or '-'}",
+            f"Designation: {emp.designation.name if emp.designation else '-'}",
+            f"Team: {emp.team.name if emp.team else '-'}",
+            f"Joining Date: {getattr(emp, 'joining_date', '-') if getattr(emp, 'joining_date', None) else '-'}",
+            f"Created At: {emp.created_at.strftime('%Y-%m-%d %H:%M:%S') if emp.created_at else '-'}",
+            f"Updated At: {emp.updated_at.strftime('%Y-%m-%d %H:%M:%S') if emp.updated_at else '-'}",
+        ]
+
+        for line in details:
+            p.drawString(50, y, line)
+            y -= 15
+            if y < 50:  # new page if needed
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y = height - 50
+
+        y -= 10
+        p.line(50, y, width - 50, y)
+        y -= 20
+
+    p.save()
+    buffer.seek(0)
+
+    return HttpResponse(
+        buffer,
+        content_type='application/pdf',
+        headers={'Content-Disposition': 'attachment; filename="employees.pdf"'},
+    )
+
 
 class LargeResultsSetPagination(PageNumberPagination):
     page_size = 10
@@ -1259,6 +1392,99 @@ def validate_lender_field(request):
     exists = Lender.objects.filter(**{field: value}).exists()
 
     return Response({"exists": exists})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def export_lenders_excel(request):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Lenders"
+
+    headers = [
+        'Lender Name', 'Account Executive Name', 'Executive Email', 'Executive Phone', 'Executive Address',
+        'Account Manager Name', 'Manager Email', 'Manager Contact', 'Manager Address',
+        'Mortgage Clause', 'Created At'
+    ]
+    ws.append(headers)
+
+    lenders = Lender.objects.all().order_by('-created_at')
+
+    for lender in lenders:
+        ws.append([
+            lender.lender_name or '',
+            lender.account_executive_name or '',
+            lender.executive_email or '',
+            lender.executive_phone or '',
+            lender.executive_address or '',
+            lender.account_manager_name or '',
+            lender.manager_email or '',
+            lender.manager_contact or '',
+            lender.manager_address or '',
+            lender.mortgage_clause or '',
+            lender.created_at.strftime('%Y-%m-%d %H:%M:%S') if lender.created_at else '',
+        ])
+
+    for col_num, _ in enumerate(headers, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 25
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="lenders.xlsx"'
+    wb.save(response)
+    return response
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def export_lenders_pdf(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
+
+    # Title
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(180, y, "Lender Details Report")
+    y -= 30
+    p.setFont("Helvetica", 10)
+
+    lenders = Lender.objects.all().order_by('-created_at')
+
+    for lender in lenders:
+        details = [
+            f"Lender Name: {lender.lender_name or '-'}",
+            f"Account Executive Name: {lender.account_executive_name or '-'}",
+            f"Executive Email: {lender.executive_email or '-'}",
+            f"Executive Phone: {lender.executive_phone or '-'}",
+            f"Executive Address: {lender.executive_address or '-'}",
+            f"Account Manager Name: {lender.account_manager_name or '-'}",
+            f"Manager Email: {lender.manager_email or '-'}",
+            f"Manager Contact: {lender.manager_contact or '-'}",
+            f"Manager Address: {lender.manager_address or '-'}",
+            f"Mortgage Clause: {lender.mortgage_clause or '-'}",
+            f"Created At: {lender.created_at.strftime('%Y-%m-%d %H:%M:%S') if lender.created_at else '-'}",
+        ]
+
+        for line in details:
+            p.drawString(50, y, line)
+            y -= 15
+            if y < 50:
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y = height - 50
+
+        y -= 10
+        p.line(50, y, width - 50, y)
+        y -= 20
+
+    p.save()
+    buffer.seek(0)
+
+    return HttpResponse(
+        buffer,
+        content_type='application/pdf',
+        headers={'Content-Disposition': 'attachment; filename="lenders.pdf"'},
+    )
 
 
 class TeamLeadViewSet(viewsets.ModelViewSet):

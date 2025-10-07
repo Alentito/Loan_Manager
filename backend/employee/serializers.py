@@ -94,15 +94,32 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         roles = validated_data.pop('roles', None)
-        team = validated_data.get('team', instance.team)
+        new_team = validated_data.get('team', instance.team)
 
-        # Only auto-set shift **if shift is NOT provided**
-        if team and 'primary_shift' not in validated_data:
-            validated_data['primary_shift'] = team.shift
+        # Normalize Team object
+        if isinstance(new_team, Team):
+            new_team_id = new_team.id
+        elif isinstance(new_team, int):
+            new_team = Team.objects.get(pk=new_team)
+            new_team_id = new_team.id
+        elif new_team is None:
+            new_team_id = instance.team_id
+        else:
+            new_team_id = int(new_team)
+            new_team = Team.objects.get(pk=new_team_id)
 
+        # ✅ Auto-update shift when team changes
+        if new_team_id != instance.team_id:
+            validated_data['primary_shift'] = new_team.shift  # use team's shift
+            validated_data['alternate_shift'] = None  # or keep existing if needed
+            print(
+                f"Team changed from {instance.team_id} → {new_team_id}, "
+                f"shift updated to {new_team.shift}"
+            )
+
+        # Apply remaining fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-
         instance.save()
 
         if roles is not None:
@@ -110,7 +127,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
         return instance
 
-        
+
 class EmployeeBasicSerializer(serializers.ModelSerializer):
     team = serializers.StringRelatedField()
     primary_shift = serializers.StringRelatedField()
@@ -498,18 +515,26 @@ class TeamManagerSerializer(serializers.ModelSerializer):
     
 
 class EmployeeTokenSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source='employee.username', read_only=True)
+    employee_name = serializers.SerializerMethodField()
+    employee_login_id = serializers.SerializerMethodField()
     responder_name = serializers.CharField(source='responder.username', read_only=True)
     
     class Meta:
         model = EmployeeToken
         fields = [
-            'id', 'employee', 'employee_name', 'title', 'description',
+            'id', 'employee', 'employee_login_id', 'employee_name', 'title', 'description',
             'responder', 'responder_name', 'response', 'status',
             'created_at', 'responded_at'
         ]
         read_only_fields = ['employee', 'responder', 'status', 'responded_at', 'created_at']
 
+
+    def get_employee_name(self, obj):
+        return getattr(obj.employee.employee, "name", None) if hasattr(obj.employee, "employee") else obj.employee.username
+
+    def get_employee_login_id(self, obj):
+        return getattr(obj.employee.employee, "login_id", None) if hasattr(obj.employee, "employee") else None
+    
     def create(self, validated_data):
         request = self.context.get('request')
         if request and request.user.is_authenticated:

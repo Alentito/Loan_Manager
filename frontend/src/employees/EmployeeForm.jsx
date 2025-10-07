@@ -279,7 +279,7 @@ const EmployeeForm = ({
         </Grid>
 
         {/* Alternate Shift (free text + dropdown) */}
-        {/* Alternate Shift (Autocomplete but stores ID) */}
+        {/* Alternate Shift (Autocomplete but stores ID) 
 <Grid item xs={12} sm={6}>
   <Autocomplete
     options={shifts}
@@ -302,7 +302,7 @@ const EmployeeForm = ({
   />
 </Grid>
 
-
+*/}
         <Grid item xs={12} sm={6}>
           {renderTextField("login_password", "Login Password")}
         </Grid>

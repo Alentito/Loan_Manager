@@ -19,7 +19,7 @@ export default function Login() {
   const [markAttendance] = useMarkAttendanceMutation();
   const [triggerGetTodayAttendance] = useLazyGetTodayAttendanceQuery();
   const [triggerGetActiveBreak] = useLazyGetActiveBreakQuery();
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg("");
@@ -54,17 +54,26 @@ export default function Login() {
           user,
           attendance: today,
         })
-      );  
+      );
 
       try {
-      const activeBreak = await triggerGetActiveBreak().unwrap();
-      if (activeBreak.has_active_break) {
-        navigate(`/breaks/${activeBreak.break.id}`);
-        return; // stop here so it doesn’t fall through
+        const activeBreak = await triggerGetActiveBreak().unwrap();
+        if (activeBreak.has_active_break) {
+          // Store active break in Redux so BreakPage can show overlay
+          dispatch(setAuthenticated({
+            user,
+            attendance: today,
+            activeBreak: activeBreak.break
+          }));
+
+          // Navigate to dashboard as usual
+          navigate("/dashboard");
+          return;
+        }
+
+      } catch (err) {
+        console.warn("Active break check failed:", err);
       }
-    } catch (err) {
-      console.warn("Active break check failed:", err);
-    }
 
       // 6️⃣ Navigate
       navigate("/dashboard");

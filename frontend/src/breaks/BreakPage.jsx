@@ -23,6 +23,9 @@ import {
   useEndBreakMutation,
 } from "../api/breakApi";
 import { formatDuration, intervalToDuration } from "date-fns";
+import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+
 
 // Convert any date to CST
 const toCSTDate = (dateStr) => {
@@ -31,6 +34,7 @@ const toCSTDate = (dateStr) => {
 };
 
 const BreakPage = () => {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -53,12 +57,13 @@ const BreakPage = () => {
   const [startBreak] = useStartBreakMutation();
   const [endBreak] = useEndBreakMutation();
 
+  const { activeBreak: reduxActiveBreak } = useSelector((state) => state.auth);
   // Track ongoing break
   useEffect(() => {
-    const ongoing = breaks.find((b) => !b.end_time);
-    setOngoingBreak(ongoing || null);
-    if (ongoing) setOverlayOpen(true);
-  }, [breaks]);
+  const ongoing = reduxActiveBreak || breaks.find((b) => !b.end_time);
+  setOngoingBreak(ongoing || null);
+  if (ongoing) setOverlayOpen(true);
+}, [breaks, reduxActiveBreak]);
 
   // Timer for ongoing break
   useEffect(() => {
@@ -108,6 +113,7 @@ const BreakPage = () => {
       await refetch();
       setOverlayOpen(false);
       setOngoingBreak(null);
+      navigate("/breaks");
     } catch (err) {
       console.error("Failed to end break:", err);
       setError(err?.data?.detail || "Failed to end break.");

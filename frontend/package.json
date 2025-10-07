@@ -32,6 +32,7 @@
     "@tailwindcss/vite": "^4.1.8",
     "axios": "^1.9.0",
     "dayjs": "^1.11.13",
+    "file-saver": "^2.0.5",
     "framer-motion": "^12.19.2",
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
@@ -45,7 +46,8 @@
     "react-router-dom": "^7.6.2",
     "react-toastify": "^11.0.5",
     "react-window": "^1.8.11",
-    "tailwind-scrollbar": "^4.0.2"
+    "tailwind-scrollbar": "^4.0.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

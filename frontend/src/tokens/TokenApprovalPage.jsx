@@ -193,7 +193,7 @@ export default function TokenApprovalPage() {
 
       if (viewMode === "month") {
         return tokenCST.getFullYear() === currentCST.getFullYear() &&
-               tokenCST.getMonth() === currentCST.getMonth();
+          tokenCST.getMonth() === currentCST.getMonth();
       }
 
       return true;
@@ -209,10 +209,10 @@ export default function TokenApprovalPage() {
         </Typography>
 
         <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-          
-              
-          
-          
+
+
+
+
 
           {/* Day/Week/Month + Date picker */}
           <Button
@@ -267,13 +267,10 @@ export default function TokenApprovalPage() {
                 <Grow key={token.id} in timeout={300}>
                   <TableRow hover sx={{ "& > *": { height: 60 } }}>
                     <TableCell>
-  {token.employee
-    ? `${token.employee} - ${token.employee_name || "—"}`
-    : "—"}
-</TableCell>
-
-
-
+                      {token.employee_login_id
+                        ? `${token.employee_login_id} - ${token.employee_name || "—"}`
+                        : "—"}
+                    </TableCell>
                     <TableCell>{token.title}</TableCell>
                     <TableCell>{token.description}</TableCell>
                     <TableCell><StatusChip status={token.status} /></TableCell>
