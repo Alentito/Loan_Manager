@@ -217,9 +217,20 @@ const AttendancePage = () => {
     const dayTotalBreak = formatSecondsToHHMMSS(dayBreaks.reduce((sum, b) => b.end_time ? sum + (new Date(b.end_time) - new Date(b.start_time)) / 1000 : sum, 0));
 
     let status = att?.status;
-    const isHoliday = !!holiday;
-    const isFuture = dateStr > todayStr;
-    if (!status && !isHoliday && !isWeekendFromDateStr(dateStr) && !isFuture) status = "ABSENT";
+const isHoliday = !!holiday;
+const isFuture = dateStr > todayStr;
+const employeeCreationStr = formatToCSTDate(displayedEmployee?.created_at);
+
+// Only mark absent if date is after employee creation
+if (
+  !status &&
+  !isHoliday &&
+  !isWeekendFromDateStr(dateStr) &&
+  !isFuture &&
+  (!employeeCreationStr || dateStr >= employeeCreationStr)
+) {
+  status = "ABSENT";
+}
 
     setSelectedDateInfo({ date: dateStr, attendance: { status }, holiday, meetings: dayMeetings, breaks: dayBreaks, totalBreak: dayTotalBreak });
     setDialogOpen(true);
@@ -282,6 +293,7 @@ const AttendancePage = () => {
             month={month}
             year={year}
             onMonthChange={(m, y) => { setMonth(m); setYear(y); }}
+            employee={displayedEmployee}
           />
         </Box>
       </Paper>

@@ -95,7 +95,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         roles = validated_data.pop('roles', None)
         new_team = validated_data.get('team', instance.team)
-
+        manual_shift = validated_data.get('primary_shift', None)
+        
         # Normalize Team object
         if isinstance(new_team, Team):
             new_team_id = new_team.id
@@ -280,21 +281,6 @@ class TeamSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"manager": "An employee cannot be both Head and Manager of the same team."}
             )
-
-        # Head cannot be assigned to multiple managers
-        if head:
-            existing_team = Team.objects.filter(head=head).exclude(id=self.instance.id if self.instance else None).first()
-            if existing_team:
-                raise serializers.ValidationError(
-                    {"head": f"{head.name} is already assigned under manager {existing_team.manager.name}."}
-                )
-
-        # Optional: Manager uniqueness (if you want only one team per manager)
-        if manager:
-            existing_manager_team = Team.objects.filter(manager=manager).exclude(id=self.instance.id if self.instance else None).first()
-            if existing_manager_team:
-                # Only enforce if manager should be unique per team
-                pass  # skip if multiple teams per manager allowed
 
         return data
 

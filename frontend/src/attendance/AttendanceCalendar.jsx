@@ -59,6 +59,7 @@ export default function AttendanceCalendar({
   month,
   year,
   filter,
+  employee,
 }) {
   if (loading) {
     return (
@@ -140,20 +141,23 @@ breaks.forEach(({ id, start_time, end_time }) => {
       });
     }
 
+const employeeCreationStr = formatToCSTDate(employee?.created_at); // pass employee as prop
+if (!employeeCreationStr) return;
+if (
+  !isWeekendYMD(year, month, d) &&
+  !holidayDates.has(dateStr) &&
+  !attendanceDates.has(dateStr) &&
+  isPastDay &&
+  (!employeeCreationStr || dateStr >= employeeCreationStr)
+) {
+  generatedEvents.push({
+    id: `absent-${dateStr}`,
+    title: STATUS_TITLES["absent"],
+    date: dateStr,
+    classNames: ["status-absent"],
+  });
+}
 
-    if (
-      !isWeekendYMD(year, month, d) &&
-      !holidayDates.has(dateStr) &&
-      !attendanceDates.has(dateStr) &&
-      isPastDay
-    ) {
-      generatedEvents.push({
-        id: `absent-${dateStr}`,
-        title: STATUS_TITLES["absent"],
-        date: dateStr,
-        classNames: ["status-absent"],
-      });
-    }
   }
 
   // Meetings

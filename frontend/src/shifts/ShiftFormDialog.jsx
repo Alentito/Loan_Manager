@@ -153,7 +153,7 @@ const ShiftFormDialog = ({ open, onClose, editData }) => {
             <Grid container spacing={2}>
               <Grid item xs={12}>
                 <TextField
-                  label="Shift Name"
+                  label="Shift Name 24hrs"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
@@ -202,6 +202,7 @@ const ShiftFormDialog = ({ open, onClose, editData }) => {
                   required
                 />
               </Grid>
+              24 hrs format is used.
             </Grid>
           </DialogContent>
 
