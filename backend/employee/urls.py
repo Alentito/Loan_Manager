@@ -2,23 +2,19 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
-from .views import CookieTokenRefreshView, CookieTokenObtainPairView
 
 from .views import (
     BrokerViewSet, LoanOfficerViewSet, EmployeeViewSet, PublicHolidayViewSet,
     MeetingViewSet, LeaveRequestViewSet, ShiftViewSet, TeamViewSet,
-
-    # Validation
     validate_loan_officer, validate_broker,
-
-    # Auth & Attendance
-    employee_login, employee_logout, get_employee_attendance,
-
-    # Export Views
-    export_brokers_excel, export_brokers_pdf,
-    export_loan_officers_csv, export_loan_officers_xml,
-    export_employees_csv, export_employees_xml,
-    
+    BreakViewSet, AttendanceViewSet, MonthlyAttendanceSummaryViewSet,
+    export_brokers_excel, export_brokers_pdf,   # ✅ exports
+    export_loan_officers_excel, export_loan_officers_pdf,
+    export_employees_excel, export_employees_pdf,
+    export_lenders_excel, export_lenders_pdf,
+    LenderViewSet, validate_lender_field,
+    TeamLeadViewSet, TeamManagerViewSet,
+    EmployeeTokenViewSet, EmployeeBreakViewSet
 )
 
 # Routers for ViewSets
@@ -31,36 +27,38 @@ router.register(r'meetings', MeetingViewSet, basename='meeting')
 router.register(r'leave-requests', LeaveRequestViewSet, basename='leave-request')
 router.register(r'shifts', ShiftViewSet, basename='shift')
 router.register(r'teams', TeamViewSet, basename='team')
+router.register(r'breaks', BreakViewSet, basename='break')
+router.register(r'attendance', AttendanceViewSet, basename='attendance')
+router.register(r'monthly-summaries', MonthlyAttendanceSummaryViewSet, basename="monthly-summary")
+router.register(r'lenders', LenderViewSet, basename="lender")
+router.register(r'team-leads', TeamLeadViewSet, basename="teamlead")
+router.register(r'team-managers', TeamManagerViewSet, basename="team-manager")
+router.register(r'tokens', EmployeeTokenViewSet, basename='employee-token')
+router.register(r'employee-break', EmployeeBreakViewSet, basename='employee-break')
 
 urlpatterns = [
-    # JWT Token
-    path('token/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
-
     # Validation APIs
     path('loan-officers/validate/', validate_loan_officer),
     path('validate/', validate_broker),
 
-    # Export: Brokers
-    path('brokers/export/csv/', export_brokers_excel, name='export_brokers_csv'),
-    path('brokers/export/xml/', export_brokers_pdf, name='export_brokers_xml'),
+    # ✅ Broker exports (moved out of /brokers/ to avoid router clash)
+    path('export/brokers/excel/', export_brokers_excel, name='export_brokers_excel'),
+    path('export/brokers/pdf/', export_brokers_pdf, name='export_brokers_pdf'),
 
-    # Export: Loan Officers
-    path('loan-officers/export/csv/', export_loan_officers_csv, name='export_loan_officers_csv'),
-    path('loan-officers/export/xml/', export_loan_officers_xml, name='export_loan_officers_xml'),
+    # Loan Officer exports
+    path('export/loan-officers/excel/', export_loan_officers_excel, name='export-loan-officers-excel'),
+    path('export/loan-officers/pdf/', export_loan_officers_pdf, name='export-loan-officers-pdf'),
 
-    # Export: Employees
-    path('employees/export/csv/', export_employees_csv, name='export_employees_csv'),
-    path('employees/export/xml/', export_employees_xml, name='export_employees_xml'),
 
-   
-    # Employee Auth & Attendance
-    path('employees/login/', employee_login, name='employee_login'),
-    path('employees/logout/', employee_logout, name='employee_logout'),
-    path('employees/<int:employee_id>/attendance/', get_employee_attendance, name='employee_attendance'),
-
+    # Employee exports
+    path('export/employees/pdf/', export_employees_pdf, name='export-employees-pdf'),
+    path('export/employees/excel/', export_employees_excel, name='export-employees-excel'),
     # Leave Requests by Employee
     path('leave-requests/employee/<int:employee_id>/', LeaveRequestViewSet.as_view({'get': 'by_employee'})),
+
+    path('export/lenders/excel/', export_lenders_excel, name='export-lenders-excel'),
+    path('export/lenders/pdf/', export_lenders_pdf, name='export-lenders-pdf'),
+    path("lenders/validate/", validate_lender_field, name="validate_lender"),
 
     # ViewSet endpoints
     path('', include(router.urls)),

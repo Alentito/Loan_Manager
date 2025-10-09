@@ -1,25 +1,28 @@
+#employee/views.py
 from django.http import HttpResponse
-from .models import Broker, LoanOfficer, Employee, Attendance, PublicHoliday,Meeting, LeaveRequests, Shift, Team
+from .models import Broker, LoanOfficer, Employee, PublicHoliday,Meeting, LeaveRequests, Shift, Team,  Break, Attendance, MonthlyAttendanceSummary, Lender, TeamLead, TeamManager, EmployeeToken, EmployeeBreak
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
-from .serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer, AttendanceSerializer, PublicHolidaySerializer, MeetingSerializer, LeaveRequestSerializer, ShiftSerializer, TeamSerializer
+from .serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer,  PublicHolidaySerializer, MeetingSerializer, LeaveRequestSerializer, ShiftSerializer, TeamSerializer, BreakSerializer, AttendanceSerializer,  MonthlyAttendanceSummarySerializer, LenderSerializer, TeamLeadSerializer, TeamManagerSerializer,EmployeeTokenSerializer, EmployeeBreakSerializer
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.decorators import api_view, action, permission_classes, authentication_classes
+from rest_framework.decorators import api_view, action, permission_classes
+from django.http import JsonResponse
+from rest_framework.response import Response
+from datetime import timedelta
 import xml.etree.ElementTree as ET
 import csv
-import pytz
+import json
 import os, re
-from django.db import transaction
-
 from datetime import date, timedelta
 import calendar
 from django.utils import timezone
-from django.utils.timezone import now, localdate
-from .permissions import IsTeamManagerOrReadOnly
+from rest_framework import permissions
+#from .permissions import IsAdminOrTeamManager
 from rest_framework.permissions import AllowAny
 from django.db.models.signals import post_save
 from rest_framework.authtoken.models import Token
@@ -44,8 +47,7 @@ import logging
 from rest_framework import viewsets, permissions
 from django.contrib.auth.models import Group, Permission
 # views.py
-from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.tokens import RefreshToken
+import json
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -54,8 +56,18 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.middleware import csrf
 from django.contrib.auth.models import Group
-
 from rest_framework.permissions import DjangoModelPermissions
+from django.db.models import Count
+from .utils import today_cst, mark_attendance_for_leave
+from .utils import now_cst
+from django.db.models import Prefetch
+from django.db.models import Sum, F, ExpressionWrapper, DurationField
+from .utils import to_cst, add_us_holidays, get_cst_date
+from django.utils.dateparse import parse_date
+from django.contrib.auth.decorators import permission_required
+from django.views.decorators.csrf import csrf_exempt
+
+
 
 
 class StrictDjangoModelPermissions(DjangoModelPermissions):
@@ -73,6 +85,8 @@ class StrictDjangoModelPermissions(DjangoModelPermissions):
 logger = logging.getLogger(__name__)
 current_time = timezone.localtime(timezone.now())  # Respect server's timezone
 
+
+# ✅ Custom Pagination (no max page size)
 class BrokerPagination(PageNumberPagination):
     page_size = 10  # default
     page_size_query_param = 'page_size'  # allows frontend to override
@@ -219,62 +233,100 @@ def broker_stats(request):
     })
 
 
+from django.http import HttpResponse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+import openpyxl
+from openpyxl.utils import get_column_letter
+from openpyxl import Workbook
+from io import BytesIO
+from loan.models import Broker  # update import as needed
+
+
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def export_brokers_excel(request):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Brokers"
 
-    headers = ['Name', 'Email', 'NMLS', 'Primary Phone', 'Phone', 'Address', 'Company Address', 'Created At', 'Updated At']
+    headers = [
+        'Name', 'Email', 'NMLS', 'Primary Phone', 'Phone',
+        'Address', 'Company Address', 'Created At', 'Updated At', 'Archived At'
+    ]
     ws.append(headers)
 
-    for broker in Broker.objects.all():
+    for broker in Broker.objects.all().order_by('-created_at'):
         ws.append([
-            broker.name,
-            broker.email,
-            broker.NMLS,
-            broker.primary_phone,
-            broker.phone,
-            broker.address,
-            broker.company_address,
-            broker.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            broker.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
+            broker.name or '-',
+            broker.email or '-',
+            broker.NMLS or '-',
+            broker.primary_phone or '-',
+            broker.phone or '-',
+            broker.address or '-',
+            broker.company_address or '-',
+            broker.created_at.strftime('%Y-%m-%d %H:%M:%S') if broker.created_at else '-',
+            broker.updated_at.strftime('%Y-%m-%d %H:%M:%S') if broker.updated_at else '-',
+            broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '-',
         ])
 
+    # Auto-adjust column width
     for col_num, _ in enumerate(headers, 1):
-        ws.column_dimensions[get_column_letter(col_num)].width = 20
+        ws.column_dimensions[get_column_letter(col_num)].width = 25
 
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
     response['Content-Disposition'] = 'attachment; filename="brokers.xlsx"'
-    wb.save(response)
     return response
 
+
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def export_brokers_pdf(request):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
-    y = 750
+    width, height = letter
+    y = height - 50
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(200, y, "Broker Details Report")
+    y -= 30
     p.setFont("Helvetica", 10)
 
-    p.drawString(200, 800, "Broker List")
+    brokers = Broker.objects.all().order_by('-created_at')
+    for broker in brokers:
+        details = [
+            f"Name: {broker.name or '-'}",
+            f"Email: {broker.email or '-'}",
+            f"NMLS: {broker.NMLS or '-'}",
+            f"Primary Phone: {broker.primary_phone or '-'}",
+            f"Phone: {broker.phone or '-'}",
+            f"Address: {broker.address or '-'}",
+            f"Company Address: {broker.company_address or '-'}",
+            f"Created At: {broker.created_at.strftime('%Y-%m-%d %H:%M:%S') if broker.created_at else '-'}",
+            f"Updated At: {broker.updated_at.strftime('%Y-%m-%d %H:%M:%S') if broker.updated_at else '-'}",
+            f"Archived At: {broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '-'}",
+        ]
 
-    headers = ['Name', 'Email', 'NMLS', 'Primary Phone']
-    p.drawString(50, y, ' | '.join(headers))
-    y -= 20
+        for line in details:
+            p.drawString(50, y, line)
+            y -= 15
+            if y < 50:  # new page if needed
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y = height - 50
 
-    for broker in Broker.objects.all():
-        line = f"{broker.name} | {broker.email} | {broker.NMLS} | {broker.primary_phone}"
-        p.drawString(50, y, line)
+        y -= 10
+        p.line(50, y, width - 50, y)
         y -= 20
-        if y < 50:
-            p.showPage()
-            y = 750
 
     p.save()
     buffer.seek(0)
-
     return HttpResponse(buffer, content_type='application/pdf', headers={
         'Content-Disposition': 'attachment; filename="brokers.pdf"',
     })
@@ -296,7 +348,6 @@ def destroy(self, request, *args, **kwargs):
 
 
 
-
 class LoanOfficerViewSet(viewsets.ModelViewSet):
     queryset = LoanOfficer.objects.select_related('broker_company').all().order_by('-created_at')
     serializer_class = LoanOfficerSerializer
@@ -306,7 +357,6 @@ class LoanOfficerViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser]
     permission_classes = [StrictDjangoModelPermissions]
 
-    
     
     def perform_create(self, serializer):
         instance = serializer.save()
@@ -334,14 +384,6 @@ class LoanOfficerViewSet(viewsets.ModelViewSet):
         else:
             # default behavior: show only active (not archived)
             queryset = queryset.filter(is_archived=False)
-
-        broker = self.request.query_params.get('broker')
-        broker_id = self.request.query_params.get('broker_id')
-
-        if broker:
-            queryset = queryset.filter(broker_company__name__icontains=broker)
-        if broker_id:
-            queryset = queryset.filter(broker_company_id=broker_id)
 
         # optional additional filters
         search = self.request.query_params.get('search')
@@ -420,63 +462,102 @@ def validate_loan_officer(request):
     return Response({'errors': errors})
 
 
+@api_view(['GET']) 
+@permission_classes([AllowAny])
+def export_loan_officers_excel(request):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Loan Officers"
 
+    headers = ['Name', 'Email', 'Contact Number', 'NMLS', 'Broker Company', 'Created At', 'Updated At']
+    ws.append(headers)
 
-@api_view(['GET'])
-def export_loan_officers_xml(request):
-    officers = LoanOfficer.objects.select_related('broker_company').all()
-
-    root = ET.Element('LoanOfficers')
-
-    for o in officers:
-        officer_elem = ET.SubElement(root, 'LoanOfficer')
-        ET.SubElement(officer_elem, 'Name').text = o.name or ''
-        ET.SubElement(officer_elem, 'Email').text = o.email or ''
-        ET.SubElement(officer_elem, 'Phone').text = o.contact_number or ''
-        ET.SubElement(officer_elem, 'NMLS').text = o.NMLS or ''
-        ET.SubElement(officer_elem, 'BrokerCompany').text = o.broker_company.name if o.broker_company else ''
-        ET.SubElement(officer_elem, 'CreatedAt').text = o.created_at.isoformat() if o.created_at else ''
-
-    xml_bytes = ET.tostring(root, encoding='utf-8', xml_declaration=True)
-    response = HttpResponse(xml_bytes, content_type='application/xml')
-    response['Content-Disposition'] = 'attachment; filename="loan_officers.xml"'
-    return response
-
-
-@api_view(['GET'])
-def export_loan_officers_csv(request):
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="loan_officers.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow(['Name', 'Email', 'Phone', 'NMLS', 'BrokerCompany', 'CreatedAt'])
-
-    for o in LoanOfficer.objects.select_related('broker_company').all():
-        writer.writerow([
-            o.name,
-            o.email,
-            o.contact_number,
-            o.NMLS,
-            o.broker_company.name if o.broker_company else '',
-            o.created_at.strftime('%Y-%m-%d %H:%M:%S') if o.created_at else '',
+    for officer in LoanOfficer.objects.select_related('broker_company').all():
+        ws.append([
+            officer.name or '',
+            officer.email or '',
+            officer.contact_number or '',
+            officer.NMLS or '',
+            officer.broker_company.name if officer.broker_company else '',
+            officer.created_at.strftime('%Y-%m-%d %H:%M:%S') if officer.created_at else '',
+            officer.updated_at.strftime('%Y-%m-%d %H:%M:%S') if officer.updated_at else '',
         ])
 
+    for col_num, _ in enumerate(headers, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 20
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="loan_officers.xlsx"'
+    wb.save(response)
     return response
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def export_loan_officers_pdf(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
+
+    # Title
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(200, y, "Loan Officer Details Report")
+    y -= 30
+    p.setFont("Helvetica", 10)
+
+    officers = LoanOfficer.objects.select_related('broker_company').all().order_by('-created_at')
+
+    for officer in officers:
+        details = [
+            f"Name: {officer.name or '-'}",
+            f"Email: {officer.email or '-'}",
+            f"Contact Number: {officer.contact_number or '-'}",
+            f"NMLS: {officer.NMLS or '-'}",
+            f"Broker Company: {officer.broker_company.name if officer.broker_company else '-'}",
+            f"Created At: {officer.created_at.strftime('%Y-%m-%d %H:%M:%S') if officer.created_at else '-'}",
+            f"Updated At: {officer.updated_at.strftime('%Y-%m-%d %H:%M:%S') if officer.updated_at else '-'}",
+        ]
+
+        for line in details:
+            p.drawString(50, y, line)
+            y -= 15
+            if y < 50:  # new page if needed
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y = height - 50
+
+        y -= 10
+        p.line(50, y, width - 50, y)
+        y -= 20
+
+    p.save()
+    buffer.seek(0)
+
+    return HttpResponse(buffer, content_type='application/pdf', headers={
+        'Content-Disposition': 'attachment; filename="loan_officers.pdf"',
+    })
+
 
 class EmployeePagination(PageNumberPagination):
     page_size = 10
-    max_page_size = 1000  # <--- allow large pages
     page_size_query_param = 'page_size'
+    max_page_size = 1000  # now can fetch all employees
+
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     permission_classes = [StrictDjangoModelPermissions]
     queryset = Employee.objects.select_related('team', 'primary_shift').all().order_by('-created_at')
     serializer_class = EmployeeSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = [ 'team', 'primary_shift']  # ✅ Removed 'manager'
+    filterset_fields = ['position', 'status']  # ✅ Removed 'manager'
+    filterset_fields = [ 'team', 'primary_shift', 'team__manager']  # ✅ Removed 'manager'
     search_fields = ['name', 'login_id', 'company_email', 'contact_number']
     ordering_fields = ['created_at','name']
     pagination_class = EmployeePagination
+
 
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
@@ -517,8 +598,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 # Create Django User
                 user = User.objects.create_user(username=employee_id, password=employee_password)
-                user.first_name = data.get('name', '')
-                user.save()
+
                 if role_ids:
                     groups_qs = Group.objects.filter(pk__in=role_ids)
                     user.groups.set(groups_qs)
@@ -530,10 +610,17 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 employee = serializer.save()
 
-                # 🔥 Archive timestamp logic (merge teammate’s code)
-                if getattr(employee, 'is_archived', False) and not getattr(employee, 'archived_at', None):
+                # ✅ Archive handling
+                if getattr(employee, 'is_archived', False):
                     employee.archived_at = timezone.now()
                     employee.save(update_fields=["archived_at"])
+                    # ❌ Disable User login if archived
+                    user.is_active = False
+                    user.save(update_fields=["is_active"])
+                else:
+                    # make sure active employees can log in
+                    user.is_active = True
+                    user.save(update_fields=["is_active"])
 
                 # defensive sync: employee.roles ←→ user.groups
                 if hasattr(employee, "roles"):
@@ -546,22 +633,80 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'detail': 'Error creating employee', 'error': str(e)},
                             status=status.HTTP_400_BAD_REQUEST)
-
+        
     def perform_update(self, serializer):
-        instance = serializer.save()
-        if getattr(instance, 'is_archived', False) and not getattr(instance, 'archived_at', None):
-            instance.archived_at = timezone.now()
-        elif not getattr(instance, 'is_archived', False):
-            instance.archived_at = None
-        instance.save()
+        instance = serializer.save()  # team & shift logic already handled
 
+        user = getattr(instance, "user", None)
+        data = self.request.data
+
+        if user:
+            # Sync login_id
+            new_login_id = data.get("login_id")
+            if new_login_id and user.username != new_login_id:
+                if User.objects.filter(username=new_login_id).exclude(pk=user.pk).exists():
+                    raise ValidationError({"login_id": "This login_id is already taken."})
+                user.username = new_login_id
+
+            # Sync password
+            new_password = data.get("login_password")
+            if new_password:
+                user.set_password(new_password)
+
+            # Sync roles
+            roles = data.get("roles", [])
+            if isinstance(roles, str):
+                try:
+                    roles = json.loads(roles)
+                except Exception:
+                    roles = [r.strip() for r in roles.split(",") if r.strip()]
+            if not isinstance(roles, (list, tuple)):
+                roles = [roles]
+
+            role_ids = [int(r) for r in roles if str(r).isdigit()]
+            groups_qs = Group.objects.filter(pk__in=role_ids)
+            user.groups.set(groups_qs)
+            if hasattr(instance, "roles"):
+                instance.roles.set(groups_qs)
+
+            # Archive flag
+            if getattr(instance, 'is_archived', False):
+                if not instance.archived_at:
+                    instance.archived_at = timezone.now()
+                user.is_active = False
+            else:
+                instance.archived_at = None
+                user.is_active = True
+
+            user.save()
+
+            # Issue new tokens
+            refresh = RefreshToken.for_user(user)
+            instance._new_tokens = {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            }
+
+        return instance
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        employee = self.get_object()
+
+        # If perform_update created new tokens, attach them
+        if hasattr(employee, "_new_tokens"):
+            response.data["tokens"] = employee._new_tokens
+
+        return response
+    
     def get_queryset(self):
-        archived = self.request.query_params.get("archived")
         queryset = Employee.objects.select_related('team', 'primary_shift').all().order_by('-created_at')
+        is_archived = self.request.query_params.get("is_archived")
+        
 
-        if archived == "true":
+        if is_archived == "true":
             queryset = queryset.filter(is_archived=True)
-        elif archived == "false":
+        elif is_archived == "false":
             queryset = queryset.filter(is_archived=False)
         else:
             queryset = queryset.filter(is_archived=False)
@@ -573,27 +718,32 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 Q(login_id__icontains=search) |
                 Q(company_email__icontains=search)
             )
-
+        manager_id = self.request.query_params.get("manager")
+        if manager_id:
+            queryset = queryset.filter(team__manager_id=manager_id)
         return queryset
+
 
     def destroy(self, request, *args, **kwargs):
         employee = self.get_object()
+
         if employee.is_archived:
-            return Response({"error": "Employee already archived"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Employee already archived"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         employee.is_archived = True
         employee.archived_at = timezone.now()
-        employee.save()
+        employee.save(update_fields=["is_archived", "archived_at"])
+
+        # disable linked user if exists
+        if getattr(employee, "user_id", None):
+            employee.user.is_active = False
+            employee.user.save(update_fields=["is_active"])
+
         return Response({"message": "Employee archived successfully"}, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'])
-    def archive(self, request, pk=None):
-        employee = self.get_object()
-        if employee.is_archived:
-            return Response({"error": "Employee already archived"}, status=status.HTTP_400_BAD_REQUEST)
-        employee.is_archived = True
-        employee.archived_at = timezone.now()
-        employee.save()
-        return Response({"message": "Employee archived successfully"}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='unarchive')
     def unarchive(self, request, pk=None):
@@ -601,10 +751,17 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             employee = Employee.objects.get(pk=pk, is_archived=True)
             employee.is_archived = False
             employee.archived_at = None
-            employee.save()
+            employee.save(update_fields=["is_archived", "archived_at"])
+
+            # re-enable login
+            if getattr(employee, "user_id", None):
+                employee.user.is_active = True
+                employee.user.save(update_fields=["is_active"])
+
             return Response({"message": "Employee unarchived successfully"}, status=status.HTTP_200_OK)
         except Employee.DoesNotExist:
             return Response({"error": "Archived employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
 
     def list(self, request, *args, **kwargs):
         if request.query_params.get('all') == 'true':
@@ -614,394 +771,90 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         return super().list(request, *args, **kwargs)
     
-class IsManager(BasePermission):
-    def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and request.user.employee.roles == 'manager'
-
-
+    
 @api_view(['GET'])
-@authentication_classes([JWTAuthentication])
-@permission_classes([IsAuthenticated])
-def export_employees_csv(request):
-    if not request.user.is_authenticated:
-        return HttpResponse("Unauthorized", status=401)
+@permission_classes([AllowAny])
+def export_employees_excel(request):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Employees"
 
-    employees = Employee.objects.all()
+    headers = ['Name', 'Email', 'Contact Number', 'Designation', 'Team', 'Joining Date', 'Created At', 'Updated At']
+    ws.append(headers)
 
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="employees.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow(['ID', 'Name', 'Email', 'Phone'])  # Add more fields if needed
+    employees = Employee.objects.select_related('designation', 'team').all().order_by('-created_at')
 
     for emp in employees:
-        writer.writerow([emp.id, emp.name, emp.company_email, emp.contact_number])
+        ws.append([
+            emp.name or '',
+            emp.company_email or '',
+            emp.contact_number or '',
+            emp.designation.name if emp.designation else '',
+            emp.team.name if emp.team else '',
+            getattr(emp, 'joining_date', '-') if getattr(emp, 'joining_date', None) else '-',
+            emp.created_at.strftime('%Y-%m-%d %H:%M:%S') if emp.created_at else '',
+            emp.updated_at.strftime('%Y-%m-%d %H:%M:%S') if emp.updated_at else '',
+        ])
 
+    for col_num, _ in enumerate(headers, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 20
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="employees.xlsx"'
+    wb.save(response)
     return response
 
 
 @api_view(['GET'])
-@authentication_classes([JWTAuthentication])
-@permission_classes([IsAuthenticated])
-def export_employees_xml(request):
-    if not request.user.is_authenticated:
-        return HttpResponse("Unauthorized", status=401)
-
-    employees = Employee.objects.all()
-    data = serializers.serialize('xml', employees)
-
-    response = HttpResponse(data, content_type='application/xml')
-    response['Content-Disposition'] = 'attachment; filename="employees.xml"'
-    return response
-
-
-def mark_attendance_on_login(employee):
-    try:
-        # ✅ Always get current time in CST
-        #cst_tz = pytz.timezone('US/Central')
-        cst_tz = pytz.timezone('America/Chicago')
-        now_cst = timezone.now().astimezone(cst_tz)
-        print(f"Current CST time: {now_cst}") 
-        today_cst = now_cst.date()
-        
-        # Skip if already marked
-        if Attendance.objects.filter(employee=employee, date=today_cst).exists():
-            return
-
-        # Skip if today is a holiday
-        if PublicHoliday.objects.filter(date=today_cst).exists():
-            return
-
-        # Get employee's shift
-        shift = employee.primary_shift or employee.alternate_shift
-        if not shift:
-            print(f"❌ No shift for {employee.login_id} ({employee.name}) - skipping")
-            return
-
-        print("umbbb*********")
-        # Build datetime objects in CST
-        shift_start_dt = cst_tz.localize(datetime.combine(today_cst, shift.start_time))
-        shift_end_dt = cst_tz.localize(datetime.combine(today_cst, shift.end_time))
-
-        # Handle overnight shifts (e.g., 9 PM to 5 AM next day)
-        if shift_end_dt <= shift_start_dt:
-            shift_end_dt += timedelta(days=1)
-
-        # Grace period
-        grace_minutes = 15
-        grace_deadline = shift_start_dt + timedelta(minutes=grace_minutes)
-        print('Grace deadline:', grace_deadline, 'Current time:', now_cst, 'Shift start:', shift_start_dt, 'shift',shift.start_time)
-
-        # Attendance status logic
-        if now_cst <= grace_deadline:
-            status = 'present'
-        else:
-            status = 'late'
-
-
-        Attendance.objects.create(
-            employee=employee,
-            date=today_cst,
-            login_time=now_cst.time(),
-            status=status
-        )
-        print(f"✅ Attendance marked as {status} for {employee.name} ({now_cst})")
-
-    except Exception as e:
-        print(f"[ERROR] mark_attendance_on_login failed for {employee.id}: {e}")
-
-
-@api_view(['POST'])
 @permission_classes([AllowAny])
-def employee_login(request):
-    login_id = request.data.get('login_id', '').strip()
-    login_password = request.data.get('login_password', '').strip()
+def export_employees_pdf(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
 
-    if not login_id or not login_password:
-        logger.warning("Login failed - missing login_id or password")
-        return Response({'error': 'Login ID and password are required'}, status=400)
+    # Title
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(180, y, "Employee Details Report")
+    y -= 30
+    p.setFont("Helvetica", 10)
 
-    logger.info(f"Login attempt - ID: {login_id}")
-    
+    employees = Employee.objects.select_related('designation', 'team').all().order_by('-created_at')
 
-    try:
-        employee = Employee.objects.get(login_id=login_id)
-    except Employee.DoesNotExist:
-        logger.warning(f"Login failed - Employee not found: {login_id}")
-        return Response({'error': 'Invalid credentials'}, status=401)
+    for emp in employees:
+        details = [
+            f"Name: {emp.name or '-'}",
+            f"Email: {emp.company_email or '-'}",
+            f"Contact Number: {emp.contact_number or '-'}",
+            f"Designation: {emp.designation.name if emp.designation else '-'}",
+            f"Team: {emp.team.name if emp.team else '-'}",
+            f"Joining Date: {getattr(emp, 'joining_date', '-') if getattr(emp, 'joining_date', None) else '-'}",
+            f"Created At: {emp.created_at.strftime('%Y-%m-%d %H:%M:%S') if emp.created_at else '-'}",
+            f"Updated At: {emp.updated_at.strftime('%Y-%m-%d %H:%M:%S') if emp.updated_at else '-'}",
+        ]
 
-    # Block login if archived
-    if employee.is_archived:
-        logger.warning(f"Login failed - Archived employee {login_id}")
-        return Response({'error': 'This account is archived and cannot log in'}, status=403)
+        for line in details:
+            p.drawString(50, y, line)
+            y -= 15
+            if y < 50:  # new page if needed
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y = height - 50
 
-    # Check credentials
-    if not employee.login_password:
-        logger.warning(f"Login failed - No password set for {login_id}")
-        return Response({'error': 'Credentials not set for employee'}, status=401)
+        y -= 10
+        p.line(50, y, width - 50, y)
+        y -= 20
 
-    # Handles both plain text and hashed passwords
-    if employee.login_password != login_password and not check_password(login_password, employee.login_password):
-        logger.warning(f"Login failed - Wrong password for {login_id}")
-        return Response({'error': 'Invalid credentials'}, status=401)
+    p.save()
+    buffer.seek(0)
 
-    # Mark attendance
-    mark_attendance_on_login(employee)
-
-    # Ensure a linked Django User exists
-    username = f'emp_{employee.id}'
-    user, created = User.objects.get_or_create(username=username)
-    if created:
-        user.set_password(login_password)  # Keep it consistent for Django auth
-        user.save()
-
-    if not employee.user:
-        employee.user = user
-        employee.save()
-
-    # generate tokens / set cookies
-    refresh = RefreshToken.for_user(user)
-    access = str(refresh.access_token)
-    res = Response({
-        "message": "Login successful",
-        "employee": {
-            "id": employee.id,
-            "login_id": employee.login_id,
-            "name": employee.name,
-            "designation": employee.designation.name if employee.designation else None,
-        }
-    }, status=200)
-
-    res.set_cookie("access_token", access, httponly=True, secure=False, samesite="Lax", max_age=15*60, path="/")
-    res.set_cookie("refresh_token", str(refresh), httponly=True, secure=False, samesite="Lax", max_age=7*24*3600, path="/")
-    return res
-    
-
-@api_view(['POST'])
-@permission_classes([AllowAny])   # allow clearing cookies even if token expired
-def employee_logout(request):
-    try:
-        refresh_token = request.COOKIES.get('refresh_token') or request.data.get("refresh_token")
-        # If provided, blacklist refresh token
-        if refresh_token:
-            try:
-                token = RefreshToken(refresh_token)
-                token.blacklist()
-            except Exception:
-                # token invalid or expired — ignore blacklist error, still clear cookies
-                pass
-
-        # Always remove cookies from the client
-        res = Response({"detail": "Logout successful"}, status=200)
-        res.delete_cookie('access_token', path='/', samesite='Lax')
-        res.delete_cookie('refresh_token', path='/', samesite='Lax')
-        return res
-
-    except Exception as e:
-        # return OK after attempting to clear cookies; this prevents client-side stuck state
-        res = Response({"detail": "Logout attempted"}, status=200)
-        res.delete_cookie('access_token', path='/', samesite='Lax')
-        res.delete_cookie('refresh_token', path='/', samesite='Lax')
-        return res
-
-def update_late_status():
-    from datetime import datetime, timedelta
-    today = timezone.localdate()
-    for att in Attendance.objects.filter(date=today, status='present'):
-        emp = att.employee
-        shift = emp.primary_shift or emp.alternate_shift
-        if shift:
-            grace_cutoff = (datetime.combine(today, shift.start_time) + timedelta(minutes=15)).time()
-            if att.login_time and att.login_time > grace_cutoff:
-                att.status = 'late'
-                att.save()
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_employee_calendar(request, employee_id):
-    try:
-        employee = Employee.objects.get(id=employee_id)
-    except Employee.DoesNotExist:
-        return Response({'error': 'Employee not found'}, status=404)
-
-    today = localdate()
-    start_date = date(today.year, today.month, 1)
-    end_date = date(today.year, today.month, 31)  # crude, works fine for now
-
-    # Get attendance records for the month
-    attendance_records = Attendance.objects.filter(
-        employee=employee,
-        date__range=(start_date, end_date)
-    ).values('date', 'status')
-
-    attendance_map = {rec['date']: rec['status'] for rec in attendance_records}
-
-    # Get public holidays
-    holidays = PublicHoliday.objects.filter(
-        date__range=(start_date, end_date)
-    ).values_list('date', flat=True)
-
-    # Build final list
-    results = []
-    day = start_date
-    while day <= end_date:
-        if day in holidays:
-            status = 'Holiday'
-        elif day in attendance_map:
-            status = attendance_map[day]
-        else:
-            status = 'Absent'
-
-        results.append({
-            'date': day.isoformat(),
-            'status': status
-        })
-        day += timedelta(days=1)
-
-    return Response(results)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_employee_attendance(request, employee_id):
-    month = request.query_params.get('month')
-    year = request.query_params.get('year')
-
-    attendances = Attendance.objects.filter(employee_id=employee_id)
-    if month and year:
-        try:
-            attendances = attendances.filter(date__month=int(month), date__year=int(year))
-        except ValueError:
-            pass
-
-    attendances = attendances.order_by('date')
-    serializer = AttendanceSerializer(attendances, many=True)
-    return Response(serializer.data)
-
-
-def update_attendance_and_leave_balance(employee):
-    today = timezone.now().date()
-    first_day = today.replace(day=1)
-    last_day = today.replace(day=calendar.monthrange(today.year, today.month)[1])
-
-    all_days = [first_day + timedelta(days=i) for i in range((last_day - first_day).days + 1)]
-    
-    for day in all_days:
-        if day.weekday() == 6:  # Sunday (0=Monday, 6=Sunday)
-            continue
-        # Check if already marked
-        if not Attendance.objects.filter(employee=employee, date=day).exists():
-            Attendance.objects.create(employee=employee, date=day, status='leave')
-
-    # Count present days in current month
-    present_count = Attendance.objects.filter(
-        employee=employee,
-        date__month=today.month,
-        date__year=today.year,
-        status='present'
-    ).count()
-
-    working_days = len([d for d in all_days if d.weekday() != 6])
-    leaves_taken = working_days - present_count
-    employee.leave_balance = float(leaves_taken)
-    employee.save()
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def mark_attendance(request):
-    employee_id = request.data.get('employee')
-    try:
-        employee = Employee.objects.get(id=employee_id)
-        today = date.today()
-
-        attendance, created = Attendance.objects.get_or_create(
-            employee=employee, date=today,
-            defaults={'status': 'present'}
-        )
-        if not created:
-            return Response({'detail': 'Already marked'}, status=200)
-        return Response({'detail': 'Attendance marked'})
-    except Employee.DoesNotExist:
-        return Response({'error': 'Employee not found'}, status=404)
-
-
-class CookieTokenRefreshView(APIView):
-    permission_classes = [AllowAny]
-    #authentication_classes = []
-    def post(self, request, *args, **kwargs):
-        print( "hi")
-        print("Refresh endpoint called")
-        refresh_token = request.COOKIES.get('refresh_token')
-        print("COOKIES:", request.COOKIES)
-        print("refresh_token:", refresh_token)
-        if not refresh_token:
-            return Response({"detail": "Refresh token missing myree umfi"},
-                            status=status.HTTP_401_UNAUTHORIZED)
-
-        try:
-            #token = RefreshToken(refresh_token)
-            #access_token = str(token.access_token)
-
-            old_refresh = RefreshToken(refresh_token)
-
-            # Create new access + refresh tokens
-            new_access = str(old_refresh.access_token)
-            #new_refresh = str(RefreshToken.for_user(old_refresh.user))
-
-            res = Response({"message": "Token refreshed", "access": new_access}, status=status.HTTP_200_OK)
-            # Access token cookie (15 minutes)
-            res.set_cookie(
-                key="access_token",
-                value=new_access,
-                httponly=True,
-                secure=False,
-                samesite="Lax" ,
-                max_age=15 * 60,
-                path="/"
-            )
-
-            # Refresh token cookie (7 days)
-            res.set_cookie(
-                key="refresh_token",
-                value=refresh_token,
-                httponly=True,
-                secure=False,
-                samesite="Lax" ,
-                max_age=7 * 24 * 3600,
-                path="/"
-            )
-            csrf.get_token(request)
-            return res
-        except Exception as e:
-            print("Refresh error:", e)  # <-- Now 'e' is defined!
-            return Response({'detail': 'Invalid refresh token', 'error': str(e)}, status=status.HTTP_401_UNAUTHORIZED)
-
-class CookieTokenObtainPairView(TokenObtainPairView):
-    def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        if response.status_code == 200:
-            data = response.data
-            refresh = data["refresh"]
-            access = data["access"]
-
-            res = Response(status=status.HTTP_200_OK)
-            res.set_cookie(
-                key="access_token",
-                value=access,
-                httponly=True,
-                secure=False,  # only sent over HTTPS
-                samesite="Lax",  # adjust for your frontend/backend domain setup
-            )
-            res.set_cookie(
-                key="refresh_token",
-                value=refresh,
-                httponly=True,
-                secure=False,
-                samesite="Lax",
-            )
-            res.data = {"message": "Login successful"}
-            return res
-        return response
-
+    return HttpResponse(
+        buffer,
+        content_type='application/pdf',
+        headers={'Content-Disposition': 'attachment; filename="employees.pdf"'},
+    )
 
 
 class LargeResultsSetPagination(PageNumberPagination):
@@ -1019,46 +872,60 @@ class PublicHolidayViewSet(viewsets.ModelViewSet):
     ordering = ['date']
     pagination_class = LargeResultsSetPagination
 
-    def get_employee_attendance(employee_id):
-        today = timezone.now().date()
+    def perform_create(self, serializer):
+        # Ensure stored date is CST-normalized
+        date = serializer.validated_data.get("date")
+        serializer.save(date=get_cst_date(date))
 
-    # Check if today is a holiday
-        if PublicHoliday.objects.filter(date=today).exists():
-            return 'holiday'
-
-    # Check if already marked attendance
-        if Attendance.objects.filter(employee_id=employee_id, date=today).exists():
-            return Attendance.objects.get(employee_id=employee_id, date=today).status
-
-    # If not marked and not a holiday, mark as absent
-        return 'absent'
+    def perform_update(self, serializer):
+        date = serializer.validated_data.get("date")
+        serializer.save(date=get_cst_date(date))
     
+    @action(detail=False, methods=["post"], url_path="sync-us", permission_classes=[IsAuthenticated])
+    def sync_us(self, request):
+
+        add_us_holidays()
+        return Response({"detail": "US holidays added successfully."}, status=status.HTTP_200_OK)
+    
+class UnlimitedPagination(PageNumberPagination):
+    page_size = 10000  # or any very high number
+    page_size_query_param = None
+
 class MeetingViewSet(viewsets.ModelViewSet):
-    queryset = Meeting.objects.all().order_by('-date')
     serializer_class = MeetingSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+    pagination_class = UnlimitedPagination
 
     def get_queryset(self):
-        return Meeting.objects.all().order_by('-date')
+        user = self.request.user
+        if hasattr(user, 'employee'):
+            return Meeting.objects.filter(employees=user.employee)
+        return Meeting.objects.none()
 
-    
+    def perform_create(self, serializer):
+        meeting = serializer.save()
+        if hasattr(self.request.user, 'employee'):
+            meeting.employees.add(self.request.user.employee)
 
-class IsAdminOrTeamManager(permissions.BasePermission):
-    
-    def has_permission(self, request, view):
-        user = request.user
-        if not user or not user.is_authenticated:
-            return False
+    def perform_update(self, serializer):
+        meeting = serializer.save()
+        # Ensure the updating user is still included in employees
+        if hasattr(self.request.user, 'employee'):
+            meeting.employees.add(self.request.user.employee)
 
-        # Admin always allowed
-        if user.is_staff:
-            return True
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        events = []
+        for m in queryset:
+            dt_cst = to_cst(m.datetime)
+            events.append({
+                "id": m.id,
+                "title": m.title,
+                "start": dt_cst.isoformat(),  # ISO string with CST offset
+                "description": m.description,
+            })
+        return Response(events)
 
-        # Check if user has employee profile and role = 'team_manager'
-        if hasattr(user, 'employee') and user.employee.roles == 'team_manager':
-            return True
-
-        return False
 
 User = get_user_model()
 
@@ -1073,53 +940,150 @@ class IsTeamManagerOrReadOnly(BasePermission):
 class LeaveRequestPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
-    
+    max_page_size = 100
+
 class LeaveRequestViewSet(viewsets.ModelViewSet):
+    queryset = LeaveRequests.objects.all()
     serializer_class = LeaveRequestSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'employee']
-    search_fields = ['reason', 'leave_type']
+    search_fields = ['reason', 'leave_type','employee__login_id', 'employee__name', 'employee__user__username']
     ordering_fields = ['start_date', 'created_at']
+    ordering = ['-created_at']
     pagination_class = LeaveRequestPagination
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
-        qs = LeaveRequests.objects.select_related('employee')
+        qs = LeaveRequests.objects.all() if user.has_perm("employee.approve_leave") or user.has_perm("employee.deny_leave") else LeaveRequests.objects.filter(employee=user.employee)
 
-        if not user.is_authenticated:
-            return LeaveRequests.objects.none()
+        date_str = self.request.query_params.get("date")
+        if date_str:
+            date_obj = parse_date(date_str)
+            if date_obj:
+                # Filter leaves that include the selected day
+                qs = qs.filter(start_date__lte=date_obj, end_date__gte=date_obj)
 
-    # ✅ If team lead or team manager — return all requests
-        if hasattr(user, 'employee'):
-            position = user.employee.roles
-            if position in ['team_lead', 'team_manager']:
-                return qs.all()  # Show all requests to approvers
+                return qs
 
-        # ✅ Regular employees — show only own requests
-            return qs.filter(employee=user.employee)
+        start_str = self.request.query_params.get("start_date")
+        end_str = self.request.query_params.get("end_date")
+        if start_str and end_str:
+            start_obj = parse_date(start_str)
+            end_obj = parse_date(end_str)
+            if start_obj and end_obj:
+                # include leaves that overlap the requested window
+                qs = qs.filter(start_date__lte=end_obj, end_date__gte=start_obj)
 
-        return qs.none()
+        return qs
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve_request(self, request, pk=None):
+        with transaction.atomic():
+            leave = self.get_object()
+            employee = leave.employee
+
+            if leave.employee == request.user.employee:
+                return Response({"detail": "You cannot approve your own leave request."}, status=403)
+
+            if not request.user.has_perm("employee.approve_leave"):
+                return Response({"detail": "Not authorized"}, status=403)
+
+            if leave.status != "pending":
+                return Response({"detail": "Already processed"}, status=400)
+
+            approval_type = request.data.get("approval_type")
+            if approval_type:
+                approval_type = str(approval_type).strip().lower()
+
+            if approval_type not in ["paid", "unpaid"]:
+                return Response(
+                    {"detail": "approval_type must be 'paid' or 'unpaid'."},
+                    status=400
+                )
+
+            # --- Apply balance + fallback logic ---
+            leave_days = (leave.end_date - leave.start_date).days + 1
+            final_type = approval_type
+
+            if approval_type == "paid":
+            # Deduct full leave days from balance, allow negative
+                employee.leave_balance -= leave_days
+                final_type = "paid" if employee.leave_balance >= 0 else "unpaid"
+            else:
+                # Unpaid leave
+                if employee.leave_balance <= 0:
+                    # If balance is 0 or negative, continue decreasing
+                    employee.leave_balance -= leave_days
+                final_type = "unpaid"
+
+            # Save updated leave balance
+            employee.save(update_fields=["leave_balance"])
+
+            # --- Update leave record ---
+            leave.status = "approved"
+            leave.approval_type = final_type
+            leave.approved_by = request.user
+            leave.processed_at = now_cst()
+            leave.save()
+
+            # --- Mark attendance ---
+            mark_attendance_for_leave(
+                leave.employee,
+                leave.start_date,
+                leave.end_date,
+                approved=True,
+                leave_type=final_type
+            )
+
+            return Response(LeaveRequestSerializer(leave).data, status=200)
 
 
-    def perform_create(self, serializer):
-        user = self.request.user
-        if hasattr(user, 'employee'):
-            serializer.save(employee=user.employee)
-        else:
-            raise PermissionDenied("User is not associated with an employee.")
+    @action(detail=True, methods=["post"], url_path="deny")
+    def deny_request(self, request, pk=None):
+        with transaction.atomic():
+            leave = self.get_object()
 
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        status_value = request.data.get('status')
-        if status_value not in ['approved', 'denied']:
-            return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
-        instance.status = status_value
-        instance.save()
-        return Response(self.get_serializer(instance).data)
+            # Prevent self-denial
+            if leave.employee == request.user.employee:
+                return Response(
+                    {"detail": "You cannot deny your own leave request."},
+                    status=403
+                )
 
+            if not request.user.has_perm("employee.deny_leave"):
+                return Response({"detail": "Not authorized"}, status=403)
+
+            if leave.status != "pending":
+                return Response({"detail": "Already processed"}, status=400)
+
+            leave.status = "denied"
+            leave.denied_by = request.user
+            leave.approval_type = None 
+            leave.processed_at = now_cst()
+            leave.save()
+            mark_attendance_for_leave(
+                leave.employee,
+                leave.start_date,
+                leave.end_date,
+                approved=False,
+                leave_type="denied"
+            )
+
+            return Response(LeaveRequestSerializer(leave).data, status=200)
+
+
+    # Extra endpoint for employee-wise leaves
     @action(detail=False, methods=['get'], url_path='employee/(?P<employee_id>[^/.]+)')
     def by_employee(self, request, employee_id=None):
-        qs = LeaveRequests.objects.filter(employee__id=employee_id)
+        if not employee_id or not str(employee_id).isdigit():
+            return Response({"detail": "Invalid employee id"}, status=400)
+
+        qs = self.get_queryset().filter(employee_id=int(employee_id))
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
@@ -1137,22 +1101,24 @@ class ShiftPagination(PageNumberPagination):
     
 
 class ShiftViewSet(viewsets.ModelViewSet):
-    queryset = Shift.objects.all().order_by('-id')
+    permission_classes = [StrictDjangoModelPermissions]
+    queryset = Shift.objects.all()  # do NOT order_by here
     serializer_class = ShiftSerializer
     pagination_class = ShiftPagination
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['name'] 
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['id', 'name', 'start_time', 'end_time', 'created_at', 'updated_at']
+    ordering = ['-id']
 
     def get_queryset(self):
-        query = self.request.query_params.get('search', None)
         qs = super().get_queryset()
+        query = self.request.query_params.get("search", None)
         if query:
-            return qs.filter(name__icontains=query)
+            qs = qs.filter(name__icontains=query)
         return qs
 
-
 class TeamPagination(PageNumberPagination):
-    page_size = 10  # or whatever default page size you prefer
+    page_size = 1000  # or whatever default page size you prefer
     page_size_query_param = 'page_size'
     max_page_size = 1000
 
@@ -1164,10 +1130,577 @@ class TeamPagination(PageNumberPagination):
         })
 
 class TeamViewSet(viewsets.ModelViewSet):
-    queryset = Team.objects.select_related('head', 'shift').all().order_by('-id')
+    permission_classes = [IsAuthenticated]
+    queryset = Team.objects.select_related("head", "manager", "shift").all()
     serializer_class = TeamSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'head__name', 'shift__name']
+    search_fields = ["name", "head__name", "manager__name", "shift__name"]
+    ordering_fields = ["id", "name", "manager__name", "head__name", "shift__name", "created_at", "updated_at"]
+    ordering = ["-created_at"]  # default sort
     pagination_class = TeamPagination
+
+
+
+
+class BreakViewSet(viewsets.ModelViewSet):
+    queryset = Break.objects.all()
+    serializer_class = BreakSerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=["post"], url_path="start")
+    def start_break(self, request):
+        """Start a break for the current user's active attendance today (CST)."""
+        try:
+            attendance = Attendance.objects.get(
+                employee=request.user.employee,
+                date=today_cst(),   # ✅ CST date
+            )
+        except Attendance.DoesNotExist:
+            return Response({"detail": "No attendance record for today"}, status=400)
+
+        # prevent multiple open breaks
+        if attendance.breaks.filter(break_out__isnull=True).exists():
+            return Response({"detail": "You already have an ongoing break"}, status=400)
+
+        brk = Break.objects.create(attendance=attendance)
+        serializer = self.get_serializer(brk)
+        return Response(serializer.data, status=201)
+
+    @action(detail=True, methods=["post"], url_path="end")
+    def end_break(self, request, pk=None):
+        """End a break and recalc attendance worked minutes."""
+        brk = self.get_object()
+
+        if brk.break_out:
+            return Response({"detail": "Break already ended"}, status=400)
+
+        brk.close_break()  
+        brk.attendance.recalc_worked_minutes()  
+        serializer = self.get_serializer(brk)
+        return Response(serializer.data, status=200)
     
-  
+
+    
+class AttendanceViewSet(viewsets.ModelViewSet):
+    queryset = Attendance.objects.all().select_related("employee", "shift").prefetch_related(
+        Prefetch("breaks", queryset=Break.objects.all())
+    )
+    serializer_class = AttendanceSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None 
+    
+    def get_queryset(self):
+        print("Query params:", self.request.query_params)
+        user = self.request.user
+        qs = super().get_queryset()
+
+        employee_id = self.request.query_params.get("employeeId")
+
+        if employee_id:
+            try:
+                employee_id = int(employee_id)
+                employee_obj = Employee.objects.get(pk=employee_id)
+            except (ValueError, Employee.DoesNotExist):
+                return qs.none()
+
+            # Case 1: self-view → always allow
+            if hasattr(user, "employee") and user.employee.id == employee_id:
+                qs = qs.filter(employee=employee_obj)
+
+            # Case 2: others → need permission
+            elif user.is_superuser or user.has_perm("employee.view_employee"):
+                qs = qs.filter(employee=employee_obj)
+
+            # Case 3: not allowed
+            else:
+                return qs.none()
+
+        else:
+            # No employeeId given → default to logged-in employee
+            if hasattr(user, "employee") and not user.is_superuser:
+                qs = qs.filter(employee=user.employee)
+            elif user.is_superuser:
+                # superuser can see all if no filter
+                pass
+            else:
+                return qs.none()
+
+        # Month/year filtering
+        month = self.request.query_params.get("month")
+        year = self.request.query_params.get("year")
+
+        if month and year:
+            qs = qs.filter(date__month=int(month), date__year=int(year))
+        else:
+            today = today_cst()
+            qs = qs.filter(date__month=today.month, date__year=today.year)
+
+        return qs.order_by("date")
+
+
+    @action(detail=False, methods=["get"], url_path="today")
+    def today_attendance(self, request):
+        """
+        Return today’s attendance for the logged-in employee
+        """
+        attendance = self.get_queryset().filter(date=today_cst()).first()
+        if not attendance:
+            return Response({"detail": "No attendance record for today"}, status=404)
+
+        serializer = self.get_serializer(attendance)
+        return Response(serializer.data)
+
+       
+    @action(detail=False, methods=["get"], url_path="summary")
+    def summary(self, request):
+        user = request.user
+        employee_id = request.query_params.get("employeeId")
+        year = int(request.query_params.get("year") or timezone.now().year)
+
+        if not employee_id:
+            if hasattr(user, "employee"):
+                employee_id = user.employee.id
+            else:
+                return Response({"detail": "Employee ID is required"}, status=400)
+
+        try:
+            employee = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            return Response({"detail": "Employee not found"}, status=404)
+
+        # Permission check
+        if hasattr(user, "employee") and user.employee.id != employee.id:
+            if not (user.is_superuser or user.has_perm("employee.view_employee")):
+                return Response({"detail": "Not allowed"}, status=403)
+
+        # Total late minutes including grace
+        total_minutes = Attendance.objects.filter(
+            employee=employee,
+            date__year=year
+        ).aggregate(total_late=Sum("minutes_late"))["total_late"] or 0
+
+        # Total grace minutes for the year
+        total_grace = Attendance.objects.filter(
+            employee=employee,
+            date__year=year,
+            shift__isnull=False
+        ).annotate(grace_minutes=F("shift__grace_period_minutes")).aggregate(
+            total_grace=Sum("grace_minutes")
+        )["total_grace"] or 0
+
+        # Adjust late minutes by subtracting grace
+        adjusted_minutes = max(0, total_minutes - total_grace)
+        total_seconds = adjusted_minutes * 60
+
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        hh_mm_ss = f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+
+        data = {
+            "employee_id": employee.id,
+            "employee_name": employee.name,
+            "leave_balance": employee.leave_balance,
+            "yearly_late_hhmmss": hh_mm_ss,
+            "yearly_late_seconds": total_seconds,
+        }
+
+        return Response(data)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        employee = queryset.first().employee if queryset.exists() else None
+
+        leave_summary = {}
+        if employee:
+            # Year for summary
+            year = int(request.query_params.get("year") or timezone.now().astimezone(CST).year)
+
+            # Calculate yearly late in seconds
+            total_minutes = Attendance.objects.filter(
+                employee=employee,
+                date__year=year
+            ).aggregate(total_late=Sum("minutes_late"))["total_late"] or 0
+
+            total_seconds = total_minutes * 60
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            hh_mm_ss = f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+
+            leave_summary = {
+                "leave_balance": employee.leave_balance,
+                "yearly_late_hhmmss": hh_mm_ss,
+                "yearly_late_seconds": total_seconds,  # ✅ new field
+            }
+
+        serializer = self.get_serializer(
+            queryset, many=True, context={"leave_summary": leave_summary}
+        )
+        return Response(serializer.data)
+
+class MonthlyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = MonthlyAttendanceSummarySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = MonthlyAttendanceSummary.objects.all()
+        user = self.request.user
+
+        # Restrict to employee unless superuser
+        if hasattr(user, "employee") and not user.is_superuser:
+            qs = qs.filter(employee=user.employee)
+        elif not user.is_superuser:
+            return qs.none()
+
+        # Query params
+        month = self.request.query_params.get("month")
+        year = self.request.query_params.get("year")
+
+        if month and year:
+            qs = qs.filter(month=int(month), year=int(year))
+        else:
+            # default: current CST month/year
+            today = today_cst()
+            qs = qs.filter(month=today.month, year=today.year)
+
+        return qs
+
+
+class LenderViewSet(viewsets.ModelViewSet):
+    queryset = Lender.objects.all()  # remove .order_by
+    serializer_class = LenderSerializer
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, OrderingFilter]
+    search_fields = ["lender_name", "executive_email", "manager_email", "account_executive_name"]
+    filterset_fields = ["lender_name", "executive_email"]
+    ordering_fields = ["created_at", "lender_name"]
+    ordering = ["-created_at"]  # default ordering
+    pagination_class = PageNumberPagination
+    permission_classes = [IsAuthenticated]
+
+    
+@api_view(["POST"])
+def validate_lender_field(request):
+    """Check if executive email, phone, manager email, or contact is unique."""
+    field = request.data.get("field")
+    value = request.data.get("value")
+
+    if not field or not value:
+        return Response({"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST)
+
+    exists = Lender.objects.filter(**{field: value}).exists()
+
+    return Response({"exists": exists})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def export_lenders_excel(request):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Lenders"
+
+    headers = [
+        'Lender Name', 'Account Executive Name', 'Executive Email', 'Executive Phone', 'Executive Address',
+        'Account Manager Name', 'Manager Email', 'Manager Contact', 'Manager Address',
+        'Mortgage Clause', 'Created At'
+    ]
+    ws.append(headers)
+
+    lenders = Lender.objects.all().order_by('-created_at')
+
+    for lender in lenders:
+        ws.append([
+            lender.lender_name or '',
+            lender.account_executive_name or '',
+            lender.executive_email or '',
+            lender.executive_phone or '',
+            lender.executive_address or '',
+            lender.account_manager_name or '',
+            lender.manager_email or '',
+            lender.manager_contact or '',
+            lender.manager_address or '',
+            lender.mortgage_clause or '',
+            lender.created_at.strftime('%Y-%m-%d %H:%M:%S') if lender.created_at else '',
+        ])
+
+    for col_num, _ in enumerate(headers, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 25
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="lenders.xlsx"'
+    wb.save(response)
+    return response
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def export_lenders_pdf(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
+
+    # Title
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(180, y, "Lender Details Report")
+    y -= 30
+    p.setFont("Helvetica", 10)
+
+    lenders = Lender.objects.all().order_by('-created_at')
+
+    for lender in lenders:
+        details = [
+            f"Lender Name: {lender.lender_name or '-'}",
+            f"Account Executive Name: {lender.account_executive_name or '-'}",
+            f"Executive Email: {lender.executive_email or '-'}",
+            f"Executive Phone: {lender.executive_phone or '-'}",
+            f"Executive Address: {lender.executive_address or '-'}",
+            f"Account Manager Name: {lender.account_manager_name or '-'}",
+            f"Manager Email: {lender.manager_email or '-'}",
+            f"Manager Contact: {lender.manager_contact or '-'}",
+            f"Manager Address: {lender.manager_address or '-'}",
+            f"Mortgage Clause: {lender.mortgage_clause or '-'}",
+            f"Created At: {lender.created_at.strftime('%Y-%m-%d %H:%M:%S') if lender.created_at else '-'}",
+        ]
+
+        for line in details:
+            p.drawString(50, y, line)
+            y -= 15
+            if y < 50:
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y = height - 50
+
+        y -= 10
+        p.line(50, y, width - 50, y)
+        y -= 20
+
+    p.save()
+    buffer.seek(0)
+
+    return HttpResponse(
+        buffer,
+        content_type='application/pdf',
+        headers={'Content-Disposition': 'attachment; filename="lenders.pdf"'},
+    )
+
+
+class TeamLeadViewSet(viewsets.ModelViewSet):
+    queryset = TeamLead.objects.all().prefetch_related("members", "lead")
+    serializer_class = TeamLeadSerializer
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = [
+        "lead__login_id",
+        "lead__name",
+        "members__login_id",
+        "members__name",
+    ]
+    filterset_fields = ["lead", "members"]
+    ordering_fields = ["created_at", "updated_at", "lead"]
+    ordering = ["-created_at"]  # default ordering
+    pagination_class = PageNumberPagination
+    permission_classes = [IsAuthenticated]
+
+
+class TeamManagerViewSet(viewsets.ModelViewSet):
+    queryset = TeamManager.objects.all().prefetch_related("team_leads", "manager")
+    serializer_class = TeamManagerSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = PageNumberPagination
+
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = ["manager__login_id", "manager__name", "team_leads__lead__login_id", "team_leads__lead__name"]
+    filterset_fields = ["manager", "team_leads"]
+    ordering_fields = ["created_at", "updated_at", "manager"]
+    ordering = ["-created_at"]
+
+
+
+class EmployeeTokenViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeToken.objects.all()
+    serializer_class = EmployeeTokenSerializer
+    permission_classes = [StrictDjangoModelPermissions]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status', 'employee']
+    search_fields = ['title', 'description', 'employee__username', 'responder__username']
+    ordering_fields = ['created_at', 'responded_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.has_perm('employee.approve_tokens'):
+            return EmployeeToken.objects.all()
+        return EmployeeToken.objects.filter(employee=user)
+
+    @action(detail=True, methods=["post"], url_path="respond")
+    def respond_token(self, request, pk=None):
+        token = self.get_object()
+
+        # Permission check
+        if not request.user.has_perm('employee.approve_tokens'):
+            return Response({"detail": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Already responded
+        if token.status == "responded":
+            return Response({"detail": "Already responded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update response, status, and responder
+        response_text = request.data.get("response", "").strip()
+        if not response_text:
+            return Response({"detail": "Response cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+
+        token.response = response_text
+        token.status = "responded"  # or "resolved", depending on your model
+        token.responder = request.user
+        token.responded_at = timezone.now()  # optional if you track response timestamp
+        token.save()
+
+        serializer = self.get_serializer(token)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+from rest_framework.pagination import PageNumberPagination
+
+class BreakPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+
+
+class EmployeeBreakViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeBreak.objects.all()
+    serializer_class = EmployeeBreakSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = BreakPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = EmployeeBreak.objects.all()
+
+        emp_id = self.request.query_params.get("employeeId")
+
+        if emp_id:
+            try:
+                emp_id = int(emp_id)
+            except ValueError:
+                return EmployeeBreak.objects.none()
+
+            # Fetch the User linked to the employee
+            from employee.models import Employee
+            try:
+                employee_obj = Employee.objects.get(pk=emp_id)
+            except Employee.DoesNotExist:
+                return EmployeeBreak.objects.none()
+
+            # Only allow fetching other employee if user has permission or is superuser
+            if (hasattr(user, "employee") and user.employee.id == emp_id) or user.is_superuser or user.has_perm("employee.view_employee"):
+                qs = qs.filter(employee=employee_obj.user)  # <-- Use user
+            else:
+                qs = qs.filter(employee=user)
+        else:
+            # Default: logged-in employee
+            qs = qs.filter(employee=user)  # <-- Use user
+
+        # Month/year filter
+        month = self.request.query_params.get("month")
+        year = self.request.query_params.get("year")
+        if month and year:
+            qs = qs.filter(start_time__month=int(month), start_time__year=int(year))
+        print("DEBUG total_break_time queryset:", qs.values("id", "employee_id", "start_time", "end_time"))
+
+        return qs.order_by("-start_time")
+
+
+    def perform_create(self, serializer):
+        # Save start_time as now in CST
+        serializer.save(employee=self.request.user, start_time=now_cst())
+
+    @action(detail=True, methods=["post"])
+    def break_out(self, request, pk=None):
+        break_instance = self.get_object()
+        if break_instance.end_time is not None:
+            return Response({"detail": "Already clocked out"}, status=400)
+        
+        break_instance.end_time = to_cst(timezone.now())
+        break_instance.save()
+        return Response(self.get_serializer(break_instance).data)
+
+    @action(detail=False, methods=["get"])
+    def total_break_time(self, request):
+        emp_id = request.query_params.get("employee") or request.query_params.get("employeeId")
+        qs = EmployeeBreak.objects.all()
+
+        if emp_id:
+            try:
+                emp_id = int(emp_id)
+                from employee.models import Employee
+                employee_obj = Employee.objects.get(pk=emp_id)
+                # permission check
+                if (hasattr(request.user, "employee") and request.user.employee.id == emp_id) \
+                or request.user.is_superuser \
+                or request.user.has_perm("employee.view_employee"):
+                    qs = qs.filter(employee=employee_obj.user)
+                else:
+                    qs = qs.filter(employee=request.user)
+            except (ValueError, Employee.DoesNotExist):
+                qs = qs.none()
+        else:
+            qs = qs.filter(employee=request.user)
+
+        month = request.query_params.get("month")
+        year = request.query_params.get("year")
+        if month and year:
+            qs = qs.filter(start_time__month=int(month), start_time__year=int(year))
+
+        total = qs.annotate(
+            duration=ExpressionWrapper(F('end_time') - F('start_time'), output_field=DurationField())
+        ).aggregate(total_duration=Sum('duration'))
+
+        return Response({"total_break_seconds": total['total_duration'].total_seconds() if total['total_duration'] else 0})
+
+
+    @action(detail=False, methods=["get"])
+    def daily_break_summary(self, request):
+        qs = self.get_queryset()
+        month = request.query_params.get("month")
+        year = request.query_params.get("year")
+        if month and year:
+            qs = qs.filter(
+                start_time__month=int(month),
+                start_time__year=int(year)
+            )
+
+        qs = qs.annotate(
+            duration=ExpressionWrapper(
+                F('end_time') - F('start_time'),
+                output_field=DurationField()
+            )
+        ).values('start_time__date').annotate(
+            total_day_duration=Sum('duration')
+        ).order_by('start_time__date')
+
+        data = {
+            str(item['start_time__date']): item['total_day_duration'].total_seconds()
+            for item in qs if item['total_day_duration']
+        }
+        return Response(data)
+    
+
+    @action(detail=False, methods=["get"], url_path="active")
+    def active_break(self, request):
+        user = request.user  # User instance
+        active_break = EmployeeBreak.objects.filter(
+            employee=user,  # employee field points to User, not Employee
+            end_time__isnull=True
+        ).first()
+
+        if active_break:
+            return Response({
+                "has_active_break": True,
+                "break": {
+                    "id": active_break.id,
+                    "started_at": active_break.start_time,  # use 'start_time' instead of 'break_in'
+                }
+            })
+
+        return Response({"has_active_break": False})

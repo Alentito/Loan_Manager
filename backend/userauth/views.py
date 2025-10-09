@@ -27,6 +27,7 @@ from django.contrib.auth.models import Permission
 from rest_framework.permissions import BasePermission
 
 
+from employee.models import Employee
 
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
@@ -36,6 +37,11 @@ class MeView(APIView):
 
     def get(self, request):
         user = request.user
+        try:
+            employee = Employee.objects.select_related("team", "primary_shift", "alternate_shift").get(user=user)
+        except Employee.DoesNotExist:
+            employee = None
+
         return Response({
             "id": user.id,
             "username": user.username,
@@ -44,7 +50,17 @@ class MeView(APIView):
             "permissions": list(user.get_all_permissions()),  # e.g. ["app.view_dashboard", ...]
             "firstName": user.first_name,
 
-            # add other fields as needed
+
+            "employee": {
+                    "id": employee.id if employee else None,
+                    "login_id": employee.login_id if employee else None,
+                    "name": employee.name if employee else None,
+                    "company_email": employee.company_email if employee else None,
+                    "contact_number": employee.contact_number if employee else None,
+                    "team_name": employee.team.name if employee and employee.team else None,
+                    "primary_shift": employee.primary_shift.name if employee and employee.primary_shift else None,
+                    "alternate_shift": employee.alternate_shift.name if employee and employee.alternate_shift else None,
+                } if employee else None
         })
 
 
