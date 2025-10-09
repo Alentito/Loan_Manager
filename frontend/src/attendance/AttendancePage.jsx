@@ -150,7 +150,8 @@ const AttendancePage = () => {
 
     let present = 0, late = 0, paidLeave = 0, unpaidLeave = 0, absent = 0, early = 0;
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-
+    const employeeCreationStr = formatToCSTDate(displayedEmployee?.created_at);
+    
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = formatToCSTDate(new Date(Date.UTC(year, month - 1, d, 12)));
       if (!dateStr) continue;
@@ -163,9 +164,14 @@ const AttendancePage = () => {
         else if (status === "UNPAID_LEAVE") unpaidLeave++;
         else if (status === "ABSENT") absent++;
         else if (status === "EARLY") early++;
-      } else if (!isWeekendFromDateStr(dateStr) && !holidaySet.has(dateStr) && !isFuture) {
-        absent++;
-      }
+      } else if (
+  !isWeekendFromDateStr(dateStr) &&
+  !holidaySet.has(dateStr) &&
+  !isFuture &&
+  (!employeeCreationStr || dateStr >= employeeCreationStr)
+) {
+  absent++;
+}
     }
     return {
       totalPresent: present,
