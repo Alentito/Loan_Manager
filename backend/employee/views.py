@@ -1338,7 +1338,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             queryset, many=True, context={"leave_summary": leave_summary}
         )
         return Response(serializer.data)
-    
 
 class MonthlyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MonthlyAttendanceSummarySerializer

@@ -142,7 +142,7 @@ breaks.forEach(({ id, start_time, end_time }) => {
     }
 
 const employeeCreationStr = formatToCSTDate(employee?.created_at); // pass employee as prop
-if (!employeeCreationStr) return;
+
 if (
   !isWeekendYMD(year, month, d) &&
   !holidayDates.has(dateStr) &&
