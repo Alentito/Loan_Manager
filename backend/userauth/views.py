@@ -125,8 +125,8 @@ class CookieTokenRefreshView(APIView):
                 key="access_token",
                 value=new_access,
                 httponly=True,
-                secure=False,
-                samesite="Lax" ,
+                secure=True,
+                samesite="None",
                 max_age=15 * 60,
                 path="/"
             )
@@ -136,12 +136,21 @@ class CookieTokenRefreshView(APIView):
                 key="refresh_token",
                 value=refresh_token,
                 httponly=True,
-                secure=False,
-                samesite="Lax" ,
+                secure=True,
+                samesite="None",
                 max_age=7 * 24 * 3600,
                 path="/"
             )
-            csrf.get_token(request)
+            # Ensure a CSRF token exists and explicitly set it as a cookie
+            csrf_token = csrf.get_token(request)
+            res.set_cookie(
+                key="csrftoken",
+                value=csrf_token,
+                httponly=False,
+                secure=True,
+                samesite="None",
+                path="/",
+            )
             return res
         except Exception as e:
             print("Refresh error:", e)  # <-- Now 'e' is defined!
@@ -166,15 +175,25 @@ class CookieTokenObtainPairView(TokenObtainPairView):
                 key="access_token",
                 value=access,
                 httponly=True,
-                secure=False,  # only sent over HTTPS
-                samesite="Lax",  # adjust for your frontend/backend domain setup
+                secure=True,  # only sent over HTTPS
+                samesite="None",  # allow cross-site cookie sending
             )
             res.set_cookie(
                 key="refresh_token",
                 value=refresh,
                 httponly=True,
-                secure=False,
-                samesite="Lax",
+                secure=True,
+                samesite="None",
+            )
+            # Ensure a CSRF token exists and explicitly set it as a cookie so frontend JS can read it
+            csrf_token = csrf.get_token(request)
+            res.set_cookie(
+                key="csrftoken",
+                value=csrf_token,
+                httponly=False,
+                secure=True,
+                samesite="None",
+                path="/",
             )
             res.data = {"message": "Login successful"}
             return res
