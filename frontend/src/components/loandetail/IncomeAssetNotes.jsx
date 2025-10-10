@@ -36,7 +36,7 @@ import {
 import {
   useGetIncomeAssetNoteQuery,
   useUpsertIncomeAssetNoteMutation,
-} from "../../api/incomeAssetNoteApi";
+} from "../../api/loanApi";
 
 const theme = {
   paragraph: "lexical-paragraph",
