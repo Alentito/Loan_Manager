@@ -15,6 +15,22 @@ from django.core.validators import RegexValidator
 
 # ...existing models...
 
+class IncomeAssetNote(models.Model):
+    loan = models.OneToOneField("Loan", on_delete=models.CASCADE, related_name="income_asset_note")
+    editor_state = models.JSONField(default=dict, blank=True)   # stores Lexical JSON as-is
+    plain_text = models.TextField(blank=True)                   # optional quick-read/search
+    created_by = models.ForeignKey(get_user_model(), null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="income_asset_notes_created")
+    updated_by = models.ForeignKey(get_user_model(), null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="income_asset_notes_updated")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"IncomeAssetNote(loan={self.loan_id})"
+
+
+
 class Milestone(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),
