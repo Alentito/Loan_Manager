@@ -232,6 +232,24 @@ getLoanDocStatus: builder.query({
       }),
       invalidatesTags: ['Loans'],
     }),
+    getIncomeAssetNote: builder.query({
+      // backend route is /loan/:id/income-asset-note/
+      query: (loanId) => ({ url: `loan/${loanId}/income-asset-note/` }),
+      providesTags: (_res, _err, loanId) => [{ type: "IncomeAssetNote", id: loanId }],
+      transformResponse: (resp) => ({
+        ...resp,
+        serialized: resp?.editor_state ? JSON.stringify(resp.editor_state) : null,
+      }),
+    }),
+
+    upsertIncomeAssetNote: builder.mutation({
+      query: ({ loanId, editor_state, plain_text }) => ({
+        url: `loan/${loanId}/income-asset-note/`,
+        method: "PUT",
+        body: { editor_state, plain_text },
+      }),
+      invalidatesTags: (_res, _err, arg) => [{ type: "IncomeAssetNote", id: arg.loanId }],
+    }),
     
   
   }),
@@ -266,5 +284,7 @@ export const {
   useUploadXmlMutation,
   useListAllTasksQuery,
   useArchiveLoanMutation,
-  useUnarchiveLoanMutation
+  useUnarchiveLoanMutation,
+  useGetIncomeAssetNoteQuery,        
+  useUpsertIncomeAssetNoteMutation,
 } = loanApi;
