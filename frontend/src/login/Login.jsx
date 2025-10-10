@@ -1,28 +1,38 @@
+// frontend/src/pages/Login.jsx
 import { useState } from "react";
 import { useLoginMutation, useLazyGetMeQuery } from "../api/authApi";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { setAuthenticated } from "../api/authSlice";
 import { loanApi } from "../api/loanApi";
-import { Eye, EyeOff, Mail, Lock, Loader2, LogIn } from "lucide-react";
-import { useMarkAttendanceMutation, useLazyGetTodayAttendanceQuery } from "../api/attendanceApi";
+import {
+  useMarkAttendanceMutation,
+  useLazyGetTodayAttendanceQuery,
+} from "../api/attendanceApi";
 import { useLazyGetActiveBreakQuery } from "../api/breakApi";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  Loader2,
+  LogIn,
+} from "lucide-react";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const [login, { isLoading, error }] = useLoginMutation();
   const [triggerGetMe] = useLazyGetMeQuery();
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
-
-  const [errorMsg, setErrorMsg] = useState("");
-
   const [markAttendance] = useMarkAttendanceMutation();
   const [triggerGetTodayAttendance] = useLazyGetTodayAttendanceQuery();
   const [triggerGetActiveBreak] = useLazyGetActiveBreakQuery();
+
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const apiError =
     errorMsg ||
@@ -35,30 +45,24 @@ export default function Login() {
     setErrorMsg("");
 
     try {
-      // 1) Login
+      // 1️⃣ Login
       await login({ username, password }).unwrap();
 
-      // 2) Reset API cache to avoid stale data after auth
+      // 2️⃣ Reset API cache (avoid stale data)
       dispatch(loanApi.util.resetApiState());
 
-      // 3) Fetch current user
+      // 3️⃣ Fetch user info
       const user = await triggerGetMe().unwrap();
       if (!user) throw new Error("Failed to fetch user info.");
 
-      // 4) Mark today's attendance (safe to ignore failures)
+      // 4️⃣ Mark today's attendance (CST safe)
       try {
-        const employeeId = user.employee_id || user.employee?.id || user.id;
-        const todayDate = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-        await markAttendance({
-          employee: employeeId,
-          date: todayDate,
-          status: "PRESENT", // or your logic for status
-        }).unwrap();
+        await markAttendance({ employee: user.id }).unwrap();
       } catch (err) {
         console.warn("Mark attendance skipped:", err);
       }
 
-      // 5) Fetch today's attendance (normalize to array)
+      // 5️⃣ Fetch today’s attendance
       let today = [];
       try {
         const todayData = await triggerGetTodayAttendance().unwrap();
@@ -67,7 +71,7 @@ export default function Login() {
         console.warn("Today attendance not found:", err);
       }
 
-      // 6) Save to Redux
+      // 6️⃣ Save authenticated user & attendance in Redux
       dispatch(
         setAuthenticated({
           user,
@@ -75,10 +79,17 @@ export default function Login() {
         })
       );
 
-      // 7) If an active break exists, route to it
+      // 7️⃣ Check active break (if any)
       try {
         const activeBreak = await triggerGetActiveBreak().unwrap();
         if (activeBreak?.has_active_break && activeBreak?.break?.id) {
+          dispatch(
+            setAuthenticated({
+              user,
+              attendance: today,
+              activeBreak: activeBreak.break,
+            })
+          );
           navigate(`/breaks/${activeBreak.break.id}`);
           return;
         }
@@ -86,11 +97,13 @@ export default function Login() {
         console.warn("Active break check failed:", err);
       }
 
-      // 8) Go to dashboard
+      // 8️⃣ Navigate to dashboard
       navigate("/dashboard");
     } catch (err) {
       console.error("Login error:", err);
-      setErrorMsg(err?.data?.detail || "Login failed. Please check your credentials.");
+      setErrorMsg(
+        err?.data?.detail || "Login failed. Please check your credentials."
+      );
     }
   };
 
