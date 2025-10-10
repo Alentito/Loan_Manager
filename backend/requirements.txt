@@ -27,6 +27,7 @@ djangorestframework_simplejwt==5.5.1
 drf-nested-routers==0.94.2
 et_xmlfile==2.0.0
 hiredis==3.2.1
+holidays==0.81
 hyperlink==21.0.0
 idna==3.10
 incremental==24.7.2
