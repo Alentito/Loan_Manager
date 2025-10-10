@@ -73,14 +73,7 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
       return "An employee cannot be both Manager and Head in the same team.";
     }
 
-    if (head) {
-      const existing = teams.find(
-        (t) => t.head === head && (!isEdit || t.id !== team.id)
-      );
-      if (existing) {
-        return `This employee is already a Team Head under manager ${existing.manager_name}.`;
-      }
-    }
+    
 
     return null;
   };
