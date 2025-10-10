@@ -15,6 +15,15 @@ from rest_framework import serializers
 from .models import Milestone
 # ...existing imports...
 
+from .models import IncomeAssetNote
+
+class IncomeAssetNoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IncomeAssetNote
+        fields = ["id", "loan", "editor_state", "plain_text", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at", "loan"]
+        
+
 class MilestoneSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     updated_by_name = serializers.CharField(source='updated_by.username', read_only=True)
