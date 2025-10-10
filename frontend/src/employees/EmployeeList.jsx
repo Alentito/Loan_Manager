@@ -461,8 +461,9 @@ const EmployeeList = () => {
                 ['Team Lead', viewingEmployee.team_name],
                 ['Primary Shift', viewingEmployee.primary_shift_name],
                 //['Alternative Shift', viewingEmployee.alternate_shift_name],
-                ['Created At', new Date(viewingEmployee.created_at).toLocaleString()],
-                ['Last Updated', new Date(viewingEmployee.updated_at).toLocaleString()],
+                ['Created At - MM:DD:YY', new Date(viewingEmployee.created_at).toLocaleString()],
+                
+                ['Last Updated - MM:DD:YY', new Date(viewingEmployee.updated_at).toLocaleString()],
                 ['Archived At', viewingEmployee.archived_at ? new Date(viewingEmployee.archived_at).toLocaleString() : '-'],
               ].map(([label, value]) => (
                 <Typography key={label}><strong>{label}:</strong> {value || '-'}</Typography>
