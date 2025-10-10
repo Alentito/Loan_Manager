@@ -15,7 +15,7 @@ import { toast } from 'react-hot-toast';
 import {
   useAddBrokerMutation,
   useUpdateBrokerMutation,
-} from '../redux/brokerApi';
+} from '../api/brokerApi';
 
 const BrokerFormDialog = ({ open, onClose, editingBroker, onSuccess }) => {
   const [addBroker, { isLoading: isAdding }] = useAddBrokerMutation();
@@ -104,3 +104,4 @@ const BrokerFormDialog = ({ open, onClose, editingBroker, onSuccess }) => {
 };
 
 export default BrokerFormDialog;
+
