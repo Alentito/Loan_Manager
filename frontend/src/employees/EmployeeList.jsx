@@ -286,7 +286,7 @@ const EmployeeList = () => {
                   />
                 </TableCell>
                 {[
-                  'Avatar', 'Name', 'Login ID', 'Company Email', 'Contact No:', 'Team Manager', 'Team Lead', 'Primary Shift',
+                  'Avatar', 'Name', 'Login ID', 'Company Email', 'Contact No:', 'Team Manager', 'Team', 'Primary Shift',
                   ...(showArchived ? ['Archived At'] : []),
                   'Actions'
                 ].map((label, idx) => (
