@@ -33,6 +33,10 @@ import {
   ListNode,
   ListItemNode,
 } from "@lexical/list";
+import {
+  useGetIncomeAssetNoteQuery,
+  useUpsertIncomeAssetNoteMutation,
+} from "../../api/incomeAssetNoteApi";
 
 const theme = {
   paragraph: "lexical-paragraph",
@@ -41,9 +45,7 @@ const theme = {
     italic: "lexical-italic",
   },
   list: {
-    nested: {
-      listitem: "lexical-nestedListItem",
-    },
+    nested: { listitem: "lexical-nestedListItem" },
     ul: "lexical-ul",
     ol: "lexical-ol",
     listitem: "lexical-listItem",
@@ -51,8 +53,7 @@ const theme = {
 };
 
 function Toolbar() {
-const [editor] = useLexicalComposerContext();
-
+  const [editor] = useLexicalComposerContext();
   return (
     <Stack direction="row" spacing={0.5} sx={{ px: 1, py: 0.5 }}>
       <Tooltip title="Bold">
@@ -100,21 +101,32 @@ export default function IncomeAssetNotes({ loanId }) {
   const [saveTime, setSaveTime] = useState(null);
   const hydratedRef = useRef(false);
 
+  const { data, isFetching, isError } = useGetIncomeAssetNoteQuery(loanId, { skip: !loanId });
+  const [upsertNote, { isLoading: saving }] = useUpsertIncomeAssetNoteMutation();
+
+  // Hydrate from API (fallback to localStorage if no record yet)
   useEffect(() => {
-    const stored = localStorage.getItem(`loan-${loanId}-income-asset-notes`);
-    const storedTime = localStorage.getItem(`loan-${loanId}-income-asset-notes-time`);
-    setSerialized(stored);
-    setLastSaved(stored);
-    if (storedTime) setSaveTime(new Date(storedTime));
-    hydratedRef.current = !!stored;
-  }, [loanId]);
+    if (data) {
+      const fromApi = data.serialized ?? null;
+      setSerialized(fromApi);
+      setLastSaved(fromApi);
+      setSaveTime(data.updated_at ? new Date(data.updated_at) : null);
+      hydratedRef.current = !!fromApi;
+      return;
+    }
+    if (isError || !isFetching) {
+      const stored = localStorage.getItem(`loan-${loanId}-income-asset-notes`);
+      const storedTime = localStorage.getItem(`loan-${loanId}-income-asset-notes-time`);
+      setSerialized(stored);
+      setLastSaved(stored);
+      if (storedTime) setSaveTime(new Date(storedTime));
+      hydratedRef.current = !!stored;
+    }
+  }, [loanId, data, isError, isFetching]);
 
   useEffect(() => {
-    if (lastSaved === null || serialized === null) {
-      setHasChanges(false);
-    } else {
-      setHasChanges(serialized !== lastSaved);
-    }
+    if (lastSaved === null || serialized === null) setHasChanges(false);
+    else setHasChanges(serialized !== lastSaved);
   }, [serialized, lastSaved]);
 
   const initialConfig = useMemo(
@@ -131,9 +143,7 @@ export default function IncomeAssetNotes({ loanId }) {
   const handleChange = useCallback((editorState) => {
     const json = editorState.toJSON();
     const jsonString = JSON.stringify(json);
-    editorState.read(() => {
-      setPlainText($getRoot().getTextContent());
-    });
+    editorState.read(() => setPlainText($getRoot().getTextContent()));
     if (!hydratedRef.current) {
       hydratedRef.current = true;
       setSerialized(jsonString);
@@ -143,20 +153,32 @@ export default function IncomeAssetNotes({ loanId }) {
     setSerialized(jsonString);
   }, []);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     const payload = serialized ?? "";
-    localStorage.setItem(`loan-${loanId}-income-asset-notes`, payload);
-    const now = new Date();
-    localStorage.setItem(`loan-${loanId}-income-asset-notes-time`, now.toISOString());
-    setLastSaved(payload);
-    setSaveTime(now);
-    setHasChanges(false);
-    setSaveSuccess(true);
-  }, [loanId, serialized]);
+    const editorJson = payload ? JSON.parse(payload) : {};
+    try {
+      await upsertNote({ loanId, editor_state: editorJson, plain_text: plainText || "" }).unwrap();
+      setLastSaved(payload);
+      const now = new Date();
+      setSaveTime(now);
+      setHasChanges(false);
+      setSaveSuccess(true);
+      // clear legacy cache
+      localStorage.removeItem(`loan-${loanId}-income-asset-notes`);
+      localStorage.removeItem(`loan-${loanId}-income-asset-notes-time`);
+    } catch {
+      // fallback to localStorage
+      localStorage.setItem(`loan-${loanId}-income-asset-notes`, payload);
+      const now = new Date();
+      localStorage.setItem(`loan-${loanId}-income-asset-notes-time`, now.toISOString());
+      setLastSaved(payload);
+      setSaveTime(now);
+      setHasChanges(false);
+      setSaveSuccess(true);
+    }
+  }, [loanId, serialized, plainText, upsertNote]);
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(plainText);
-  }, [plainText]);
+  const handleCopy = useCallback(() => navigator.clipboard.writeText(plainText), [plainText]);
 
   return (
     <Box sx={{ height: "calc(100vh - 250px)", display: "flex", flexDirection: "column" }}>
@@ -188,13 +210,7 @@ export default function IncomeAssetNotes({ loanId }) {
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
         <Typography variant="h6">Income &amp; Assets Notes</Typography>
         <Stack direction="row" spacing={1}>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<Copy size={18} />}
-            onClick={handleCopy}
-            disabled={!plainText}
-          >
+          <Button size="small" variant="outlined" startIcon={<Copy size={18} />} onClick={handleCopy} disabled={!plainText}>
             Copy
           </Button>
           <Button
@@ -202,16 +218,14 @@ export default function IncomeAssetNotes({ loanId }) {
             variant="contained"
             startIcon={<Save size={18} />}
             onClick={handleSave}
-            disabled={!hasChanges}
+            disabled={!hasChanges || saving}
             sx={{
               borderRadius: "8px",
               backgroundColor: hasChanges ? "rgba(0, 60, 247, 1)" : undefined,
-              "&:hover": {
-                backgroundColor: hasChanges ? "rgba(0, 50, 200, 1)" : undefined,
-              },
+              "&:hover": { backgroundColor: hasChanges ? "rgba(0, 50, 200, 1)" : undefined },
             }}
           >
-            Save
+            {saving ? "Saving..." : "Save"}
           </Button>
         </Stack>
       </Box>
@@ -220,13 +234,7 @@ export default function IncomeAssetNotes({ loanId }) {
         <Paper
           elevation={0}
           variant="outlined"
-          sx={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            borderRadius: 1,
-            overflow: "hidden",
-          }}
+          sx={{ flex: 1, display: "flex", flexDirection: "column", borderRadius: 1, overflow: "hidden" }}
         >
           <Toolbar />
           <Divider />
@@ -245,18 +253,12 @@ export default function IncomeAssetNotes({ loanId }) {
 
       <Box sx={{ mt: 1, display: "flex", justifyContent: "space-between" }}>
         <Typography variant="caption" color="text.secondary">
-          Last saved: {saveTime ? saveTime.toLocaleString() : "Never"}
+          Last saved: {saveTime ? saveTime.toLocaleString() : isFetching ? "Loading…" : "Never"}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {plainText.length} characters
-        </Typography>
+        <Typography variant="caption" color="text.secondary">{plainText.length} characters</Typography>
       </Box>
 
-      <Snackbar
-        open={saveSuccess}
-        autoHideDuration={3000}
-        onClose={() => setSaveSuccess(false)}
-      >
+      <Snackbar open={saveSuccess} autoHideDuration={3000} onClose={() => setSaveSuccess(false)}>
         <Alert severity="success" sx={{ width: "100%" }}>
           Notes saved successfully
         </Alert>
