@@ -18,7 +18,7 @@ import {
   useGetBrokersQuery,
   useArchiveBrokerMutation,
   useUnarchiveBrokerMutation
-} from '../redux/brokerApi';
+} from '../api/brokerApi';
 import BrokerFormDialog from './BrokerFormDialog';
 
 const pageSize = 10;
@@ -115,13 +115,41 @@ const BrokerList = () => {
     setBulkArchiveDialogOpen(false);
   };
 
-  const handleExport = (format) => {
-    const urls = {
-      csv: 'http://localhost:8000/api/brokers/export-excel/',
-      xml: 'http://localhost:8000/api/brokers/export-pdf/',
-    };
-    if (urls[format]) window.open(urls[format], '_blank');
+  const handleExport = async (format) => {
+  const urls = {
+    excel: 'http://localhost:8000/api/export/brokers/excel/',
+    pdf: 'http://localhost:8000/api/export/brokers/pdf/',
   };
+
+  const url = urls[format];
+  if (!url) return;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      // 🔹 Only include token if backend requires auth
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+      },
+    });
+
+    if (!response.ok) throw new Error('Failed to export file');
+
+    const blob = await response.blob();
+    const fileUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = fileUrl;
+    a.download = `brokers.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(fileUrl);
+  } catch (err) {
+    toast.error(err.message || 'Export failed');
+  }
+};
+
+
 
   // --- Render ---
   return (
@@ -148,13 +176,14 @@ const BrokerList = () => {
           <Button variant="outlined" onClick={() => setSearch('')}>Clear</Button>
 
           <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Export</InputLabel>
-            <Select defaultValue="" label="Export" onChange={(e) => handleExport(e.target.value)}>
-              <MenuItem value="" disabled>Export</MenuItem>
-              <MenuItem value="csv">Excel</MenuItem>
-              <MenuItem value="xml">PDF</MenuItem>
-            </Select>
-          </FormControl>
+  <InputLabel>Export</InputLabel>
+  <Select defaultValue="" label="Export" onChange={(e) => handleExport(e.target.value)}>
+    <MenuItem value="" disabled>Export</MenuItem>
+    <MenuItem value="excel">Excel</MenuItem>
+    <MenuItem value="pdf">PDF</MenuItem>
+  </Select>
+</FormControl>
+
           <Button
             variant="contained"
             startIcon={<AddIcon />}
