@@ -26,6 +26,8 @@ import { lenderApi } from '../api/lenderApiSlice';
 import { teamLeadApi } from '../api/teamLeadApi';
 import { teamManagerApi} from '../api/teamManagerApi';
 import { tokenApi } from '../api/tokenApi';
+import { incomeAssetNoteApi } from "../api/incomeAssetNoteApi";
+
 
 export const store = configureStore({
   reducer: {
@@ -53,6 +55,8 @@ export const store = configureStore({
     [teamLeadApi.reducerPath]: teamLeadApi.reducer,
     [teamManagerApi.reducerPath]: teamManagerApi.reducer,
     [tokenApi.reducerPath]: tokenApi.reducer,
+        [incomeAssetNoteApi.reducerPath]: incomeAssetNoteApi.reducer,
+
     
   },
 
@@ -76,6 +80,7 @@ export const store = configureStore({
       .concat(teamLeadApi.middleware)
       .concat(teamManagerApi.middleware)
       .concat(tokenApi.middleware)
+      .concat(incomeAssetNoteApi.middleware)
       
 });
 
