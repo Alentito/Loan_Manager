@@ -117,8 +117,8 @@ const BrokerList = () => {
 
   const handleExport = async (format) => {
   const urls = {
-    excel: 'http://localhost:8000/api/export/brokers/excel/',
-    pdf: 'http://localhost:8000/api/export/brokers/pdf/',
+    excel: 'https://backend-l3f9.onrender.com/api/export/brokers/excel/',
+    pdf: 'https://backend-l3f9.onrender.com/api/export/brokers/pdf/',
   };
 
   const url = urls[format];
