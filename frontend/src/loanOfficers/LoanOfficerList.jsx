@@ -131,12 +131,15 @@ const LoanOfficerList = () => {
   };
 
   const handleExport = (format) => {
-    const map = {
-      csv: 'loan-officers/export-csv/',
-      xml: 'loan-officers/export-xml/',
-    };
-    if (format && map[format]) window.open(`http://localhost:8000/api/${map[format]}`, '_blank');
-  };
+ const map = {
+  excel: 'export/loan-officers/excel/',
+  pdf: 'export/loan-officers/pdf/',
+};
+if (format && map[format]) {
+  window.open(`http://localhost:8000/api/${map[format]}`, '_blank');
+}
+};
+
 
   const total = data?.count || 0;
   const loanOfficers = data?.results || [];
@@ -182,8 +185,8 @@ const LoanOfficerList = () => {
             <InputLabel>Export</InputLabel>
             <Select defaultValue="" onChange={(e) => handleExport(e.target.value)} label="Export">
               <MenuItem value="" disabled>Export</MenuItem>
-              <MenuItem value="csv">CSV</MenuItem>
-              <MenuItem value="xml">XML</MenuItem>
+              <MenuItem value="excel">Excel</MenuItem>
+              <MenuItem value="pdf">PDF</MenuItem>
             </Select>
           </FormControl>
           <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick} sx={{
