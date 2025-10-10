@@ -79,6 +79,8 @@ from django.db.models import Q
 from .models import Milestone
 from .serializers import MilestoneSerializer, MilestoneListSerializer
 
+from .models import IncomeAssetNote
+from .serializers import IncomeAssetNoteSerializer
 
 
 
@@ -746,6 +748,22 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
 
         loans.delete()
         return Response({"status": "deleted"}, status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["get", "put", "patch"], url_path="income-asset-note")
+    def income_asset_note(self, request, pk=None):
+        loan = self.get_object()
+        note, _ = IncomeAssetNote.objects.get_or_create(loan=loan)
+
+        if request.method in ("PUT", "PATCH"):
+            serializer = IncomeAssetNoteSerializer(
+                note, data=request.data, partial=(request.method == "PATCH")
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        serializer = IncomeAssetNoteSerializer(note)
+        return Response(serializer.data)
 
 class ChecklistQuestionViewSet(viewsets.ModelViewSet):
     queryset = ChecklistQuestion.objects.all().order_by('order')
