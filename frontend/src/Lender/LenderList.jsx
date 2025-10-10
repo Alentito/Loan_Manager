@@ -83,12 +83,15 @@ const LenderList = () => {
   };
 
   const handleExport = (format) => {
-    const urls = {
-      csv: "http://localhost:8000/api/lenders/export-csv/",
-      xml: "http://localhost:8000/api/lenders/export-xml/",
-    };
-    if (urls[format]) window.open(urls[format], "_blank");
+  const map = {
+    excel: 'export/lenders/excel/',
+    pdf: 'export/lenders/pdf/',
   };
+  if (format && map[format]) {
+    window.open(`http://localhost:8000/api/${map[format]}`, '_blank');
+  }
+};
+
 
   return (
     <Box p={3}>
@@ -113,13 +116,14 @@ const LenderList = () => {
           <Button variant="outlined" onClick={() => setSearch("")}>Clear</Button>
 
           <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Export</InputLabel>
-            <Select defaultValue="" label="Export" onChange={(e) => handleExport(e.target.value)}>
-              <MenuItem value="" disabled>Export</MenuItem>
-              <MenuItem value="csv">Excel</MenuItem>
-              <MenuItem value="xml">XML</MenuItem>
-            </Select>
-          </FormControl>
+  <InputLabel>Export</InputLabel>
+  <Select defaultValue="" label="Export" onChange={(e) => handleExport(e.target.value)}>
+    <MenuItem value="" disabled>Export</MenuItem>
+<MenuItem value="excel">Excel</MenuItem>
+<MenuItem value="pdf">PDF</MenuItem>
+  </Select>
+</FormControl>
+
 
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setDialogOpen(true); setEditingLender(null); }}>
             Add Lender
