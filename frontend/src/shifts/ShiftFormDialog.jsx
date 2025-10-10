@@ -13,7 +13,7 @@ import {
   Alert,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { useAddShiftMutation, useUpdateShiftMutation } from '../redux/shiftApi';
+import { useAddShiftMutation, useUpdateShiftMutation } from '../api/shiftApi';
 
 /**
  * Normalize many possible inputs into "HH:MM" (24-hour).
@@ -147,7 +147,7 @@ const ShiftFormDialog = ({ open, onClose, editData }) => {
   return (
     <>
       <Dialog open={open} onClose={handleClose} fullScreen={fullScreen} fullWidth maxWidth="sm">
-        <DialogTitle>{editData ? 'Edit Shift' : 'Add New Shift'}</DialogTitle>
+        <DialogTitle sx={{ m: 0, p: 2, backgroundColor: "#1976d2", color: "#fff" }}>{editData ? 'Edit Shift' : 'Add New Shift'}</DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent>
             <Grid container spacing={2}>

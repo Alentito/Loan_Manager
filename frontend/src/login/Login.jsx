@@ -5,6 +5,8 @@ import { useDispatch } from "react-redux";
 import { setAuthenticated } from "../api/authSlice";
 import { loanApi } from "../api/loanApi";
 import { Eye, EyeOff, Mail, Lock, Loader2, LogIn } from "lucide-react";
+import { useMarkAttendanceMutation, useLazyGetTodayAttendanceQuery } from "../api/attendanceApi";
+import { useLazyGetActiveBreakQuery } from "../api/breakApi";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -16,33 +18,99 @@ export default function Login() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const [markAttendance] = useMarkAttendanceMutation();
+  const [triggerGetTodayAttendance] = useLazyGetTodayAttendanceQuery();
+  const [triggerGetActiveBreak] = useLazyGetActiveBreakQuery();
+
   const apiError =
+    errorMsg ||
     error?.data?.detail ||
     (typeof error?.data === "string" ? error.data : null) ||
     (error ? "Invalid credentials" : null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMsg("");
+
     try {
+      // 1) Login
       await login({ username, password }).unwrap();
+
+      // 2) Reset API cache to avoid stale data after auth
       dispatch(loanApi.util.resetApiState());
-      const result = await triggerGetMe().unwrap();
-      dispatch(setAuthenticated(result));
+
+      // 3) Fetch current user
+      const user = await triggerGetMe().unwrap();
+      if (!user) throw new Error("Failed to fetch user info.");
+
+      // 4) Mark today's attendance (safe to ignore failures)
+      try {
+        const employeeId = user.employee_id || user.employee?.id || user.id;
+        const todayDate = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+        await markAttendance({
+          employee: employeeId,
+          date: todayDate,
+          status: "PRESENT", // or your logic for status
+        }).unwrap();
+      } catch (err) {
+        console.warn("Mark attendance skipped:", err);
+      }
+
+      // 5) Fetch today's attendance (normalize to array)
+      let today = [];
+      try {
+        const todayData = await triggerGetTodayAttendance().unwrap();
+        today = todayData ? (Array.isArray(todayData) ? todayData : [todayData]) : [];
+      } catch (err) {
+        console.warn("Today attendance not found:", err);
+      }
+
+      // 6) Save to Redux
+      dispatch(
+        setAuthenticated({
+          user,
+          attendance: today,
+        })
+      );
+
+      // 7) If an active break exists, route to it
+      try {
+        const activeBreak = await triggerGetActiveBreak().unwrap();
+        if (activeBreak?.has_active_break && activeBreak?.break?.id) {
+          navigate(`/breaks/${activeBreak.break.id}`);
+          return;
+        }
+      } catch (err) {
+        console.warn("Active break check failed:", err);
+      }
+
+      // 8) Go to dashboard
       navigate("/dashboard");
-    } catch {}
+    } catch (err) {
+      console.error("Login error:", err);
+      setErrorMsg(err?.data?.detail || "Login failed. Please check your credentials.");
+    }
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center
+    <div
+      className="min-h-screen w-full flex items-center justify-center
       bg-gradient-to-br from-indigo-50 via-white to-blue-50
-      dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
+      dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-slate-900"
+    >
       <div className="w-full max-w-md px-4">
-        <div className="rounded-2xl bg-white shadow-xl ring-1 ring-slate-200 backdrop-blur
-          dark:bg-slate-900/70 dark:ring-slate-800">
+        <div
+          className="rounded-2xl bg-white shadow-xl ring-1 ring-slate-200 backdrop-blur
+          dark:bg-slate-900/70 dark:ring-slate-800"
+        >
           <div className="px-6 pt-7 pb-3 text-center">
-            <div className="mx-auto mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl
+            <div
+              className="mx-auto mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl
               bg-gradient-to-tr from-blue-600 to-blue-500 text-white shadow-md
-              dark:from-blue-500 dark:to-blue-400">
+              dark:from-blue-500 dark:to-blue-400"
+            >
               <LogIn size={18} />
             </div>
             <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
@@ -55,14 +123,18 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="px-6 pb-7 space-y-4">
             {apiError && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700
-                dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
+              <div
+                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700
+                dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"
+              >
                 {apiError}
               </div>
             )}
 
             <div>
-              <label htmlFor="username" className="sr-only">Username</label>
+              <label htmlFor="username" className="sr-only">
+                Username
+              </label>
               <div className="relative">
                 <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400 dark:text-slate-500">
                   <Mail size={18} />
@@ -84,7 +156,9 @@ export default function Login() {
             </div>
 
             <div>
-              <label htmlFor="password" className="sr-only">Password</label>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
               <div className="relative">
                 <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400 dark:text-slate-500">
                   <Lock size={18} />

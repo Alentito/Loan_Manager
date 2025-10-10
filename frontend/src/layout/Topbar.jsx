@@ -21,7 +21,6 @@ import {
 
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-
 import { Bell, Sun, Moon, User, LogOut } from "lucide-react";
 
 /* TopNavbar */
@@ -33,7 +32,9 @@ export default function TopNavbar({ mode, setMode }) {
   const { title, description } = getPageMeta(location.pathname);
 
   // Show back button only on loan details page
-  const showBackButton = location.pathname.includes("/loan-management/loan-details");
+  const showBackButton = location.pathname.includes(
+    "/loan-management/loan-details"
+  );
 
   /* Notification menu state */
   const [anchorNotif, setAnchorNotif] = useState(null);
@@ -48,9 +49,9 @@ export default function TopNavbar({ mode, setMode }) {
   const handleUserClose = () => setAnchorUser(null);
 
   // Demo user + notifications list
-  
-const user = useSelector((state) => state.auth.user);
-console.log("User from Redux:", user);
+
+  const user = useSelector((state) => state.auth.user);
+  console.log("User from Redux:", user);
   const [notifList, setNotifList] = useState([]);
 
   const handleNewNotification = useCallback((msg) => {
@@ -98,7 +99,11 @@ console.log("User from Redux:", user);
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
         <Box sx={{ display: "flex", flexDirection: "column" }}>
-          <Typography variant="h6" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Typography
+            variant="h6"
+            fontWeight={600}
+            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+          >
             {showBackButton && (
               <IconButton
                 onClick={() => navigate(-1)}
@@ -119,13 +124,23 @@ console.log("User from Redux:", user);
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         {/* Theme toggle */}
-        <Tooltip title={mode === "light" ? "Switch to dark mode" : "Switch to light mode"}>
+        <Tooltip
+          title={
+            mode === "light" ? "Switch to dark mode" : "Switch to light mode"
+          }
+        >
           <IconButton
             onClick={() => setMode(mode === "light" ? "dark" : "light")}
             color="inherit"
-            aria-label={mode === "light" ? "Switch to dark mode" : "Switch to light mode"}
+            aria-label={
+              mode === "light" ? "Switch to dark mode" : "Switch to light mode"
+            }
           >
-            {mode === "light" ? <Moon size={18} strokeWidth={1.8} /> : <Sun size={18} strokeWidth={1.8} />}
+            {mode === "light" ? (
+              <Moon size={18} strokeWidth={1.8} />
+            ) : (
+              <Sun size={18} strokeWidth={1.8} />
+            )}
           </IconButton>
         </Tooltip>
 
@@ -163,13 +178,19 @@ console.log("User from Redux:", user);
             Notifications
           </Box>
           <Divider />
-          {notifList.length === 0 && <MenuItem disabled>No new notifications</MenuItem>}
+          {notifList.length === 0 && (
+            <MenuItem disabled>No new notifications</MenuItem>
+          )}
           {notifList.slice(0, 8).map((n) => (
             <MenuItem key={n.id} onClick={handleNotifClose}>
               <ListItemText
                 primary={n.title}
-                secondary={`${n.body} • ${new Date(n.created_at).toLocaleString()}`}
-                primaryTypographyProps={{ fontWeight: n.read ? "normal" : "bold" }}
+                secondary={`${n.body} • ${new Date(
+                  n.created_at
+                ).toLocaleString()}`}
+                primaryTypographyProps={{
+                  fontWeight: n.read ? "normal" : "bold",
+                }}
               />
             </MenuItem>
           ))}
@@ -186,7 +207,10 @@ console.log("User from Redux:", user);
             aria-expanded={openUser ? "true" : undefined}
           >
             {user.avatarSrc ? (
-              <Avatar src={user.avatarSrc} alt={`${user.Firstname} ${user.lastName}`} />
+              <Avatar
+                src={user.avatarSrc}
+                alt={`${user.Firstname} ${user.lastName}`}
+              />
             ) : (
               <Avatar sx={{ width: 40, height: 40 }}>
                 <User size={18} strokeWidth={1.6} />
@@ -213,7 +237,12 @@ console.log("User from Redux:", user);
             {user.firstName} {user.lastName}
           </Box>
           <Divider />
-          <MenuItem onClick={() => { handleUserClose(); navigate("/profile"); }}>
+          <MenuItem
+            onClick={() => {
+              handleUserClose();
+              navigate("/profile");
+            }}
+          >
             <ListItemIcon>
               <User size={16} />
             </ListItemIcon>

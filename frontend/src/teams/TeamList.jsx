@@ -1,24 +1,74 @@
-import React, { useState } from 'react';
+// src/teams/TeamList.jsx
+import React, { useState, useEffect, useRef } from "react";
 import {
-  Box, Typography, Button, IconButton, TextField,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, Snackbar, Pagination, Menu, MenuItem, Checkbox
-} from '@mui/material';
-import { Edit, Delete, ArrowDropDown } from '@mui/icons-material';
-import { useGetTeamsQuery, useDeleteTeamMutation } from '../api/teamApi';
-import TeamFormDialog from './TeamFormDialog';
+  Box,
+  Typography,
+  Button,
+  IconButton,
+  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Snackbar,
+  Pagination,
+  Checkbox,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress,
+  Alert,
+  Tooltip,
+  Grow,
+} from "@mui/material";
+import { Edit, Delete, Add as AddIcon } from "@mui/icons-material";
+import { useGetTeamsQuery, useDeleteTeamMutation } from "../api/teamApi";
+import TeamFormDialog from "./TeamFormDialog";
+
+const pageSize = 10;
 
 const TeamList = () => {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [selectedTeam, setSelectedTeam] = useState(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '' });
+  const debounceRef = useRef(null);
 
-  const pageSize = 10;
-  const { data, isLoading, refetch } = useGetTeamsQuery({ page, page_size: pageSize, search });
-  const [deleteTeam] = useDeleteTeamMutation();
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [ordering, setOrdering] = useState("-created_at"); // default sorting
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+
+  const { data, isLoading, error, refetch } = useGetTeamsQuery({
+    page:1,
+    page_size: 10,
+    search: debouncedSearch,
+    ordering,
+  });
+
+  const [deleteTeam, { isLoading: deleting }] = useDeleteTeamMutation();
+  const teams = data?.results || [];
+  const total = data?.count || 0;
+
+  // Debounce search input
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [search]);
+
+  const handleSortChange = (e) => {
+    setOrdering(e.target.value);
+    setPage(1); // reset to first page on sort
+  };
 
   const handleEdit = (team) => {
     setSelectedTeam(team);
@@ -26,145 +76,180 @@ const TeamList = () => {
   };
 
   const handleDelete = async (id) => {
-    await deleteTeam(id);
-    setSnackbar({ open: true, message: 'Team deleted successfully' });
-    refetch();
+    try {
+      await deleteTeam(id).unwrap();
+      setSnackbar({ open: true, message: "Team deleted successfully", severity: "success" });
+      refetch();
+    } catch {
+      setSnackbar({ open: true, message: "Failed to delete team", severity: "error" });
+    }
   };
 
   const handleBulkDelete = async () => {
-    for (const id of selectedIds) await deleteTeam(id);
-    setSnackbar({ open: true, message: 'Selected teams deleted' });
-    setSelectedIds([]);
-    refetch();
+    try {
+      for (const id of selectedIds) await deleteTeam(id).unwrap();
+      setSnackbar({ open: true, message: "Selected teams deleted", severity: "success" });
+      setSelectedIds([]);
+      refetch();
+    } catch {
+      setSnackbar({ open: true, message: "Failed to delete selected teams", severity: "error" });
+    }
   };
 
   const handleCheckbox = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
   };
 
-  const totalPages = data?.total_pages || Math.ceil((data?.count || 0) / pageSize);
+  const formatDate = (date) =>
+    date
+      ? new Date(date).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+      : "—";
 
   return (
     <Box p={3}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5" fontWeight="bold">Team Management</Typography>
-        <Button
-          variant="contained"
-          onClick={() => {
-            setSelectedTeam(null);
-            setDialogOpen(true);
-          }}
-        >
-          Add Team
-        </Button>
-      </Box>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
+        <Typography variant="h5" fontWeight="bold" color="primary">
+          Team Management
+        </Typography>
 
-      <Box mb={2} display="flex" gap={2}>
-        <TextField
-          label="Search Team"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          fullWidth
-        />
-        {selectedIds.length > 0 && (
-          <Button variant="contained" color="error" onClick={handleBulkDelete}>
-            Delete Selected ({selectedIds.length})
+        <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+          {/* Sorting */}
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel>Sort By</InputLabel>
+            <Select value={ordering} label="Sort By" onChange={handleSortChange}>
+              <MenuItem value="-created_at">Latest Added</MenuItem>
+              <MenuItem value="name">Team Name (A-Z)</MenuItem>
+              <MenuItem value="-name">Team Name (Z-A)</MenuItem>
+              <MenuItem value="manager__name">Manager (A-Z)</MenuItem>
+              <MenuItem value="-manager__name">Manager (Z-A)</MenuItem>
+              <MenuItem value="head__name">Head (A-Z)</MenuItem>
+              <MenuItem value="-head__name">Head (Z-A)</MenuItem>
+              <MenuItem value="-updated_at">Recently Updated</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Search */}
+          <TextField size="small" label="Search Team" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Button variant="outlined" onClick={() => setSearch("")}>
+            Clear
           </Button>
-        )}
+
+          {/* Bulk Delete */}
+          {selectedIds.length > 0 && (
+            <Button variant="contained" color="error" onClick={handleBulkDelete} disabled={deleting}>
+              Delete Selected ({selectedIds.length})
+            </Button>
+          )}
+
+          {/* Add Team */}
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setSelectedTeam(null); setDialogOpen(true); }}>
+            Add Team
+          </Button>
+        </Box>
       </Box>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead sx={{ bgcolor: '#f5f5f5' }}>
-            <TableRow>
-              <TableCell padding="checkbox">
-                <Checkbox
-                  checked={
-                    selectedIds.length === data?.results?.length &&
-                    data?.results?.length > 0
-                  }
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedIds(data?.results.map((team) => team.id));
-                    } else {
-                      setSelectedIds([]);
-                    }
-                  }}
-                />
-              </TableCell>
-              <TableCell><strong>Team Name</strong></TableCell>
-              <TableCell><strong>Team Head</strong></TableCell>
-              <TableCell><strong>Shift</strong></TableCell>
-              <TableCell><strong>Created At</strong></TableCell>
-              <TableCell><strong>Updated At</strong></TableCell>
-              <TableCell align="right"><strong>Actions</strong></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {data?.results?.map((team) => (
-              <TableRow key={team.id}>
+      {/* Table */}
+      {isLoading ? (
+        <Box display="flex" justifyContent="center" mt={5}><CircularProgress /></Box>
+      ) : error ? (
+        <Box color="error.main" textAlign="center" mt={5}>Error loading teams. Please try again.</Box>
+      ) : (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead sx={{ bgcolor: "#f5f5f5" }}>
+              <TableRow>
                 <TableCell padding="checkbox">
                   <Checkbox
-                    checked={selectedIds.includes(team.id)}
-                    onChange={() => handleCheckbox(team.id)}
+                    checked={selectedIds.length === teams.length && teams.length > 0}
+                    indeterminate={selectedIds.length > 0 && selectedIds.length < teams.length}
+                    onChange={(e) => { e.target.checked ? setSelectedIds(teams.map((t) => t.id)) : setSelectedIds([]); }}
                   />
                 </TableCell>
-                <TableCell>{team.name}</TableCell>
-                <TableCell>{team.head_name || 'N/A'}</TableCell>
-                <TableCell>{team.shift_name || 'N/A'}</TableCell>
-                <TableCell>{new Date(team.created_at).toLocaleString()}</TableCell>
-                <TableCell>{new Date(team.updated_at).toLocaleString()}</TableCell>
-                <TableCell align="right">
-                  <IconButton onClick={() => handleEdit(team)}>
-                    <Edit />
-                  </IconButton>
-                  <IconButton onClick={() => handleDelete(team.id)} color="error">
-                    <Delete />
-                  </IconButton>
-                </TableCell>
+                <TableCell><strong>Name</strong></TableCell>
+                <TableCell><strong>Team Manager</strong></TableCell>
+                <TableCell><strong>Team Head</strong></TableCell>
+                <TableCell><strong>Shift</strong></TableCell>
+                <TableCell><strong>Created At</strong></TableCell>
+                <TableCell><strong>Updated At</strong></TableCell>
+                <TableCell align="right"><strong>Actions</strong></TableCell>
               </TableRow>
-            ))}
-            {data?.results?.length === 0 && !isLoading && (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                  No teams found.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {teams.length > 0 ? (
+                teams.map((team) => (
+                  <Grow in key={team.id} timeout={300}>
+                    <TableRow hover>
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={selectedIds.includes(team.id)}
+                          onChange={() => handleCheckbox(team.id)}
+                        />
+                      </TableCell>
+                      <TableCell>{team.name}</TableCell>
+                      <TableCell>{team.manager_name || "—"}</TableCell>
+                      <TableCell>{team.head_name || "—"}</TableCell>
+                      <TableCell>{team.shift_name || "—"}</TableCell>
+                      <TableCell>{formatDate(team.created_at)}</TableCell>
+                      <TableCell>{formatDate(team.updated_at)}</TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Edit">
+                          <IconButton onClick={() => handleEdit(team)}>
+                            <Edit color="primary" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton onClick={() => handleDelete(team.id)} color="error">
+                            <Delete />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  </Grow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={8} align="center">No teams found.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
-      <Box mt={2} display="flex" justifyContent="center">
+      {/* Pagination */}
+      <Box mt={2} display="flex" justifyContent="flex-end">
         <Pagination
-          count={totalPages}
+          count={Math.ceil(total / pageSize)}
           page={page}
-          onChange={(e, value) => setPage(value)}
+          onChange={(_, newPage) => setPage(newPage)}
           color="primary"
+          shape="rounded"
+          showFirstButton
+          showLastButton
+          disabled={isLoading}
         />
       </Box>
 
+      {/* Add/Edit Dialog */}
       <TeamFormDialog
         open={dialogOpen}
         handleClose={() => setDialogOpen(false)}
         team={selectedTeam}
-        onSave={() => {
-          setDialogOpen(false);
-          refetch();
-        }}
+        onSave={() => { setDialogOpen(false); refetch(); }}
       />
 
+      {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
-        onClose={() => setSnackbar({ open: false, message: '' })}
         autoHideDuration={3000}
-        message={snackbar.message}
-      />
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

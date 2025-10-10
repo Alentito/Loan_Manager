@@ -1,5 +1,5 @@
-// src/components/leaves/LeaveRequestForm.js
-import React, { useState } from 'react';
+// src/components/leaves/LeaveRequestForm.jsx
+import React, { useState, useMemo } from "react";
 import {
   TextField,
   Button,
@@ -9,99 +9,140 @@ import {
   Paper,
   Snackbar,
   Alert,
-} from '@mui/material';
-import { useSubmitLeaveRequestMutation } from '../redux/leaveApi';
-import { useNavigate } from 'react-router-dom';
-import { getUserRole } from '../../utils/authUtils';
+} from "@mui/material";
+import { useSubmitLeaveRequestMutation } from "../api/leaveApi";
+import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 
-const leaveTypes = [
-  'Casual Leave',
-  'Sick Leave',
-  'Earned Leave',
-  'Maternity Leave',
-  'Paternity Leave',
-  'Unpaid Leave',
-];
+// --- Helpers ---
+// Parse YYYY-MM-DD string to JS Date (UTC midnight → CST-safe)
+const parseCSTDate = (dateString) => {
+  if (!dateString) return null;
+  const [year, month, day] = dateString.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+};
+
+// Format JS Date to YYYY-MM-DD string in CST
+
 
 const LeaveRequestForm = () => {
-  const role = getUserRole();
   const navigate = useNavigate();
+  const user = useSelector((state) => state.auth.user);
+  const permissions = useMemo(() => user?.permissions || [], [user]);
+
+  const canRequestLeave = permissions.includes("employee.add_leaverequests");
+  const isReviewer =
+    permissions.includes("employee.approve_leave") ||
+    permissions.includes("employee.deny_leave");
+
+  // --- CST Today ---
+  const todayCST = useMemo(() => {
+    const nowUtc = new Date();
+    return nowUtc.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+  }, []);
 
   const [form, setForm] = useState({
-    leave_type: '',
-    start_date: '',
-    end_date: '',
-    reason: '',
+  
+    start_date: todayCST,
+    end_date: todayCST,
+    reason: "",
+  });
+
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
   });
 
   const [submitLeaveRequest, { isLoading }] = useSubmitLeaveRequestMutation();
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // ❌ Team Manager not allowed to request leave
-  if (role === 'team_manager') {
+  // --- Permission handling ---
+  if (!canRequestLeave) {
+    const message = isReviewer
+      ? "You are authorized only to review leave requests. Requesting new leave is not permitted."
+      : "You don’t have permission to request leave.";
     return (
       <Box mt={4} textAlign="center">
-        <Typography color="error">Team Managers are not allowed to request leave.</Typography>
+        <Typography color="error" variant="h6">
+          {message}
+        </Typography>
       </Box>
     );
   }
 
+  // --- Handlers ---
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
+
+  const handleCloseSnackbar = () => setSnackbar((prev) => ({ ...prev, open: false }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const { start_date, end_date, reason } = form;
 
-    if (!form.leave_type || !form.start_date || !form.end_date || !form.reason) {
-      setSnackbar({
+    // Validation
+    if (!start_date || !end_date || !reason) {
+      return setSnackbar({
         open: true,
-        message: 'Please fill in all fields',
-        severity: 'error',
+        message: "⚠️ Please fill in all fields.",
+        severity: "error",
       });
-      return;
+    }
+
+    const start = parseCSTDate(start_date);
+    const end = parseCSTDate(end_date);
+
+    if (end < start) {
+      return setSnackbar({
+        open: true,
+        message: "⚠️ End date cannot be earlier than start date.",
+        severity: "error",
+      });
     }
 
     try {
-      await submitLeaveRequest(form).unwrap();
+      await submitLeaveRequest({
+        ...form,
+        start_date: form.start_date,
+        end_date: form.end_date,
+      }).unwrap();
+
       setSnackbar({
         open: true,
-        message: 'Leave request submitted successfully!',
-        severity: 'success',
+        message: "✅ Leave request submitted successfully!",
+        severity: "success",
       });
-      setForm({ leave_type: '', start_date: '', end_date: '', reason: '' });
-      
+
+      setForm({
+        start_date: todayCST,
+        end_date: todayCST,
+        reason: "",
+      });
+
+      setTimeout(() => navigate("/leaves/my-requests"), 1200);
     } catch (err) {
-      setSnackbar({
-        open: true,
-        message: 'Failed to submit leave request',
-        severity: 'error',
-      });
+      const errorMessage =
+        err?.data?.non_field_errors?.[0] ||
+        err?.data?.start_date?.[0] ||
+        err?.data?.end_date?.[0] ||
+        err?.data?.error ||
+        "❌ Failed to submit leave request (possibly duplicate or invalid dates).";
+
+      setSnackbar({ open: true, message: errorMessage, severity: "error" });
     }
   };
 
   return (
-    <Box sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
+    <Box sx={{ maxWidth: 500, mx: "auto", mt: 4 }}>
       <Paper elevation={3} sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>
           Leave Request Form
         </Typography>
+
         <form onSubmit={handleSubmit}>
-          <TextField
-            select
-            name="leave_type"
-            label="Leave Type"
-            fullWidth
-            value={form.leave_type}
-            onChange={handleChange}
-            margin="normal"
-          >
-            {leaveTypes.map((type) => (
-              <MenuItem key={type} value={type}>
-                {type}
-              </MenuItem>
-            ))}
-          </TextField>
+        
           <TextField
             name="start_date"
             label="Start Date"
@@ -112,6 +153,7 @@ const LeaveRequestForm = () => {
             margin="normal"
             InputLabelProps={{ shrink: true }}
           />
+
           <TextField
             name="end_date"
             label="End Date"
@@ -122,6 +164,7 @@ const LeaveRequestForm = () => {
             margin="normal"
             InputLabelProps={{ shrink: true }}
           />
+
           <TextField
             name="reason"
             label="Reason"
@@ -132,6 +175,7 @@ const LeaveRequestForm = () => {
             onChange={handleChange}
             margin="normal"
           />
+
           <Button
             type="submit"
             variant="contained"
@@ -140,7 +184,7 @@ const LeaveRequestForm = () => {
             disabled={isLoading}
             sx={{ mt: 2 }}
           >
-            Submit Request
+            {isLoading ? "Submitting..." : "Submit Request"}
           </Button>
         </form>
       </Paper>
@@ -148,9 +192,10 @@ const LeaveRequestForm = () => {
       <Snackbar
         open={snackbar.open}
         autoHideDuration={3000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        onClose={handleCloseSnackbar}
       >
-        <Alert severity={snackbar.severity} variant="filled">
+        <Alert severity={snackbar.severity} variant="filled" sx={{ width: "100%" }}>
           {snackbar.message}
         </Alert>
       </Snackbar>

@@ -1,6 +1,7 @@
+//// filepath: /Users/alentito/Documents/work/web/Loan_Manager/frontend/src/layout/Sidebar.jsx
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import React from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import {
   LayoutDashboard,
   Wallet,
@@ -20,21 +21,26 @@ import {
 } from "lucide-react";
 import { useLogoutMutation } from "../api/authApi";
 import { useTheme } from "@mui/material/styles";
+import { useChicagoTime } from "../hooks/useChicagoTime";
+
 
 export default function Sidebar() {
   const { isAuthenticated, user } = useSelector((s) => s.auth);
   const [logout] = useLogoutMutation();
   const location = useLocation();
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
+  const { time, period } = useChicagoTime();
 
   if (!isAuthenticated) return null;
+
+  
 
   const userPermissions = user?.permissions || [];
   const isActive = (path) => location.pathname === path;
 
+  // Use only lucide-react icons (no Fa*). Keep icon as component, not JSX.
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "loan.view_loan" },
     { path: "/loan-management", label: "Loan Management", icon: Wallet, permission: "loan.view_loan" },
@@ -49,11 +55,17 @@ export default function Sidebar() {
     { path: "/role-management", label: "Role Management", icon: UsersRound, permission: "auth.view_group" },
     { path: "/teams", label: "Teams", icon: Users, permission: "employee.view_team" },
     { path: "/shifts", label: "Shifts", icon: Clock, permission: "employee.view_shift" },
-    { path: "/attendance", label: "Attendance", icon: CalendarCheck2, permission: "employee.view_attendance" },
+    { path: "/attendance", label: "Attendance", icon: ClipboardList, permission: "employee.view_attendance" },
     { path: "/leaves/my-requests", label: "My Leaves", icon: ClipboardList, permission: "employee.view_leaverequests" },
-    { path: "/admin/meetings", label: "Meetings", icon: ClipboardList, permission: "employee.view_meeting" },
-    { path: "/admin/holidays", label: "Holidays", icon: ClipboardList, permission: "employee.view_publicholiday" },
-    { path: "/admin/leave-approvals", label: "Leave Approvals", icon: ClipboardList, permission: "employee.view_leaverequests" },
+    { path: "/leaves/request", label: "Leave Request", icon: ClipboardList, permission: "employee.add_leaverequests" },
+    { path: "/admin/leave-approvals", label: "Leave Approvals", icon: ClipboardList, permission: "employee.approve_leave" },
+    { path: "/admin/holidays", label: "Holidays", icon: CalendarCheck2, permission: "employee.view_publicholiday" },
+    { path: "/lenders", label: "Lenders", icon: Building2, permission: "employee.view_lender" },
+    { path: "/attendance/summary", label: "Monthly Summary", icon: ClipboardList, permission: "employee.view_attendancesummary" },
+    { path: "/tokens/my-tokens", label: "My Tokens", icon: ClipboardList, permission: "employee.view_tokens" },
+    { path: "/admin/token-approvals", label: "Token Approvals", icon: ClipboardList, permission: "employee.approve_tokens" },
+    { path: "/token/new", label: "Request Token", icon: ClipboardList, permission: "employee.add_employeetoken" },
+    { path: "/breaks", label: "Breaks", icon: Clock, permission: null },
   ];
 
   const filteredNavItems = navItems.filter(
@@ -109,8 +121,12 @@ export default function Sidebar() {
 
   return (
     <aside className={`${asideBase} ${asideTone}`}>
-      <div className={`px-4 py-5 border-b ${sectionBorder}`}>
-        <div className="text-xl font-semibold tracking-tight">Entregar Solutions</div>
+      <div className="p-4">
+        <h1 className="text-2xl font-bold">Entregar Solutions</h1>
+        <div className="mt-2 flex items-center text-sm text-gray-200">
+          <Clock className="mr-2" size={16} />
+          <span>{time || "Loading..."} {period && `${period} CST`}</span>
+        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">

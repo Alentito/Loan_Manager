@@ -1,3 +1,4 @@
+// src/components/EmployeeForm.js
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -6,20 +7,15 @@ import {
   TextField,
   CircularProgress,
   MenuItem,
-  Checkbox,
-  ListItemText,
   Select,
   InputLabel,
   FormControl,
 } from "@mui/material";
+import { Autocomplete } from "@mui/material"; // for alternate shift
 import { toast } from "react-hot-toast";
-import { useGetGroupsQuery } from "../api/authApi"; // <-- Import your RTK Query hook
-
-const statusOptions = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "on_leave", label: "On Leave" },
-];
+import { useGetGroupsQuery } from "../api/authApi";
+import { useGetTeamsQuery, useGetTeamByIdQuery } from "../api/teamApi";
+import { useGetShiftsQuery } from "../api/shiftApi";
 
 const EmployeeForm = ({
   existingData = {},
@@ -34,37 +30,50 @@ const EmployeeForm = ({
     name: "",
     company_email: "",
     contact_number: "",
-    roles: [], // <-- Use array for selected group IDs
-    status: "active",
+    roles: "", // Role IDs
     login_password: "",
-    bank_name: "",
-    account_number: "",
-    bank_details: "",
-    address: "",
-    experience_months: "",
-    performance_score: "",
-    date_of_join: "",
-    leave_balance: "",
+    team: "",
+    shift: "",
+    alternate_shift: "", // NEW field
   });
 
   const [localErrors, setLocalErrors] = useState({});
 
-  // Fetch groups/roles from API
-  const { data: groupsData = [], isLoading: loadingGroups } =
-    useGetGroupsQuery();
-  const groups = Array.isArray(groupsData)
-    ? groupsData
-    : groupsData.results || [];
+  // Teams & Shifts
+  const { data: teamData, isLoading: teamLoading } = useGetTeamsQuery({ page: 1, page_size: 100 });
+  const teams = teamData?.results || [];
 
+  const { data: shiftData, isLoading: shiftLoading } = useGetShiftsQuery({ page: 1, page_size: 100 });
+  const shifts = shiftData?.results || [];
+
+  // Get single team (to auto-select shift)
+  const { data: selectedTeamData } = useGetTeamByIdQuery(formData.team, {
+    skip: !formData.team,
+  });
+
+  // Groups (roles)
+  const { data: groupsData = [], isLoading: loadingGroups } = useGetGroupsQuery();
+  const groups = Array.isArray(groupsData) ? groupsData : groupsData.results || [];
+
+  // Pre-fill form when editing
   useEffect(() => {
-    if (existingData) {
-      setFormData((prev) => ({
-        ...prev,
-        ...existingData,
-        roles: existingData.roles || [],
-      }));
-    }
+    if (!existingData || !Object.keys(existingData).length) return;
+    setFormData((prev) => ({
+      ...prev,
+      ...existingData,
+      roles: existingData.roles || [],
+      team: existingData.team || "",
+      shift: existingData.shift || "",
+      alternate_shift: existingData.alternate_shift || "",
+    }));
   }, [existingData]);
+
+  // Auto-select shift when team changes
+  useEffect(() => {
+    if (selectedTeamData?.shift) {
+      setFormData((prev) => ({ ...prev, shift: selectedTeamData.shift }));
+    }
+  }, [selectedTeamData]);
 
   const clearFieldError = (field) => {
     if (localErrors[field]) {
@@ -90,7 +99,8 @@ const EmployeeForm = ({
       "company_email",
       "contact_number",
       "roles",
-      "status",
+      "team",
+      "shift",
     ];
 
     requiredFields.forEach((field) => {
@@ -132,16 +142,10 @@ const EmployeeForm = ({
       company_email: "",
       contact_number: "",
       roles: [],
-      status: "active",
       login_password: "",
-      bank_name: "",
-      account_number: "",
-      bank_details: "",
-      address: "",
-      experience_months: "",
-      performance_score: "",
-      date_of_join: "",
-      leave_balance: "",
+      team: "",
+      shift: "",
+      alternate_shift: "",
     });
     setLocalErrors({});
   };
@@ -161,39 +165,37 @@ const EmployeeForm = ({
     />
   );
 
-  // Render roles as multi-select
   const renderRolesField = () => (
-  <FormControl fullWidth error={!!getError("roles")} sx={{ mb: 2, width: "100%" }}>
-    <InputLabel id="roles-label">Role</InputLabel>
-    <Select
-      labelId="roles-label"
-      label="Roles"
-      fullWidth
-      value={formData.roles[0] || ""}
-      onChange={(e) => handleChange("roles", [e.target.value])}
-      disabled={submitting || loadingGroups}
-      sx={{ width: "100%" }}             // <- ensure full width
-      MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}
-    >
-      {loadingGroups ? (
-        <MenuItem disabled>Loading...</MenuItem>
-      ) : (
-        groups.map((group) => (
-          <MenuItem key={group.id} value={group.id}>
-            {group.name}
-          </MenuItem>
-        ))
+    <FormControl fullWidth error={!!getError("roles")} sx={{ mb: 2 }}>
+      <InputLabel id="roles-label">Role</InputLabel>
+      <Select
+        labelId="roles-label"
+        label="Roles"
+        fullWidth
+        value={formData.roles || ""}
+        onChange={(e) => handleChange("roles", [e.target.value])}
+        disabled={submitting || loadingGroups}
+        MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}
+        sx={{ minWidth: 250 }}
+      >
+        {loadingGroups ? (
+          <MenuItem disabled>Loading...</MenuItem>
+        ) : (
+          groups.map((group) => (
+            <MenuItem key={group.id} value={group.id}>
+              {group.name}
+            </MenuItem>
+          ))
+        )}
+      </Select>
+
+      {getError("roles") && (
+        <Box color="error.main" fontSize={12} mt={0.5}>
+          {getError("roles")}
+        </Box>
       )}
-    </Select>
-
-    {getError("roles") && (
-      <Box color="error.main" fontSize={12} mt={0.5}>
-        {getError("roles")}
-      </Box>
-    )}
-  </FormControl>
-);
-
+    </FormControl>
+  );
 
   return (
     <Box component="form" noValidate onSubmit={handleSubmit}>
@@ -215,57 +217,94 @@ const EmployeeForm = ({
           {renderRolesField()}
         </Grid>
 
+        {/* Team Dropdown */}
         <Grid item xs={12} sm={6}>
-          <TextField
-            select
-            label="Status"
-            fullWidth
-            value={formData.status}
-            onChange={(e) => handleChange("status", e.target.value)}
-            error={!!getError("status")}
-            helperText={getError("status")}
-            disabled={submitting}
-          >
-            {statusOptions.map((opt) => (
-              <MenuItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </MenuItem>
-            ))}
-          </TextField>
+          <FormControl fullWidth error={!!getError("team")}>
+            <InputLabel id="team-label">Team</InputLabel>
+            <Select
+              labelId="team-label"
+              label="Team"
+              value={formData.team || ""}
+              onChange={(e) => handleChange("team", e.target.value)}
+              disabled={submitting || teamLoading}
+              sx={{ minWidth: 250 }}
+              fullWidth
+            >
+              {teamLoading ? (
+                <MenuItem disabled>Loading...</MenuItem>
+              ) : (
+                teams.map((team) => (
+                  <MenuItem key={team.id} value={team.id}>
+                    {team.name}
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+            {getError("team") && (
+              <Box color="error.main" fontSize={12} mt={0.5}>
+                {getError("team")}
+              </Box>
+            )}
+          </FormControl>
         </Grid>
 
+        {/* Shift Dropdown (auto-populated from team) */}
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth error={!!getError("shift")}>
+            <InputLabel id="shift-label">Shift</InputLabel>
+            <Select
+              labelId="shift-label"
+              label="Shift"
+              value={formData.shift || ""}
+              onChange={(e) => handleChange("shift", e.target.value)}
+              disabled={submitting || shiftLoading}
+              sx={{ minWidth: 250 }}
+            >
+              {shiftLoading ? (
+                <MenuItem disabled>Loading...</MenuItem>
+              ) : (
+                shifts.map((shift) => (
+                  <MenuItem key={shift.id} value={shift.id}>
+                    {shift.name}
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+            {getError("shift") && (
+              <Box color="error.main" fontSize={12} mt={0.5}>
+                {getError("shift")}
+              </Box>
+            )}
+          </FormControl>
+        </Grid>
+
+        {/* Alternate Shift (free text + dropdown) */}
+        {/* Alternate Shift (Autocomplete but stores ID) 
+<Grid item xs={12} sm={6}>
+  <Autocomplete
+    options={shifts}
+    getOptionLabel={(option) => option.name || ""}
+    value={shifts.find((s) => s.id === formData.alternate_shift) || null}
+    onChange={(e, newValue) => {
+      handleChange("alternate_shift", newValue ? newValue.id : "");
+    }}
+    renderInput={(params) => (
+      <TextField
+        {...params}
+        label="Alternate Shift"
+        fullWidth
+        error={!!getError("alternate_shift")}
+        helperText={getError("alternate_shift")}
+        sx={{ minWidth: 250 }}
+      />
+    )}
+    disabled={submitting}
+  />
+</Grid>
+
+*/}
         <Grid item xs={12} sm={6}>
           {renderTextField("login_password", "Login Password")}
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          {renderTextField("bank_name", "Bank Name")}
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          {renderTextField("account_number", "Account Number")}
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          {renderTextField("bank_details", "Bank Details")}
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          {renderTextField("address", "Address")}
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          {renderTextField(
-            "experience_months",
-            "Experience (Months)",
-            "number"
-          )}
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          {renderTextField("performance_score", "Performance Score", "number")}
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          {renderTextField("date_of_join", "Date of Joining", "date")}
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          {renderTextField("leave_balance", "Leave Balance", "number", {
-            disabled: true,
-          })}
         </Grid>
 
         <Grid item xs={12}>
@@ -294,3 +333,4 @@ const EmployeeForm = ({
 };
 
 export default EmployeeForm;
+

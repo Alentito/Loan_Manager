@@ -1,247 +1,309 @@
-import React, { useState } from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-} from '@mui/material';
-import toast from 'react-hot-toast';
-import AttendanceDialog from './AttendanceDialog';
-import AttendanceCalendar from './AttendanceCalendar';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { Box, Typography, Paper } from "@mui/material";
+import toast from "react-hot-toast";
+import { useDispatch, useSelector } from "react-redux";
+import { useParams } from "react-router-dom";
+
+import AttendanceDialog from "./AttendanceDialog";
+import AttendanceCalendar from "./AttendanceCalendar";
+import { setAuthenticated } from "../api/authSlice";
 
 import {
   useGetEmployeeAttendanceQuery,
   useMarkAttendanceMutation,
-} from '../redux/employeeApi';
-import { useGetHolidaysQuery } from '../redux/holidayApi';
-import { useGetMeetingsQuery } from '../redux/meetingApi';
+  useGetAttendanceSummaryQuery,
 
-const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
-const todayStr = new Date().toISOString().split('T')[0];
-const isWeekend = (dateStr) => {
-  const day = new Date(dateStr).getDay();
-  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+} from "../api/attendanceApi";
+import { useGetHolidaysQuery } from "../api/holidayApi";
+import { useGetMeetingsQuery } from "../api/meetingApi";
+import { useGetEmployeeByIdQuery } from "../api/employeeApi";
+import { useGetEmployeeBreaksQuery, useGetTotalBreakTimeQuery } from "../api/breakApi";
+
+// ---------------------- helpers ----------------------
+const formatToCSTDate = (input) => {
+  if (!input) return null;
+  if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+  const d = input instanceof Date ? input : new Date(input);
+  if (isNaN(d)) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  return `${parts.find(p => p.type === "year").value}-${parts.find(p => p.type === "month").value}-${parts.find(p => p.type === "day").value}`;
 };
 
+const isWeekendFromDateStr = (dateStr) => {
+  if (!dateStr) return false;
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const dUTCNoon = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short" }).format(dUTCNoon);
+  return weekday === "Sat" || weekday === "Sun";
+};
+
+const formatSecondsToHHMMSS = (totalSeconds) => {
+  if (!totalSeconds) return "00:00:00";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+};
+
+// ---------------------- component ----------------------
 const AttendancePage = () => {
-  const navigate = useNavigate();
-  const employee = JSON.parse(localStorage.getItem('employeeData'));
-  const employeeId = employee?.id;
+  const { employeeId: routeEmployeeId } = useParams();
+  const { user: authUser, attendance: todayAttendance } = useSelector(s => s.auth);
+  const dispatch = useDispatch();
 
-  const currentDate = new Date();
-  const currentMonthNumber = currentDate.getMonth() + 1; // 1-12
-  const currentYearNumber = currentDate.getFullYear();
+  const loggedInEmployee = authUser?.employee;
+  const routeEmpId = routeEmployeeId ? parseInt(routeEmployeeId, 10) : null;
 
-  console.log("Current Employee ID:", employeeId);
+  // Selected employee (logged-in or from route)
+  const employeeIdToFetch = routeEmpId || loggedInEmployee?.id;
 
-  const { data: attendance = [], isLoading } = useGetEmployeeAttendanceQuery(
-    {
-      employeeId: employeeId,
-      month: currentMonthNumber,
-      year: currentYearNumber,
-    },
-    { skip: !employeeId }
+  // Employee profile
+  const { data: employeeData } = useGetEmployeeByIdQuery(employeeIdToFetch, {
+    skip: !employeeIdToFetch,
+  });
+  
+  // ---------------------- Attendance summary ----------------------
+
+
+
+  const displayedEmployee = useMemo(() => {
+    if (employeeData) return employeeData;
+    if (loggedInEmployee && !routeEmpId) return loggedInEmployee;
+    return { id: employeeIdToFetch, name: `Employee ${employeeIdToFetch}` };
+  }, [employeeData, loggedInEmployee, routeEmpId, employeeIdToFetch]);
+
+  const now = new Date();
+  const todayStr = formatToCSTDate(now);
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+
+  // ---------------------- API calls ----------------------
+  const { data: attendance = [], isLoading, refetch } = useGetEmployeeAttendanceQuery(
+    { employeeId: employeeIdToFetch, month, year },
+    { skip: !employeeIdToFetch }
   );
 
-  console.log("Attendance API Response:", attendance);
+  const { data: attendanceSummary } = useGetAttendanceSummaryQuery(
+    { employeeId: employeeIdToFetch, year },
+    { skip: !employeeIdToFetch }
+  );
 
   const { data: allHolidayData } = useGetHolidaysQuery({ page: 1, pageSize: 9999 });
   const { data: meetings = [] } = useGetMeetingsQuery();
   const [markAttendance] = useMarkAttendanceMutation();
 
   const allHolidays = allHolidayData?.holidays ?? [];
-  const alreadyMarked = attendance.some((a) => a.date === todayStr);
+
+  // ---------------------- Breaks ----------------------
+  const breakQueryArgs = useMemo(() => ({
+    employeeId: employeeIdToFetch,
+    month,
+    year
+  }), [employeeIdToFetch, month, year]);
+
+  const { data: breakDataRaw = [], refetch: refetchBreaks } = useGetEmployeeBreaksQuery(
+    breakQueryArgs,
+    { refetchOnMountOrArgChange: true }
+  );
+
+  const { data: totalBreakData = {}, refetch: refetchTotalBreakTime } = useGetTotalBreakTimeQuery(
+    breakQueryArgs,
+    { skip: !employeeIdToFetch, refetchOnMountOrArgChange: true }
+  );
+
+  const breakData = useMemo(() => {
+    if (!breakDataRaw) return [];
+    return Array.isArray(breakDataRaw) ? breakDataRaw : breakDataRaw?.results ?? [];
+  }, [breakDataRaw]);
+
+  const getBreaksForDate = useCallback(
+    dateStr => breakData.filter(b => formatToCSTDate(b.start_time) === dateStr),
+    [breakData]
+  );
+
+  useEffect(() => {
+    if (employeeIdToFetch) {
+      refetchBreaks();
+      refetchTotalBreakTime();
+    }
+  }, [employeeIdToFetch, month, year, refetchBreaks, refetchTotalBreakTime]);
+
+
+  const leaveBalance = useMemo(() => attendanceSummary?.leave_balance ?? 0, [attendanceSummary]);
+  const yearlyLateHHMMSS = useMemo(() => {
+  if (!attendanceSummary?.yearly_late_seconds) return "00:00:00";
+  return formatSecondsToHHMMSS(attendanceSummary.yearly_late_seconds);
+}, [attendanceSummary]);
+
+  // ---------------------- Attendance summary ----------------------
+  const {
+    totalPresent, totalLate, totalPaidLeave, totalUnpaidLeave, totalAbsent, totalEarly
+  } = useMemo(() => {
+    const holidaySet = new Set(allHolidays.map(h => formatToCSTDate(h.date)).filter(Boolean));
+    const attendanceMap = new Map(attendance.map(a => [formatToCSTDate(a.date), a.status?.toUpperCase()]).filter(([k]) => !!k));
+
+    let present = 0, late = 0, paidLeave = 0, unpaidLeave = 0, absent = 0, early = 0;
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const employeeCreationStr = formatToCSTDate(displayedEmployee?.created_at);
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = formatToCSTDate(new Date(Date.UTC(year, month - 1, d, 12)));
+      if (!dateStr) continue;
+      const isFuture = dateStr > todayStr;
+      const status = attendanceMap.get(dateStr);
+      if (status) {
+        if (status === "PRESENT") present++;
+        else if (status === "LATE") late++;
+        else if (status === "ON_LEAVE" || status === "PAID_LEAVE") paidLeave++;
+        else if (status === "UNPAID_LEAVE") unpaidLeave++;
+        else if (status === "ABSENT") absent++;
+        else if (status === "EARLY") early++;
+      } else if (
+  !isWeekendFromDateStr(dateStr) &&
+  !holidaySet.has(dateStr) &&
+  !isFuture &&
+  (!employeeCreationStr || dateStr >= employeeCreationStr)
+) {
+  absent++;
+}
+    }
+    return {
+      totalPresent: present,
+      totalLate: late,
+      totalPaidLeave: paidLeave,
+      totalUnpaidLeave: unpaidLeave,
+      totalAbsent: absent,
+      totalEarly: early
+    };
+  }, [attendance, allHolidays, month, year, todayStr]);
+
+  const totalBreakHHMMSS = useMemo(() => {
+    if (!totalBreakData?.total_break_seconds) return "00:00:00";
+    return formatSecondsToHHMMSS(totalBreakData.total_break_seconds);
+  }, [totalBreakData]);
+
+  const holidayCount = useMemo(() => {
+    return allHolidays.filter(h => {
+      const d = formatToCSTDate(h.date);
+      if (!d) return false;
+      const [y, m] = d.split("-");
+      return parseInt(y, 10) === year && parseInt(m, 10) === month;
+    }).length;
+  }, [allHolidays, month, year]);
+
+  const alreadyMarked = (todayAttendance && formatToCSTDate(todayAttendance.date) === todayStr) ||
+    attendance.some(a => formatToCSTDate(a.date) === todayStr);
+
+  // ---------------------- Handlers ----------------------
+  const handleMarkToday = useCallback(async () => {
+    if (alreadyMarked) return toast.error("Already marked today");
+    try {
+      const today = await markAttendance({ employee: employeeIdToFetch, date: todayStr }).unwrap();
+      dispatch(setAuthenticated({ user: authUser, attendance: today }));
+      toast.success("Attendance marked for today");
+      refetch();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to mark attendance");
+    }
+  }, [alreadyMarked, authUser, employeeIdToFetch, markAttendance, dispatch, refetch, todayStr]);
+  console.log("Fetching breaks for employee:", employeeIdToFetch);
+
+  const handleDateClick = useCallback(dateStr => {
+    const att = attendance.find(a => formatToCSTDate(a.date) === dateStr);
+    const holiday = allHolidays.find(h => formatToCSTDate(h.date) === dateStr);
+    const dayMeetings = meetings.filter(m => formatToCSTDate(m.date) === dateStr);
+    const dayBreaks = getBreaksForDate(dateStr);
+    const dayTotalBreak = formatSecondsToHHMMSS(dayBreaks.reduce((sum, b) => b.end_time ? sum + (new Date(b.end_time) - new Date(b.start_time)) / 1000 : sum, 0));
+
+    let status = att?.status;
+const isHoliday = !!holiday;
+const isFuture = dateStr > todayStr;
+const employeeCreationStr = formatToCSTDate(displayedEmployee?.created_at);
+
+// Only mark absent if date is after employee creation
+if (
+  !status &&
+  !isHoliday &&
+  !isWeekendFromDateStr(dateStr) &&
+  !isFuture &&
+  (!employeeCreationStr || dateStr >= employeeCreationStr)
+) {
+  status = "ABSENT";
+}
+
+    setSelectedDateInfo({ date: dateStr, attendance: { status }, holiday, meetings: dayMeetings, breaks: dayBreaks, totalBreak: dayTotalBreak });
+    setDialogOpen(true);
+  }, [attendance, allHolidays, meetings, todayStr, getBreaksForDate]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDateInfo, setSelectedDateInfo] = useState({});
+  const [filter, setFilter] = useState(null);
 
-  // Monthly summary
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-
-  const isCurrentMonth = (dateStr) => {
-    const d = new Date(dateStr);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  };
-
-  // Attendance summary counts
-  const totalPresent = attendance.filter(
-    (a) => a.status === 'present' && isCurrentMonth(a.date)
-  ).length;
-
-  const totalLate = attendance.filter(
-    (a) => a.status === 'late' && isCurrentMonth(a.date)
-  ).length;
-
-  const totalLeave = attendance.filter(
-    (a) => a.status === 'leave' && isCurrentMonth(a.date)
-  ).length;
-
-  // Calculate Absent including unmarked working days
-  const totalAbsent = (() => {
-    const holidaySet = new Set(allHolidays.map((h) => new Date(h.date).toISOString().split('T')[0]));
-    const attendanceDates = new Set(
-      attendance
-        .filter((a) => isCurrentMonth(a.date))
-        .map((a) => new Date(a.date).toISOString().split('T')[0])
-    );
-
-    const today = new Date();
-    const monthStart = new Date(currentYear, currentMonth, 1);
-    const monthEnd = new Date(currentYear, currentMonth + 1, 0);
-
-    let count = 0;
-    for (let d = new Date(monthStart); d <= monthEnd; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
-      const isWeekendDay = d.getDay() === 0 || d.getDay() === 6;
-      const isHoliday = holidaySet.has(dateStr);
-      const isFuture = d > today;
-      const hasAttendance = attendanceDates.has(dateStr);
-
-      if (!isWeekendDay && !isHoliday && !isFuture && !hasAttendance) {
-        count++;
-      }
-    }
-    return count;
-  })();
-
-  const handleMarkToday = async () => {
-    if (alreadyMarked) return toast.error('Already marked today');
-    try {
-      await markAttendance({ employee: employeeId }).unwrap();
-      toast.success('Attendance marked for today');
-    } catch {
-      toast.error('Failed to mark attendance');
-    }
-  };
-
-  const handleDateClick = (dateStr) => {
-    const att = attendance.find(
-      (a) => new Date(a.date).toISOString().split('T')[0] === dateStr
-    );
-    const allholiday = allHolidays.find(
-      (h) => new Date(h.date).toISOString().split('T')[0] === dateStr
-    );
-    const dayMeetings = meetings.filter(
-      (m) => new Date(m.date).toISOString().split('T')[0] === dateStr
-    );
-
-    setSelectedDateInfo({
-      date: dateStr,
-      attendance: att,
-      holiday: allholiday,
-      meetings: dayMeetings,
-    });
-    setDialogOpen(true);
-  };
-
+  // ---------------------- Render ----------------------
   return (
-    <Box sx={{ bgcolor: '#f4f6f8', minHeight: '100vh', py: 4 }}>
-      <Paper sx={{ maxWidth: 900, mx: 'auto', p: 4, borderRadius: 2 }}>
+    <Box sx={{ bgcolor: "#f4f6f8", minHeight: "100vh", py: 4 }}>
+      <Paper sx={{ maxWidth: 900, mx: "auto", p: 4, borderRadius: 2 }}>
         <Typography variant="h4" align="center" fontWeight={600} gutterBottom>
           Employee Attendance
         </Typography>
 
-        {/* Greeting and Mark Attendance Button */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
-          <Typography variant="h6">
-            Welcome, {employee?.name || 'Employee'}
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleMarkToday}
-            disabled={alreadyMarked}
-          >
-            {alreadyMarked ? 'Attendance Marked' : 'Mark Today'}
-          </Button>
-        </Box>
-
-        {/* Attendance summary */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mt={3} mb={1} flexWrap="wrap" gap={2}>
-          <Typography variant="subtitle1" color="success.main">
-            ✅ Present: {totalPresent}
-          </Typography>
-          <Typography variant="subtitle1" color="warning.main">
-            ⏰ Late: {totalLate}
-          </Typography>
-          <Typography variant="subtitle1" color="secondary">
-            🌴 Leave: {totalLeave}
-          </Typography>
-          <Typography variant="subtitle1" color="error">
-            ❌ Absent: {totalAbsent}
+        <Box>
+          <Typography variant="h6">Welcome, {displayedEmployee?.name}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Login ID: {displayedEmployee?.login_id || displayedEmployee?.id}
           </Typography>
         </Box>
 
-        {/* Calendar View */}
+        {/* Summary Cards */}
+        <Box display="grid" gridTemplateColumns={{ xs: "1fr 1fr", sm: "1fr 1fr 1fr 1fr" }} gap={2} mt={3} mb={3}>
+          {[
+            { key: "present", label: "✅ Present", count: totalPresent, color: "success" },
+            { key: "late", label: "⏰ Late", count: totalLate, color: "warning" },
+            { key: "on_leave", label: "🌴 Paid Leave", count: totalPaidLeave, color: "info" },
+            { key: "unpaid_leave", label: "💸 Unpaid Leave", count: totalUnpaidLeave, color: "secondary" },
+            { key: "absent", label: "❌ Absent", count: totalAbsent, color: "error" },
+            { key: "early", label: "⌚ Early", count: totalEarly, color: "primary" },
+            { key: "holiday", label: "🎉 Holidays", count: holidayCount, color: "secondary" },
+            { key: "break", label: "☕ Break Hours", count: totalBreakHHMMSS, color: "info" },
+            { key: "leave_balance", label: "📝 Leave Balance", count: leaveBalance, color: "info" },
+            { key: "yearly_late", label: "⏱️ Yearly Late", count: yearlyLateHHMMSS, color: "warning" },
+          ].map(({ key, label, count, color }) => (
+            <Paper key={key} sx={{
+              p: 1, borderRadius: 1.5, textAlign: "center", cursor: "pointer",
+              bgcolor: filter === key ? `${color}.main` : `${color}.100`,
+              color: filter === key ? "#fff" : `${color}.800`,
+              transition: "0.2s", boxShadow: 1, "&:hover": { transform: "scale(1.03)", boxShadow: 2 }
+            }} onClick={() => setFilter(filter === key ? null : key)}>
+              <Typography variant="subtitle2">{label}</Typography>
+              <Typography variant="h6" fontWeight={700}>{count}</Typography>
+            </Paper>
+          ))}
+        </Box>
+
         <Box mt={2}>
           <AttendanceCalendar
             attendance={attendance}
             holidays={allHolidays}
             meetings={meetings}
+            breaks={breakData}
             loading={isLoading}
             onDateClick={handleDateClick}
+            filter={filter}
+            month={month}
+            year={year}
+            onMonthChange={(m, y) => { setMonth(m); setYear(y); }}
+            employee={displayedEmployee}
           />
-        </Box>
-
-        {/* Back Button */}
-        <Box textAlign="center" mt={4}>
-          <Button variant="outlined" onClick={() => navigate('/employee-home')}>
-            Back to Home
-          </Button>
         </Box>
       </Paper>
 
-      {/* Dialog Box on date click */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{selectedDateInfo.date}</DialogTitle>
-        <DialogContent dividers>
-          {selectedDateInfo.holiday && (
-            <Typography color="error" mb={1}>
-              🎉 Public Holiday: {selectedDateInfo.holiday.title}
-            </Typography>
-          )}
-
-          {selectedDateInfo.attendance ? (
-            <Typography>
-              📝 Attendance: <strong>{capitalize(selectedDateInfo.attendance.status)}</strong>
-            </Typography>
-          ) : selectedDateInfo.holiday || isWeekend(selectedDateInfo.date) ? (
-            <Typography color="textSecondary">
-              Attendance not required (holiday or weekend)
-            </Typography>
-          ) : (
-            <Typography color="red">
-              Attendance: <strong>Absent</strong>
-            </Typography>
-          )}
-
-          {selectedDateInfo.meetings?.length > 0 && (
-            <Box mt={2}>
-              <Typography fontWeight={600}>📅 Meetings:</Typography>
-              <ul>
-                {selectedDateInfo.meetings.map((m) => (
-                  <li key={m.id}>
-                    <strong>{m.title}</strong> ({m.time})
-                    <br />
-                    <small>{m.description}</small>
-                  </li>
-                ))}
-              </ul>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Mobile-friendly detail view */}
       <AttendanceDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
@@ -249,6 +311,8 @@ const AttendancePage = () => {
         attendance={selectedDateInfo.attendance?.status}
         holiday={selectedDateInfo.holiday?.title}
         meetings={selectedDateInfo.meetings}
+        breaks={selectedDateInfo.breaks}
+        totalBreak={selectedDateInfo.totalBreak}
       />
     </Box>
   );

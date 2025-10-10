@@ -1,4 +1,4 @@
-// src/shifts/ShiftList.jsx
+// src/teams/TeamLeadList.jsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
@@ -25,67 +25,47 @@ import {
   Tooltip,
   Grow,
 } from "@mui/material";
-import { Delete, Edit, Add as AddIcon } from "@mui/icons-material";
-import { useGetShiftsQuery, useDeleteShiftMutation } from "../api/shiftApi";
-import ShiftFormDialog from "./ShiftFormDialog";
-
-/** Utility: format time or date in Chicago timezone */
-function formatChicagoTimeFlexible(value, { showDate = false } = {}) {
-  if (!value) return "—";
-
-  const timeOnly = String(value).match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d{1,3})?)?$/);
-  if (timeOnly) return `${timeOnly[1].padStart(2, "0")}:${timeOnly[2]}`;
-
-  const d = value instanceof Date ? value : new Date(value);
-  if (isNaN(d.getTime())) return "—";
-
-  return showDate
-    ? d.toLocaleString("en-US", {
-        timeZone: "America/Chicago",
-        hour12: false,
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : d
-        .toLocaleTimeString("en-GB", {
-          timeZone: "America/Chicago",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })
-        .slice(0, 5);
-}
+import { Edit, Delete, Add as AddIcon } from "@mui/icons-material";
+import {
+  useGetTeamLeadsQuery,
+  useDeleteTeamLeadMutation,
+} from "../api/teamLeadApi";
+import TeamLeadFormDialog from "./TeamLeadFormDialog";
 
 const pageSize = 10;
 
-const ShiftList = () => {
+const TeamLeadList = () => {
   const debounceRef = useRef(null);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  
+  const [orderingField, setOrderingField] = useState("created_at");
+  const [orderingDirection, setOrderingDirection] = useState("desc");
 
-  const [openForm, setOpenForm] = useState(false);
-  const [selectedShift, setSelectedShift] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedTeamLead, setSelectedTeamLead] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
 
-  const { data, isLoading, error, refetch } = useGetShiftsQuery({
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
+
+  const { data, isLoading, error, refetch } = useGetTeamLeadsQuery({
     page,
     page_size: pageSize,
     search: debouncedSearch,
-    
+    ordering: orderingDirection === "desc" ? `-${orderingField}` : orderingField,
   });
 
-  const [deleteShift, { isLoading: deleting }] = useDeleteShiftMutation();
-  const shifts = data?.results || [];
+  const [deleteTeamLead, { isLoading: deleting }] = useDeleteTeamLeadMutation();
+
+  const teamLeads = data?.results || [];
   const total = data?.count || 0;
 
-  /** Debounce search */
+  // ✅ Debounce search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -95,42 +75,60 @@ const ShiftList = () => {
     return () => clearTimeout(debounceRef.current);
   }, [search]);
 
+  const handleSortChange = (e) => {
+    const [field, direction] = e.target.value.split("|");
+    setOrderingField(field);
+    setOrderingDirection(direction);
+    setPage(1);
+  };
 
-  
-  /** Helpers */
-  const showSnackbar = (message, severity = "success") =>
-    setSnackbar({ open: true, message, severity });
-
-  const handleEdit = (shift) => {
-    setSelectedShift(shift);
-    setOpenForm(true);
+  const handleEdit = (teamLead) => {
+    setSelectedTeamLead(teamLead);
+    setDialogOpen(true);
   };
 
   const handleDelete = async (id) => {
     try {
-      await deleteShift(id).unwrap();
-      showSnackbar("Shift deleted successfully");
+      await deleteTeamLead(id).unwrap();
+      setSnackbar({
+        open: true,
+        message: "Team Lead deleted successfully",
+        severity: "success",
+      });
       refetch();
     } catch {
-      showSnackbar("Failed to delete shift", "error");
+      setSnackbar({
+        open: true,
+        message: "Failed to delete team lead",
+        severity: "error",
+      });
     }
   };
 
   const handleBulkDelete = async () => {
     try {
-      await Promise.all(selectedIds.map((id) => deleteShift(id).unwrap()));
-      showSnackbar("Selected shifts deleted");
+      for (const id of selectedIds) await deleteTeamLead(id).unwrap();
+      setSnackbar({
+        open: true,
+        message: "Selected team leads deleted",
+        severity: "success",
+      });
       setSelectedIds([]);
       refetch();
     } catch {
-      showSnackbar("Failed to delete selected shifts", "error");
+      setSnackbar({
+        open: true,
+        message: "Failed to delete selected team leads",
+        severity: "error",
+      });
     }
   };
 
-  const handleCheckbox = (id) =>
+  const handleCheckbox = (id) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
+  };
 
   return (
     <Box p={3}>
@@ -144,17 +142,27 @@ const ShiftList = () => {
         gap={1}
       >
         <Typography variant="h5" fontWeight="bold" color="primary">
-          Shift Management
+          Team Lead Management
         </Typography>
 
         <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-          {/* Sorting */}
-          
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Sort</InputLabel>
+            <Select
+              value={`${orderingField}|${orderingDirection}`}
+              label="Sort"
+              onChange={handleSortChange}
+            >
+              <MenuItem value="created_at|desc">Latest Added</MenuItem>
+              <MenuItem value="lead|asc">Lead (A-Z)</MenuItem>
+              <MenuItem value="lead|desc">Lead (Z-A)</MenuItem>
+              <MenuItem value="updated_at|desc">Recently Updated</MenuItem>
+            </Select>
+          </FormControl>
 
-          {/* Search */}
           <TextField
             size="small"
-            label="Search Shift"
+            label="Search Team Lead"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -162,7 +170,6 @@ const ShiftList = () => {
             Clear
           </Button>
 
-          {/* Bulk Delete */}
           {selectedIds.length > 0 && (
             <Button
               variant="contained"
@@ -174,16 +181,15 @@ const ShiftList = () => {
             </Button>
           )}
 
-          {/* Add Shift */}
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => {
-              setSelectedShift(null);
-              setOpenForm(true);
+              setSelectedTeamLead(null);
+              setDialogOpen(true);
             }}
           >
-            Add Shift
+            Add Team Lead
           </Button>
         </Box>
       </Box>
@@ -195,7 +201,7 @@ const ShiftList = () => {
         </Box>
       ) : error ? (
         <Box color="error.main" textAlign="center" mt={5}>
-          Error loading shifts. Please try again.
+          Error loading team leads. Please try again.
         </Box>
       ) : (
         <TableContainer component={Paper}>
@@ -204,66 +210,72 @@ const ShiftList = () => {
               <TableRow>
                 <TableCell padding="checkbox">
                   <Checkbox
-                    checked={selectedIds.length === shifts.length && shifts.length > 0}
-                    indeterminate={
-                      selectedIds.length > 0 && selectedIds.length < shifts.length
+                    checked={
+                      selectedIds.length === teamLeads.length &&
+                      teamLeads.length > 0
                     }
-                    onChange={(e) =>
-                      e.target.checked
-                        ? setSelectedIds(shifts.map((s) => s.id))
-                        : setSelectedIds([])
-                    }
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIds(teamLeads.map((tl) => tl.id));
+                      } else {
+                        setSelectedIds([]);
+                      }
+                    }}
                   />
                 </TableCell>
-                {[
-                  "Name",
-                  "Start Time",
-                  "End Time",
-                  "Total Hours",
-                  "Created At",
-                  "Updated At",
-                  "Actions",
-                ].map((header, idx) => (
-                  <TableCell key={idx} align={header === "Actions" ? "right" : "left"}>
-                    <strong>{header}</strong>
-                  </TableCell>
-                ))}
+                <TableCell>
+                  <strong>Team Lead</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Members</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Created At</strong>
+                </TableCell>
+                <TableCell>
+                  <strong>Updated At</strong>
+                </TableCell>
+                <TableCell align="right">
+                  <strong>Actions</strong>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {shifts.length > 0 ? (
-                shifts.map((shift) => (
-                  <Grow in key={shift.id} timeout={300}>
+              {teamLeads.length > 0 ? (
+                teamLeads.map((tl) => (
+                  <Grow in key={tl.id} timeout={300}>
                     <TableRow hover>
                       <TableCell padding="checkbox">
                         <Checkbox
-                          checked={selectedIds.includes(shift.id)}
-                          onChange={() => handleCheckbox(shift.id)}
+                          checked={selectedIds.includes(tl.id)}
+                          onChange={() => handleCheckbox(tl.id)}
                         />
                       </TableCell>
-                      <TableCell>{shift.name}</TableCell>
+                      <TableCell>{tl.lead_login_id || `#${tl.lead}`}</TableCell>
                       <TableCell>
-                        {formatChicagoTimeFlexible(shift.start_time)}
+                        {tl.member_login_ids?.length > 0
+                          ? tl.member_login_ids.join(", ")
+                          : "No Members"}
                       </TableCell>
                       <TableCell>
-                        {formatChicagoTimeFlexible(shift.end_time)}
-                      </TableCell>
-                      <TableCell>{shift.total_hours}</TableCell>
-                      <TableCell>
-                        {formatChicagoTimeFlexible(shift.created_at, { showDate: true })}
+                        {tl.created_at
+                          ? new Date(tl.created_at).toLocaleString()
+                          : "—"}
                       </TableCell>
                       <TableCell>
-                        {formatChicagoTimeFlexible(shift.updated_at, { showDate: true })}
+                        {tl.updated_at
+                          ? new Date(tl.updated_at).toLocaleString()
+                          : "—"}
                       </TableCell>
                       <TableCell align="right">
                         <Tooltip title="Edit">
-                          <IconButton onClick={() => handleEdit(shift)}>
+                          <IconButton onClick={() => handleEdit(tl)}>
                             <Edit color="primary" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete">
                           <IconButton
-                            onClick={() => handleDelete(shift.id)}
+                            onClick={() => handleDelete(tl.id)}
                             color="error"
                           >
                             <Delete />
@@ -275,8 +287,8 @@ const ShiftList = () => {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    No shifts found.
+                  <TableCell colSpan={6} align="center">
+                    No team leads found.
                   </TableCell>
                 </TableRow>
               )}
@@ -300,14 +312,14 @@ const ShiftList = () => {
       </Box>
 
       {/* Add/Edit Dialog */}
-      <ShiftFormDialog
-        open={openForm}
-        onClose={() => {
-          setOpenForm(false);
-          setSelectedShift(null);
+      <TeamLeadFormDialog
+        open={dialogOpen}
+        handleClose={() => setDialogOpen(false)}
+        teamLead={selectedTeamLead}
+        onSave={() => {
+          setDialogOpen(false);
           refetch();
         }}
-        editData={selectedShift}
       />
 
       {/* Snackbar */}
@@ -328,4 +340,4 @@ const ShiftList = () => {
   );
 };
 
-export default ShiftList;
+export default TeamLeadList;

@@ -16,15 +16,16 @@ import {
 import { toast } from 'react-hot-toast';
 import {
   useGetEmployeesQuery,
-  useArchiveEmployeeMutation,
+  useDeleteEmployeeMutation,
   useUnarchiveEmployeeMutation,
-} from '../redux/employeeApi';
+} from '../api/employeeApi';
 import EmployeeFormDialog from './EmployeeFormDialog';
-import { useGetTeamsQuery } from '../redux/teamApi';
-import { useGetShiftsQuery } from '../redux/shiftApi';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { useGetTeamsQuery } from '../api/teamApi';
+import { useGetShiftsQuery } from '../api/shiftApi';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from "react-redux";
+import { selectCurrentUser } from "../api/authSlice";
+
 
 const pageSizeDefault = 10;
 
@@ -38,7 +39,7 @@ const EmployeeList = () => {
   const [positionFilter, setPositionFilter] = useState('');
   const [teamFilter, setTeamFilter] = useState('');
   const [shiftFilter, setShiftFilter] = useState('');
-
+  const [managerFilter, setManagerFilter] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [selectedEmployees, setSelectedEmployees] = useState([]);
@@ -57,6 +58,8 @@ const EmployeeList = () => {
   const { data: teamsData } = useGetTeamsQuery({ page: 1, page_size: 100 });
   const { data: shiftsData } = useGetShiftsQuery({ page: 1, page_size: 100 });
 
+  const currentUser = useSelector(selectCurrentUser);
+  const userPermissions = currentUser?.permissions || [];
   // ▶️ Query employees (active or archived)
   const { data, error, isLoading, refetch } = useGetEmployeesQuery({
     page,
@@ -66,13 +69,14 @@ const EmployeeList = () => {
     position: positionFilter || undefined,
     team: teamFilter || undefined,
     primary_shift: shiftFilter || undefined,
-    archived: showArchived, // 🔁 new
+    manager: managerFilter || undefined,
+    is_archived: showArchived, // 🔁 new
   });
 
   const navigate = useNavigate();
 
   // Mutations
-  const [archiveEmployee, { isLoading: archiving }] = useArchiveEmployeeMutation();
+  const [archiveEmployee, { isLoading: archiving }] = useDeleteEmployeeMutation();
   const [unarchiveEmployee, { isLoading: unarchiving }] = useUnarchiveEmployeeMutation();
 
   const employees = data?.results || [];
@@ -92,6 +96,15 @@ const EmployeeList = () => {
     e.stopPropagation();
     setSelectedEmployees(e.target.checked ? employees.map(e => e.id) : []);
   };
+
+  const handleRowClick = (empId) => {
+    if (userPermissions.includes("employee.view_employee")) {
+      navigate(`/attendance/${empId}`);
+    } else {
+      toast.error("You do not have permission to view employee attendance.");
+    }
+  };
+
 
   const handleSelectOne = (e, id) => {
     e.stopPropagation();
@@ -134,92 +147,18 @@ const EmployeeList = () => {
     setConfirmBulkOpen(false);
   };
 
-  const handleExport = async (format) => {
-    if (format === 'pdf') {
-      try {
-        const token = localStorage.getItem('token');
-        const resp = await fetch(`http://localhost:8000/api/employees/?all=true${showArchived ? '&archived=true' : ''}`,
-          { headers: { Authorization: `Bearer ${token}` } });
-        if (!resp.ok) throw new Error('Failed to fetch employee data');
-        const allEmployees = await resp.json();
-
-        const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
-        doc.setFontSize(16);
-        doc.text('Employee Report', 14, 20);
-
-        const columns = [
-          { header: 'Name', dataKey: 'name' },
-          { header: 'Company Email', dataKey: 'company_email' },
-          { header: 'Login ID', dataKey: 'login_id' },
-          { header: 'Contact Number', dataKey: 'contact_number' },
-          { header: 'Position', dataKey: 'position' },
-          { header: 'Team', dataKey: 'team' },
-          { header: 'Primary Shift', dataKey: 'shift' },
-          { header: 'Created At', dataKey: 'created_at' },
-          ...(showArchived ? [{ header: 'Archived At', dataKey: 'archived_at' }] : []),
-        ];
-
-        const rows = (Array.isArray(allEmployees?.results) ? allEmployees.results : allEmployees).map(emp => ({
-          name: emp.name,
-          company_email: emp.company_email,
-          login_id: emp.login_id,
-          contact_number: emp.contact_number || '-',
-          position: emp.position,
-          team: emp.team_name || '-',
-          shift: emp.primary_shift_name || '-',
-          created_at: emp.created_at ? new Date(emp.created_at).toLocaleDateString() : '-',
-          archived_at: emp.archived_at ? new Date(emp.archived_at).toLocaleDateString() : '-',
-        }));
-
-        autoTable(doc, {
-          startY: 30,
-          columns,
-          body: rows,
-          styles: { fontSize: 9 },
-          headStyles: { fillColor: [41, 128, 185] },
-          margin: { left: 14, right: 14 },
-        });
-
-        doc.save(`employee_report${showArchived ? '_archived' : ''}.pdf`);
-      } catch (error) {
-        console.error('PDF export failed:', error);
-        toast.error('Failed to export PDF');
-      }
-      return;
-    }
-
-    const urls = {
-      csv: `http://localhost:8000/api/employees/export-csv/${showArchived ? '?archived=true' : ''}`,
-      xml: `http://localhost:8000/api/employees/export-xml/${showArchived ? '?archived=true' : ''}`,
-    };
-
-    const url = urls[format];
-    if (!url) return;
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: format === 'csv' ? 'text/csv' : 'application/xml',
-        },
-      });
-
-      if (!response.ok) throw new Error('Export failed');
-
-      const blob = await response.blob();
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `employee_export${showArchived ? '_archived' : ''}.${format}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      console.error(`${format.toUpperCase()} export failed:`, error);
-      toast.error(`Failed to export ${format.toUpperCase()} file`);
-    }
+  const handleExport = (format) => {
+  const map = {
+    excel: 'export/employees/excel/',
+    pdf: 'export/employees/pdf/',
   };
+
+  if (format && map[format]) {
+    window.open(`http://localhost:8000/api/${map[format]}`, '_blank');
+  }
+};
+
+
 
   const emptyRows = pageSizeDefault - employees.length;
 
@@ -255,14 +194,19 @@ const EmployeeList = () => {
             Clear
           </Button>
 
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <InputLabel>Position</InputLabel>
-            <Select value={positionFilter} label="Position" onChange={(e) => setPositionFilter(e.target.value)}>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Manager</InputLabel>
+            <Select
+              value={managerFilter}
+              label="Manager"
+              onChange={(e) => setManagerFilter(e.target.value)}
+            >
               <MenuItem value="">All</MenuItem>
-              <MenuItem value="junior_processor">Junior Processor</MenuItem>
-              <MenuItem value="processor">Processor</MenuItem>
-              <MenuItem value="team_lead">Team Lead</MenuItem>
-              <MenuItem value="team_manager">Team Manager</MenuItem>
+              {(teamsData?.results || []).map((team) => (
+                <MenuItem key={team.manager} value={team.manager}>
+                  {team.manager_name}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
@@ -276,16 +220,6 @@ const EmployeeList = () => {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Primary Shift</InputLabel>
-            <Select value={shiftFilter} label="Primary Shift" onChange={(e) => setShiftFilter(e.target.value)}>
-              <MenuItem value="">All</MenuItem>
-              {(shiftsData?.results || []).map((shift) => (
-                <MenuItem key={shift.id} value={shift.id}>{shift.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Export</InputLabel>
             <Select
@@ -293,15 +227,17 @@ const EmployeeList = () => {
               label="Export"
               onChange={(e) => {
                 handleExport(e.target.value);
-                setExportFormat('');
+                setExportFormat(''); // Reset select after export
               }}
             >
-              <MenuItem value="" disabled>Export</MenuItem>
-              <MenuItem value="csv">CSV</MenuItem>
-              <MenuItem value="xml">XML</MenuItem>
+              <MenuItem value="" disabled>
+                Export
+              </MenuItem>
               <MenuItem value="pdf">PDF</MenuItem>
+              <MenuItem value="excel">Excel</MenuItem>
             </Select>
           </FormControl>
+
 
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setDialogOpen(true); setEditingEmployee(null); }}>
             Add Employee
@@ -350,7 +286,7 @@ const EmployeeList = () => {
                   />
                 </TableCell>
                 {[
-                  'Avatar', 'Name', 'Login ID', 'Company Email', 'Position', 'Team', 'Primary Shift',
+                  'Avatar', 'Name', 'Login ID', 'Company Email', 'Contact No:', 'Team Manager', 'Team Lead', 'Primary Shift',
                   ...(showArchived ? ['Archived At'] : []),
                   'Actions'
                 ].map((label, idx) => (
@@ -364,8 +300,11 @@ const EmployeeList = () => {
                   <Grow in key={emp.id} timeout={300}>
                     <TableRow
                       hover
-                      onClick={() => navigate(`/employee-attendance/${emp.id}`)}
-                      sx={emp.is_archived ? { backgroundColor: '#f7f7f7' } : {}}
+                      onClick={() => handleRowClick(emp.id)}   // ✅ redirect to attendance calendar
+                      sx={{
+                        cursor: "pointer",
+                        ...(emp.is_archived ? { backgroundColor: "#f7f7f7" } : {}),
+                      }}
                     >
                       <TableCell padding="checkbox">
                         <Checkbox
@@ -384,7 +323,8 @@ const EmployeeList = () => {
                       <TableCell>{emp.name}</TableCell>
                       <TableCell>{emp.login_id}</TableCell>
                       <TableCell>{emp.company_email}</TableCell>
-                      <TableCell sx={{ textTransform: 'capitalize' }}>{emp.position?.replace('_', ' ')}</TableCell>
+                      <TableCell>{emp.contact_number}</TableCell>
+                      <TableCell>{emp.team_manager_name || '-'}</TableCell>
                       <TableCell>{emp.team_name || '-'}</TableCell>
                       <TableCell>{emp.primary_shift_name || '-'}</TableCell>
 
@@ -516,10 +456,11 @@ const EmployeeList = () => {
                 ['Login ID', viewingEmployee.login_id],
                 ['Company Email', viewingEmployee.company_email],
                 ['Contact Number', viewingEmployee.contact_number],
-                ['Position', viewingEmployee.position],
-                ['Team', viewingEmployee.team_name],
+                ['Roles', viewingEmployee.roles],
+                ['Team Manager', viewingEmployee.team_manager_name],
+                ['Team Lead', viewingEmployee.team_name],
                 ['Primary Shift', viewingEmployee.primary_shift_name],
-                ['Alternative Shift', viewingEmployee.alternate_shift_name],
+                //['Alternative Shift', viewingEmployee.alternate_shift_name],
                 ['Created At', new Date(viewingEmployee.created_at).toLocaleString()],
                 ['Last Updated', new Date(viewingEmployee.updated_at).toLocaleString()],
                 ['Archived At', viewingEmployee.archived_at ? new Date(viewingEmployee.archived_at).toLocaleString() : '-'],

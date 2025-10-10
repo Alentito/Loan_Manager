@@ -1,10 +1,9 @@
-// src/components/redux/holidayApi.js
 import { createApi } from '@reduxjs/toolkit/query/react';
-import { customBaseQuery } from './authBaseQuery';
+import baseQueryWithReauth from "./baseApi";
 
 export const holidayApi = createApi({
   reducerPath: 'holidayApi',
-  baseQuery: customBaseQuery,
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['Holiday'],
   endpoints: (builder) => ({
     getHolidays: builder.query({
@@ -70,6 +69,7 @@ export const holidayApi = createApi({
 export const {
   useGetHolidaysQuery,
   useAddHolidayMutation,
+  useLazyGetHolidaysQuery,
   useUpdateHolidayMutation,
   useDeleteHolidayMutation,
 } = holidayApi;

@@ -1,19 +1,66 @@
-import React from 'react';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import { CircularProgress, Box } from '@mui/material';
-import './AttendanceCalendar.css';
+import React, { useMemo } from "react";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import interactionPlugin from "@fullcalendar/interaction";
+import { CircularProgress, Box } from "@mui/material";
+import "./AttendanceCalendar.css";
 
-const getDateStr = (date) => new Date(date).toISOString().split('T')[0];
+// Format to YYYY-MM-DD in America/Chicago
+const formatToCSTDate = (input) => {
+  if (!input) return null;
+  if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
 
-const AttendanceCalendar = ({
+  const d = input instanceof Date ? input : new Date(input);
+  if (isNaN(d)) return null;
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+
+  const y = parts.find((p) => p.type === "year").value;
+  const m = parts.find((p) => p.type === "month").value;
+  const da = parts.find((p) => p.type === "day").value;
+  return `${y}-${m}-${da}`;
+};
+
+const todayStr = formatToCSTDate(new Date());
+
+// Weekend check in America/Chicago
+const isWeekendYMD = (year, month, day) => {
+  const dUTCNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    weekday: "short",
+  }).format(dUTCNoon);
+  return weekday === "Sat" || weekday === "Sun";
+};
+
+// Map backend statuses to titles/icons
+const STATUS_TITLES = {
+  present: "✔ Present",
+  late: "⏰ Late",
+  on_leave: "🌴 Paid Leave",
+  unpaid_leave: "💸 Unpaid Leave",
+  absent: "❌ Absent",
+  early: "⌚ Early",
+};
+
+export default function AttendanceCalendar({
   attendance = [],
   holidays = [],
   meetings = [],
+  breaks = [],
   onDateClick,
-  loading = false,
-}) => {
+  loading,
+  onMonthChange,
+  month,
+  year,
+  filter,
+  employee,
+}) {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" mt={4}>
@@ -21,86 +68,154 @@ const AttendanceCalendar = ({
       </Box>
     );
   }
+  const formatDurationHHMMSS = (start, end) => {
+  if (!start || !end) return "00:00:00";
+  const totalSeconds = (new Date(end) - new Date(start)) / 1000;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+};
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-  const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), 1);
-  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-  const attendanceDates = new Set(attendance.map((a) => getDateStr(a.date)));
-  const holidayDates = new Set(holidays.map((h) => getDateStr(h.date)));
-
-  const events = [];
-
-  // Attendance Events
+  // Attendance events
+  const attendanceDates = new Set();
+  const eventsFromAttendance = [];
   attendance.forEach(({ date, status }) => {
-    const dateStr = getDateStr(date);
-    events.push({
+    const dateStr = formatToCSTDate(date);
+    if (!dateStr) return;
+    attendanceDates.add(dateStr);
+
+    const normalized = (status || "").toLowerCase();
+    eventsFromAttendance.push({
       id: `att-${dateStr}`,
-      title: `Attendance: ${status.toUpperCase()}`,
+      title: STATUS_TITLES[normalized] || `🔹 ${status}`,
       date: dateStr,
-      classNames: [`status-${status}`],
+      classNames: [`status-${normalized}`],
     });
   });
+  const eventsFromBreaks = [];
+breaks.forEach(({ id, start_time, end_time }) => {
+  const dateStr = formatToCSTDate(start_time);
+  if (!dateStr) return;
+  const durationHHMMSS = end_time ? formatDurationHHMMSS(start_time, end_time) : "Ongoing";
+  eventsFromBreaks.push({
+    id: `break-${id}`,
+    title: `☕ Break (${durationHHMMSS})`,
+    date: dateStr,
+    classNames: ["status-break"],
+  });
+});
 
-  // Holiday Events
+  // Holiday events
+  const holidayDates = new Set();
+  const eventsFromHolidays = [];
   holidays.forEach(({ id, title, date }) => {
-    const dateStr = getDateStr(date);
-    events.push({
-      id: `hol-${id}`,
-      title: `🎉 Holiday: ${title}`,
+    const dateStr = formatToCSTDate(date);
+    if (!dateStr) return;
+    holidayDates.add(dateStr);
+    eventsFromHolidays.push({
+      id: `hol-${id || dateStr}`,
+      title: `🎉 ${title}`,
       date: dateStr,
-      classNames: ['status-holiday'],
+      classNames: ["status-holiday"],
     });
   });
 
-  // Auto-mark unmarked working days as Absent
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = getDateStr(d);
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-    const isHoliday = holidayDates.has(dateStr);
-    const hasAttendance = attendanceDates.has(dateStr);
-    const isPast = d < today;
+  // Generate weekends + absents
+  const generatedEvents = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateUTCNoon = new Date(Date.UTC(year, month - 1, d, 12, 0, 0));
+    const dateStr = formatToCSTDate(dateUTCNoon);
+    if (!dateStr) continue;
 
-    if (!isWeekend && !isHoliday && !hasAttendance && isPast) {
-      events.push({
-        id: `absent-${dateStr}`,
-        title: `Attendance: ABSENT`,
+    const isPastDay = dateStr < todayStr;
+
+    // weekends
+    if (isWeekendYMD(year, month, d) && !holidayDates.has(dateStr)) {
+      generatedEvents.push({
+        id: `weekend-${dateStr}`,
+        title: "🚫 Weekend",
         date: dateStr,
-        classNames: ['status-absent'],
+        classNames: ["status-weekend"],
       });
     }
+
+const employeeCreationStr = formatToCSTDate(employee?.created_at); // pass employee as prop
+
+if (
+  !isWeekendYMD(year, month, d) &&
+  !holidayDates.has(dateStr) &&
+  !attendanceDates.has(dateStr) &&
+  isPastDay &&
+  (!employeeCreationStr || dateStr >= employeeCreationStr)
+) {
+  generatedEvents.push({
+    id: `absent-${dateStr}`,
+    title: STATUS_TITLES["absent"],
+    date: dateStr,
+    classNames: ["status-absent"],
+  });
+}
+
   }
 
-  // Meeting Events
+  // Meetings
+  const eventsFromMeetings = [];
   meetings.forEach(({ id, title, date }) => {
-    if (!date) return;
-    const dateStr = getDateStr(date);
-    events.push({
-      id: `meet-${id}`,
-      title: `📅 Meeting: ${title}`,
+    const dateStr = formatToCSTDate(date);
+    if (!dateStr) return;
+    eventsFromMeetings.push({
+      id: `meet-${id || dateStr}`,
+      title: `📅 ${title}`,
       date: dateStr,
-      classNames: ['status-meeting'],
+      classNames: ["status-meeting"],
     });
   });
+
+  // Merge
+  const allEvents = useMemo(() => {
+    return [
+      ...eventsFromAttendance,
+      ...eventsFromHolidays,
+      ...generatedEvents,
+      ...eventsFromMeetings,
+      ...eventsFromBreaks,
+    ];
+  }, [eventsFromAttendance, eventsFromHolidays, generatedEvents, eventsFromMeetings, eventsFromBreaks]);
+
+  const filteredEvents = useMemo(() => {
+    return filter
+      ? allEvents.filter((e) => e.classNames?.includes(`status-${filter}`))
+      : allEvents;
+  }, [allEvents, filter]);
+
 
   return (
     <FullCalendar
+      
+      timeZone="America/Chicago"
       plugins={[dayGridPlugin, interactionPlugin]}
       initialView="dayGridMonth"
-      events={events}
-      dateClick={(info) => onDateClick(info.dateStr)}
+      events={filteredEvents}
+      dateClick={(info) => onDateClick && onDateClick(info.dateStr)}
       height="auto"
-      firstDay={0}
-      dayMaxEvents={2}
+      firstDay={1}
+      dayMaxEvents={5}
       eventDisplay="block"
+      showNonCurrentDates={false}
+      fixedWeekCount={false}
       headerToolbar={{
-        left: 'prev,next today',
-        center: 'title',
-        right: '',
+        left: "prev,next today",
+        center: "title",
+        right: "dayGridMonth,dayGridWeek,dayGridDay",
       }}
-      dayHeaderFormat={{ weekday: 'short' }}
+      dayHeaderFormat={{ weekday: "short" }}
+      datesSet={(info) => {
+        const newMonth = info.start.getMonth() + 1;
+        const newYear = info.start.getFullYear();
+        if (typeof onMonthChange === "function") onMonthChange(newMonth, newYear);
+      }}
     />
   );
-};
-
-export default AttendanceCalendar;
+}

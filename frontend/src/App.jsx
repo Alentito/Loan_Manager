@@ -23,6 +23,7 @@ import useInitializeAuth from "./api/useInitializeAuth";
 import ProtectedLayout from "./auth/ProtectedLayout";
 
 import AttendancePage from "./attendance/AttendancePage";
+// import MonthlySummaryTable from "./attendance/MonthlySummaryTable";
 import LeaveRequestForm from "./leaves/LeaveRequestForm";
 import MyLeaveRequests from "./leaves/MyLeaveRequests";
 import MeetingAdminPage from "./admin/MeetingAdminPage";
@@ -30,6 +31,13 @@ import LeaveApprovalPage from "./admin/LeaveApprovalPage";
 import HolidayAdminPage from "./holidays/HolidayAdminPage";
 import ShiftList from "./shifts/ShiftList";
 import TeamList from "./teams/TeamList";
+import LenderList from "./Lender/LenderList";
+import MyTokens from "./tokens/MyTokens";
+import TokenApprovalPage from "./tokens/TokenApprovalPage";
+import TokenForm from "./tokens/TokenForm";
+import BreakPage from "./breaks/BreakPage";
+import ProfilePage from "./employees/ProfilePage";
+
 import MilestoneManagement from "./components/milestone/MilestoneManagement";
 import useMediaQuery from "@mui/material/useMediaQuery";
 
@@ -40,7 +48,6 @@ function App() {
   const [mode, setMode] = useState(() => localStorage.getItem("themeMode") || initial);
 
   const { isAuthenticated, initialized } = useSelector((state) => state.auth);
-  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
 
   useEffect(() => {
     localStorage.setItem("themeMode", mode);
@@ -59,11 +66,9 @@ function App() {
     }
   }, [initialized, isAuthenticated, navigate]);
 
-  //const [mode, setMode] = useState("light");
-    const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
+  const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
 
-
-  if (!initialized) return null; // prevent flicker
+  if (!initialized) return null;
 
   return (
     <ThemeProvider theme={theme}>
@@ -71,6 +76,7 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+       
 
         {/* Protected Routes */}
         <Route element={<RequireAuth />}>
@@ -94,15 +100,34 @@ function App() {
             <Route path="/role-management" element={<RoleManagement />} />
             <Route path="/settings" element={<Settings />} />
 
-            {/* New Features */}
+            {/* Attendance & Leave Management */}
             <Route path="/attendance" element={<AttendancePage />} />
+            <Route path="/attendance/:employeeId" element={<AttendancePage />} />
+
+            {/* <Route path="/attendance/summary" element={<MonthlySummaryTable />} /> */}
             <Route path="/leaves/request" element={<LeaveRequestForm />} />
             <Route path="/leaves/my-requests" element={<MyLeaveRequests />} />
-            <Route path="/admin/meetings" element={<MeetingAdminPage />} />
             <Route path="/admin/leave-approvals" element={<LeaveApprovalPage />} />
             <Route path="/admin/holidays" element={<HolidayAdminPage />} />
+
+            {/* Teams & Shifts */}
             <Route path="/shifts" element={<ShiftList />} />
             <Route path="/teams" element={<TeamList />} />
+
+            {/* Lenders */}
+            <Route path="/lenders" element={<LenderList />} />
+
+            {/* Tokens */}
+            <Route path="/tokens/my-tokens" element={<MyTokens />} />
+            <Route path="/token/new" element={<TokenForm />} />
+            <Route path="/admin/token-approvals" element={<TokenApprovalPage />} />
+
+            {/* Breaks */}
+            <Route path="/breaks" element={<BreakPage />} />
+
+            {/* Meetings (if applicable) */}
+            <Route path="/admin/meetings" element={<MeetingAdminPage />} />
+             <Route path="/profile" element={<ProfilePage />} />
           </Route>
         </Route>
       </Routes>

@@ -1,30 +1,86 @@
 import { useEffect } from "react";
-import { useRefreshTokenMutation, useLazyGetMeQuery } from "../api/authApi";
 import { useDispatch } from "react-redux";
+import { useRefreshTokenMutation, useLazyGetMeQuery } from "../api/authApi";
+import { useLazyGetTodayAttendanceQuery } from "../api/attendanceApi";
+import { useLazyGetHolidaysQuery } from "../api/holidayApi";
+import { useLazyGetMeetingsQuery } from "../api/meetingApi";
+import { useLazyGetEmployeeLeaveRequestsQuery } from "../api/leaveApi";
 import { logoutAction, setAuthenticated, setInitialized } from "../api/authSlice";
 
-export default function useInitializeAuth() {
+export default function useInitializeAuthEnhanced() {
   const [refresh] = useRefreshTokenMutation();
+  const [triggerGetMe] = useLazyGetMeQuery();
+  const [triggerGetTodayAttendance] = useLazyGetTodayAttendanceQuery();
+  const [triggerGetHolidays] = useLazyGetHolidaysQuery();
+  const [triggerGetMeetings] = useLazyGetMeetingsQuery();
+  const [triggerGetLeaves] = useLazyGetEmployeeLeaveRequestsQuery();
   const dispatch = useDispatch();
 
-  const [triggerGetMe] = useLazyGetMeQuery();
+  useEffect(() => {
+    let mounted = true;
 
-useEffect(() => {
-  let mounted = true;
-  (async () => {
-    try {
-      await refresh().unwrap();
-      const result = await triggerGetMe();
-      const user = result.data;
-      if (!mounted) return;
-      dispatch(setAuthenticated(user));
-    } catch (err) {
-      if (!mounted) return;
-      dispatch(logoutAction());
-    } finally {
-      if (mounted) dispatch(setInitialized(true));
-    }
-  })();
-  return () => { mounted = false; };
-}, [refresh, triggerGetMe, dispatch]);
+    (async () => {
+      try {
+        // 1) Refresh token (sets access cookie if valid)
+        await refresh().unwrap();
+
+        // 2) Fetch current user
+        const meRes = await triggerGetMe().unwrap();
+        const user = meRes;
+        if (!mounted) return;
+
+        const employeeId =
+          user?.employee_id ?? user?.employee?.id ?? user?.employeeId ?? null;
+
+        // 3) Fetch related data concurrently (tolerate failures)
+        const [todayRes, holidaysRes, meetingsRes, leavesRes] = await Promise.allSettled([
+          triggerGetTodayAttendance().unwrap().catch(() => null),
+          triggerGetHolidays({ page: 1, pageSize: 9999 }).unwrap().catch(() => null),
+          triggerGetMeetings().unwrap().catch(() => null),
+           (employeeId
+            ? triggerGetLeaves({ employeeId, page: 1, page_size: 10 }).unwrap()
+            : Promise.resolve(null)
+          ).catch(() => null),
+        ]);
+
+        const today =
+          todayRes.status === "fulfilled" ? todayRes.value : null;
+        const holidays =
+          holidaysRes.status === "fulfilled"
+            ? holidaysRes.value?.holidays ?? holidaysRes.value ?? []
+            : [];
+        const meetings =
+          meetingsRes.status === "fulfilled" ? meetingsRes.value ?? [] : [];
+        const leaves =
+          leavesRes.status === "fulfilled" ? leavesRes.value ?? [] : [];
+
+        // 4) Dispatch to auth store
+        dispatch(
+          setAuthenticated({
+            user,
+            attendance: today ? (Array.isArray(today) ? today : [today]) : [],
+            holidays,
+            meetings,
+            leaves,
+          })
+        );
+      } catch {
+        if (mounted) dispatch(logoutAction());
+      } finally {
+        if (mounted) dispatch(setInitialized(true));
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    refresh,
+    triggerGetMe,
+    triggerGetTodayAttendance,
+    triggerGetHolidays,
+    triggerGetMeetings,
+    triggerGetLeaves,
+    dispatch,
+  ]);
 }

@@ -19,6 +19,14 @@ import { leaveApi } from '../api/leaveApi';
 import { shiftApi } from '../api/shiftApi';
 import { teamApi } from '../api/teamApi';
 
+import { attendanceApi } from "../api/attendanceApi";
+
+import { breakApi } from '../api/breakApi';
+import { lenderApi } from '../api/lenderApiSlice';
+import { teamLeadApi } from '../api/teamLeadApi';
+import { teamManagerApi} from '../api/teamManagerApi';
+import { tokenApi } from '../api/tokenApi';
+
 export const store = configureStore({
   reducer: {
     selectedLoans: selectedLoansReducer,
@@ -39,7 +47,12 @@ export const store = configureStore({
     [shiftApi.reducerPath]: shiftApi.reducer,
     [teamApi.reducerPath]: teamApi.reducer,
     [milestoneApi.reducerPath]: milestoneApi.reducer,
-
+ [attendanceApi.reducerPath]: attendanceApi.reducer,
+    [breakApi.reducerPath]: breakApi.reducer,
+    [lenderApi.reducerPath]: lenderApi.reducer,
+    [teamLeadApi.reducerPath]: teamLeadApi.reducer,
+    [teamManagerApi.reducerPath]: teamManagerApi.reducer,
+    [tokenApi.reducerPath]: tokenApi.reducer,
     
   },
 
@@ -57,6 +70,12 @@ export const store = configureStore({
       .concat(shiftApi.middleware)
       .concat(teamApi.middleware)
       .concat(milestoneApi.middleware)
+      .concat(attendanceApi.middleware)
+      .concat(breakApi.middleware)
+      .concat(lenderApi.middleware)
+      .concat(teamLeadApi.middleware)
+      .concat(teamManagerApi.middleware)
+      .concat(tokenApi.middleware)
       
 });
 
