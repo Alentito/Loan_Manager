@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { Outlet } from "react-router-dom";
+import Box from "@mui/material/Box";
 import Sidebar from "../layout/Sidebar";
 import Topbar from "../layout/Topbar";
 import MobileNavDrawer from "../layout/MobileNavDrawer";
@@ -10,15 +11,25 @@ export default function ProtectedLayout({ mode, setMode }) {
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default", color: "text.primary" }}>
       <Sidebar />
       <MobileNavDrawer open={drawerOpen} onOpen={openDrawer} onClose={closeDrawer} />
-      <div className="flex flex-col flex-1 overflow-auto lg:ml-64">
+
+      <Box sx={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", ml: { lg: "16rem" } }}>
         <Topbar mode={mode} setMode={setMode} onOpenSidebar={openDrawer} />
-        <main className="flex-1 p-0 bg-white overflow-y-auto">
+        <Box
+          component="main"
+          sx={{
+            flex: 1,
+            overflowY: "auto",
+            p: { xs: 1, sm: 2, md: 3 },
+            bgcolor: "background.default",
+            color: "text.primary",
+          }}
+        >
           <Outlet />
-        </main>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   );
 }
