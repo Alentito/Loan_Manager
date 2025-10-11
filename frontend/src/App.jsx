@@ -101,6 +101,7 @@ function App() {
             <Route path="/settings" element={<Settings />} />
 
             {/* Attendance & Leave Management */}
+            
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/attendance/:employeeId" element={<AttendancePage />} />
 
