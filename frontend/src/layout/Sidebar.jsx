@@ -1,4 +1,3 @@
-//// filepath: /Users/alentito/Documents/work/web/Loan_Manager/frontend/src/layout/Sidebar.jsx
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import React from "react";
 import { useSelector } from "react-redux";
@@ -23,8 +22,7 @@ import { useLogoutMutation } from "../api/authApi";
 import { useTheme } from "@mui/material/styles";
 import { useChicagoTime } from "../hooks/useChicagoTime";
 
-
-export default function Sidebar() {
+export function SidebarContent() {
   const { isAuthenticated, user } = useSelector((s) => s.auth);
   const [logout] = useLogoutMutation();
   const location = useLocation();
@@ -35,12 +33,9 @@ export default function Sidebar() {
 
   if (!isAuthenticated) return null;
 
-  
-
   const userPermissions = user?.permissions || [];
   const isActive = (path) => location.pathname === path;
 
-  // Use only lucide-react icons (no Fa*). Keep icon as component, not JSX.
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "loan.view_loan" },
     { path: "/loan-management", label: "Loan Management", icon: Wallet, permission: "loan.view_loan" },
@@ -68,9 +63,7 @@ export default function Sidebar() {
     { path: "/breaks", label: "Breaks", icon: Clock, permission: null },
   ];
 
-  const filteredNavItems = navItems.filter(
-    (i) => !i.permission || userPermissions.includes(i.permission)
-  );
+  const filteredNavItems = navItems.filter((i) => !i.permission || userPermissions.includes(i.permission));
 
   const handleLogout = async () => {
     try {
@@ -81,37 +74,22 @@ export default function Sidebar() {
     navigate("/login");
   };
 
-  // Light = modern blue gradient; Dark = slate
-  const asideBase = "hidden lg:flex flex-col w-64 h-screen border-r";
-  const asideTone = isDark
-    ? "bg-slate-900 text-slate-100 border-slate-800"
-    : "bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white shadow-lg border-transparent";
-
-  const sectionBorder = isDark ? "border-slate-800" : "border-white/10";
-
+  const isDarkTone = isDark;
+  const sectionBorder = isDarkTone ? "border-slate-800" : "border-white/10";
   const itemBase = "group relative flex items-center gap-3 rounded-lg px-3 py-2 transition-colors";
   const itemTone = (active) =>
-    isDark
-      ? active
-        ? "bg-slate-800/70"
-        : "hover:bg-slate-800/40"
-      : active
-        ? "bg-white/15"
-        : "hover:bg-white/10";
-
-  const indicatorTone = isDark ? "bg-blue-400" : "bg-white";
-
+    isDarkTone ? (active ? "bg-slate-800/70" : "hover:bg-slate-800/40") : active ? "bg-white/15" : "hover:bg-white/10";
+  const indicatorTone = isDarkTone ? "bg-blue-400" : "bg-white";
   const iconTone = (active) =>
-    isDark
+    isDarkTone
       ? active
         ? "text-blue-400"
         : "text-slate-300 group-hover:text-slate-100"
       : active
         ? "text-white"
         : "text-white/80 group-hover:text-white";
-
   const textTone = (active) =>
-    isDark
+    isDarkTone
       ? active
         ? "text-slate-100"
         : "text-slate-300 group-hover:text-slate-100"
@@ -120,12 +98,14 @@ export default function Sidebar() {
         : "text-white/90 group-hover:text-white";
 
   return (
-    <aside className={`${asideBase} ${asideTone}`}>
+    <div className="flex flex-col h-full">
       <div className="p-4">
         <h1 className="text-2xl font-bold">Entregar Solutions</h1>
-        <div className="mt-2 flex items-center text-sm text-gray-200">
+        <div className="mt-2 flex items-center text-sm opacity-80">
           <Clock className="mr-2" size={16} />
-          <span>{time || "Loading..."} {period && `${period} CST`}</span>
+          <span>
+            {time || "Loading..."} {period && `${period} CST`}
+          </span>
         </div>
       </div>
 
@@ -149,21 +129,33 @@ export default function Sidebar() {
       <div className={`px-4 py-3 border-t ${sectionBorder}`}>
         <Link
           to="/settings"
-          className={`flex items-center gap-2 text-sm transition-colors ${
-            isDark ? "text-slate-300 hover:text-slate-100" : "text-white/90 hover:text-white"
-          }`}
+          className={`flex items-center gap-2 text-sm transition-colors ${isDark ? "text-slate-300 hover:text-slate-100" : "text-white/90 hover:text-white"}`}
         >
           <Settings size={18} /> Settings
         </Link>
         <button
           onClick={handleLogout}
-          className={`mt-2 flex items-center gap-2 text-sm transition-colors ${
-            isDark ? "text-slate-300 hover:text-rose-300" : "text-white/90 hover:text-white"
-          }`}
+          className={`mt-2 flex items-center gap-2 text-sm transition-colors ${isDark ? "text-slate-300 hover:text-rose-300" : "text-white/90 hover:text-white"}`}
         >
           <LogOut size={18} /> Logout
         </button>
       </div>
+    </div>
+  );
+}
+
+export default function Sidebar() {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+
+  const asideBase = "hidden lg:flex flex-col w-64 h-screen border-r";
+  const asideTone = isDark
+    ? "bg-slate-900 text-slate-100 border-slate-800"
+    : "bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white shadow-lg border-transparent";
+
+  return (
+    <aside className={`${asideBase} ${asideTone}`}>
+      <SidebarContent />
     </aside>
   );
 }
