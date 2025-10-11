@@ -21,10 +21,10 @@ import {
 
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-import { Bell, Sun, Moon, User, LogOut } from "lucide-react";
+import { Bell, Sun, Moon, User, LogOut, Menu as MenuIcon } from "lucide-react";
 
 /* TopNavbar */
-export default function TopNavbar({ mode, setMode }) {
+export default function TopNavbar({ mode, setMode, onOpenSidebar = () => {} }) {
   const theme = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -90,27 +90,33 @@ export default function TopNavbar({ mode, setMode }) {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        px: 3,
-        py: 2,
+        px: 2,
+        py: 1.5,
         borderBottom: `1px solid ${theme.palette.divider}`,
         backgroundColor: theme.palette.background.paper,
         color: theme.palette.text.primary,
+        position: "sticky",
+        top: 0,
+        zIndex: (t) => t.zIndex.appBar,
       }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-        <Box sx={{ display: "flex", flexDirection: "column" }}>
-          <Typography
-            variant="h6"
-            fontWeight={600}
-            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        {/* Hamburger for tablets/phones */}
+        <Tooltip title="Open menu">
+          <IconButton
+            onClick={onOpenSidebar}
+            color="inherit"
+            aria-label="Open navigation menu"
+            sx={{ display: { xs: "inline-flex", lg: "none" } }}
           >
+            <MenuIcon size={20} />
+          </IconButton>
+        </Tooltip>
+
+        <Box sx={{ display: "flex", flexDirection: "column" }}>
+          <Typography variant="h6" fontWeight={600} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             {showBackButton && (
-              <IconButton
-                onClick={() => navigate(-1)}
-                size="small"
-                sx={{ mr: 0.5 }}
-                aria-label="Go back"
-              >
+              <IconButton onClick={() => navigate(-1)} size="small" sx={{ mr: 0.5 }} aria-label="Go back">
                 <ArrowBackIcon />
               </IconButton>
             )}
