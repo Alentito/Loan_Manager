@@ -126,7 +126,7 @@ class CookieTokenRefreshView(APIView):
                 value=new_access,
                 httponly=True,
                 secure=True,
-                samesite="lax",
+                samesite="None",
                 max_age=15 * 60,
                 path="/"
             )
@@ -137,7 +137,7 @@ class CookieTokenRefreshView(APIView):
                 value=refresh_token,
                 httponly=True,
                 secure=True,
-                samesite="lax",
+                samesite="None",
                 max_age=7 * 24 * 3600,
                 path="/"
             )
@@ -148,7 +148,7 @@ class CookieTokenRefreshView(APIView):
                 value=csrf_token,
                 httponly=False,
                 secure=True,
-                samesite="lax",
+                samesite="None",
                 path="/",
             )
             return res
@@ -176,7 +176,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
                 value=access,
                 httponly=True,
                 secure=True,  # only sent over HTTPS
-                samesite="lax",  # allow cross-site cookie sending
+                samesite="None",  # allow cross-site cookie sending
             )
             res.set_cookie(
                 key="refresh_token",
