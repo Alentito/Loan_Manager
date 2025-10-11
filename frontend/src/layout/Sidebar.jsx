@@ -148,7 +148,7 @@ export default function Sidebar() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
 
-  const asideBase = "hidden lg:flex flex-col w-64 h-screen border-r";
+   const asideBase = "hidden lg:flex flex-col w-64 h-screen border-r fixed left-0 top-0 z-40";
   const asideTone = isDark
     ? "bg-slate-900 text-slate-100 border-slate-800"
     : "bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white shadow-lg border-transparent";
