@@ -5,7 +5,7 @@ import baseQueryWithReauth from "./baseApi";
 export const loanApi = createApi({
   reducerPath: "loanApi",
   baseQuery: baseQueryWithReauth, // Use the base query with re-authentication
-  tagTypes: ["Loan"], // For caching and invalidation
+  tagTypes: ["Loan","IncomeAssetNote",], // For caching and invalidation
   endpoints: (builder) => ({
     getLoans: builder.query({
       query: ({ page = 1, pageSize, milestone, search,ordering, assigned_to,include_archived,is_archived, }) => {
@@ -233,23 +233,40 @@ getLoanDocStatus: builder.query({
       invalidatesTags: ['Loans'],
     }),
     getIncomeAssetNote: builder.query({
-      // backend route is /loan/:id/income-asset-note/
-      query: (loanId) => ({ url: `loan/${loanId}/income-asset-note/` }),
-      providesTags: (_res, _err, loanId) => [{ type: "IncomeAssetNote", id: loanId }],
-      transformResponse: (resp) => ({
-        ...resp,
-        serialized: resp?.editor_state ? JSON.stringify(resp.editor_state) : null,
-      }),
-    }),
+  query: (loanId) => ({ url: `loan/${loanId}/income-asset-note/` }),
+  providesTags: (_r, _e, loanId) => [{ type: "IncomeAssetNote", id: loanId }],
+  transformResponse: (resp) => ({
+    ...resp,
+    serialized: resp?.editor_state ? JSON.stringify(resp.editor_state) : null,
+  }),
+}),
 
     upsertIncomeAssetNote: builder.mutation({
-      query: ({ loanId, editor_state, plain_text }) => ({
-        url: `loan/${loanId}/income-asset-note/`,
-        method: "PUT",
-        body: { editor_state, plain_text },
-      }),
-      invalidatesTags: (_res, _err, arg) => [{ type: "IncomeAssetNote", id: arg.loanId }],
-    }),
+  query: ({ loanId, editor_state, plain_text }) => ({
+    url: `loan/${loanId}/income-asset-note/`,
+    method: "PUT",
+    body: { editor_state, plain_text },
+  }),
+  // Do NOT invalidate to avoid refetch that would change data.updated_at
+  invalidatesTags: [],
+  async onQueryStarted({ loanId, editor_state, plain_text }, { dispatch, queryFulfilled }) {
+    // Optimistically update cache so UI timestamps match without refetch
+    const patch = dispatch(
+      loanApi.util.updateQueryData("getIncomeAssetNote", loanId, (draft) => {
+        if (!draft) return;
+        draft.editor_state = editor_state;
+        draft.plain_text = plain_text;
+        draft.serialized = JSON.stringify(editor_state);
+        draft.updated_at = new Date().toISOString();
+      })
+    );
+    try {
+      await queryFulfilled;
+    } catch {
+      patch.undo();
+    }
+  },
+}),
     
   
   }),
