@@ -752,14 +752,17 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["get", "put", "patch"], url_path="income-asset-note")
     def income_asset_note(self, request, pk=None):
         loan = self.get_object()
-        note, _ = IncomeAssetNote.objects.get_or_create(loan=loan)
+        # set created_by when first creating the row
+        note, _created = IncomeAssetNote.objects.get_or_create(
+            loan=loan, defaults={"created_by": request.user if request.user.is_authenticated else None}
+        )
 
         if request.method in ("PUT", "PATCH"):
             serializer = IncomeAssetNoteSerializer(
-                note, data=request.data, partial=(request.method == "PATCH")
+                note, data=request.data, partial=True
             )
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            serializer.save(updated_by=request.user if request.user.is_authenticated else None)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         serializer = IncomeAssetNoteSerializer(note)
