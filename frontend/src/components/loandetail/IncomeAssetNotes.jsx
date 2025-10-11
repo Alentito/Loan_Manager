@@ -250,8 +250,8 @@ export default function IncomeAssetNotes({ loanId }) {
 
       <Box sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", justifyContent: "space-between" }}>
         <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
-          <Typography variant="h6">Income &amp; Assets Notes</Typography>
-          <Chip size="small" label={`Loan #${loanId}`} />
+         
+          
           {saving ? (
             <Chip size="small" color="warning" label="Saving…" />
           ) : hasChanges ? (
@@ -303,7 +303,7 @@ export default function IncomeAssetNotes({ loanId }) {
         <Paper variant="outlined" sx={{ flex: 1, borderRadius: 1, p: 2 }}>
           <Skeleton variant="rectangular" height={36} sx={{ mb: 1 }} />
           <Divider sx={{ mb: 2 }} />
-          <Skeleton variant="rectangular" height="70%" />
+          
         </Paper>
       ) : (
         <LexicalComposer initialConfig={initialConfig} key={composerKey}>
