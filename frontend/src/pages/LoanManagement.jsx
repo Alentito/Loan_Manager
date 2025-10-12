@@ -64,6 +64,7 @@ export default function LoanManagement() {
     (state) => state.auth.user?.permissions || []
   );
 
+
   const [openFilter, setOpenFilter] = React.useState(false);
   const [filters, setFilters] = React.useState({
     milestone: "",
@@ -94,7 +95,7 @@ export default function LoanManagement() {
   const [activeTab, setActiveTab] = useState("all"); // state for active tab
   const [openImport, setOpenImport] = useState(false);
   const [openNew, setOpenNew] = useState(false);
-  const [lenders, setLenders] = useState([{ lender: "", comment: "" }]);
+  const [lenders, setLenders] = useState([]); // store selected Lender objects (from API)
 
   //sorting for tloan table
   const [sortField, setSortField] = useState("created_at");
@@ -140,6 +141,8 @@ export default function LoanManagement() {
       support_id: loan.support?.id ?? null,
       // Optionally, set other _id fields for team_leader, etc. if needed
     }); // Populate modal with loan data
+    setLenders(Array.isArray(loan.lenders) ? loan.lenders : []); // prefill
+
     setEditMode(true);
     setOpenNew(true);
   };
@@ -255,7 +258,7 @@ const loanQueryArgs = useMemo(() => {
         point_file: newLoan.point_file || null,
         subject_property: newLoan.subject_property || null,
         loan_comment: newLoan.loan_comment || null,
-        lenders: lenders,
+        lender_ids: (lenders || []).map((l) => l.id), // M2M IDs
         team_leader_id: newLoan.team_leader_id || null,
         team_manager_id: newLoan.team_manager_id || null,
         processor_id: newLoan.processor_id || null,
@@ -286,7 +289,7 @@ const loanQueryArgs = useMemo(() => {
         processor_id: "",
         support_id: "",
       });
-      setLenders([{ lender: "", comment: "" }]);
+      setLenders([]); // reset to empty
       setOpenNew(false);
       setEditMode(false);
       setSelectedLoan(null);
