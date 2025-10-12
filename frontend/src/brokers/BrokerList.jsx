@@ -118,7 +118,7 @@ const BrokerList = () => {
   const handleExport = async (format) => {
   const urls = {
     excel: 'https://backend-l3f9.onrender.com/api/export/brokers/excel/',
-    pdf: 'https://backend-l3f9.onrender.com/api/export/brokers/pdf/',
+    pdf: 'https://backend-l3f9.onrender.com/api/export/brokers/pdf/', // ✅ corrected
   };
 
   const url = urls[format];
@@ -127,8 +127,8 @@ const BrokerList = () => {
   try {
     const response = await fetch(url, {
       method: 'GET',
-      // 🔹 Only include token if backend requires auth
       headers: {
+        // optional – you can remove since backend allows public export
         'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
       },
     });
@@ -395,3 +395,4 @@ const BrokerList = () => {
 };
 
 export default BrokerList;
+
