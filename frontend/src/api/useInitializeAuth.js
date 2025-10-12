@@ -37,10 +37,11 @@ export default function useInitializeAuthEnhanced() {
           triggerGetTodayAttendance().unwrap().catch(() => null),
           triggerGetHolidays({ page: 1, pageSize: 9999 }).unwrap().catch(() => null),
           triggerGetMeetings().unwrap().catch(() => null),
-           (employeeId
-            ? triggerGetLeaves({ employeeId, page: 1, page_size: 10 }).unwrap()
-            : Promise.resolve(null)
-          ).catch(() => null),
+          triggerGetLeaves({
+            employeeId: user?.employee_id,  // ✅ use correct field
+            page: 1,
+            page_size: 10,
+          }).unwrap().catch((e) => null),
         ]);
 
         const today =
