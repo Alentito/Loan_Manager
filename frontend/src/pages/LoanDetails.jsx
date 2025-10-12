@@ -224,14 +224,17 @@ const outerTheme = useTheme();
   const handleEditLoan = (loanObj) => {
     setSelectedLoan(loanObj);
     setEditMode(true);
+    setLenders(Array.isArray(loanObj?.lenders) ? loanObj.lenders : []);
+
   };
-  const handleSaveEditLoan = async () => {
+  const handleSaveEditLoan = async (payloadFromDialog) => {
     try {
-      await updateLoan({ id: loan.id, data: newLoan }).unwrap();
+      await updateLoan({ id: loan.id, data: payloadFromDialog }).unwrap();
       setOpenNew(false);
       setEditMode(false);
       setSelectedLoan(null);
       setNewLoan({});
+      setLenders([]);
       refetch();
       setSnackbar({
         open: true,
@@ -392,9 +395,9 @@ const outerTheme = useTheme();
                             <Grid item xs={6}>
                               <Typography noWrap>
                                 <strong>Lenders:</strong>{" "}
-                                {Array.isArray(loan.lenders)
-                                  ? loan.lenders.join(", ")
-                                  : loan.lenders ?? "-"}
+  {Array.isArray(loan.lenders) && loan.lenders.length
+    ? loan.lenders.map((l) => l?.lender_name).filter(Boolean).join(", ")
+    : "-"}
                               </Typography>
                             </Grid>
                           </Grid>
@@ -579,6 +582,7 @@ const outerTheme = useTheme();
               setEditMode(false);
               setSelectedLoan(null);
               setNewLoan({});
+              setLenders([]);
             }}
             onSave={handleSaveEditLoan}
             newLoan={newLoan}
