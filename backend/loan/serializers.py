@@ -1,12 +1,14 @@
 from rest_framework import serializers
-from .models import Loan, Lender,ChecklistQuestion, LoanContact,LoanDocStatus,Task
+from .models import Loan, ChecklistQuestion, LoanContact,LoanDocStatus,Task
 from .models import DocOrder
 from .models import XMLUpload
 
 from employee.serializers import BrokerSerializer, LoanOfficerSerializer
 from employee.models import Broker, LoanOfficer
-from employee.serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer
-from employee.models import Broker, LoanOfficer, Employee
+
+
+from employee.serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer, LenderSerializer
+from employee.models import Broker, LoanOfficer, Employee,Lender
 
 
 from .models import Notification
@@ -15,6 +17,8 @@ from rest_framework import serializers
 from .models import Milestone
 # ...existing imports...
 
+
+from rest_framework import serializers
 from .models import IncomeAssetNote
 
 class IncomeAssetNoteSerializer(serializers.ModelSerializer):
@@ -22,6 +26,7 @@ class IncomeAssetNoteSerializer(serializers.ModelSerializer):
         model = IncomeAssetNote
         fields = ["id", "loan", "editor_state", "plain_text", "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at", "loan"]
+
         
 
 class MilestoneSerializer(serializers.ModelSerializer):
@@ -206,6 +211,8 @@ class LoanSerializer(serializers.ModelSerializer):
     processor = EmployeeSerializer(read_only=True)
     support = EmployeeSerializer(read_only=True)
 
+    lenders = LenderSerializer(read_only=True, many=True)
+
     #lenders = LenderSerializer(read_only=True, many=True)
 
     # write-only PK fields (frontend should send these on create/update)
@@ -228,6 +235,9 @@ class LoanSerializer(serializers.ModelSerializer):
     support_id = serializers.PrimaryKeyRelatedField(
         queryset=Employee.objects.all(), source='support', write_only=True, required=False, allow_null=True
     )
+    lender_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Lender.objects.all(), source='lenders', write_only=True, many=True, required=False
+    )
 
     
     class Meta:
@@ -237,7 +247,3 @@ class LoanSerializer(serializers.ModelSerializer):
 
 
 
-class LenderSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Lender
-        fields = '__all__'
