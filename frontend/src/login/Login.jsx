@@ -78,19 +78,30 @@ export default function Login() {
       // 7) If an active break exists, route to it
       try {
         const activeBreak = await triggerGetActiveBreak().unwrap();
-        if (activeBreak?.has_active_break && activeBreak?.break?.id) {
-          navigate(`/breaks/${activeBreak.break.id}`);
+        if (activeBreak.has_active_break) {
+          // Store active break in Redux so BreakPage can show overlay
+          dispatch(setAuthenticated({
+            user,
+            attendance: today,
+            activeBreak: activeBreak.break
+          }));
+
+          // Navigate to dashboard as usual
+          navigate("/dashboard");
           return;
         }
+
       } catch (err) {
         console.warn("Active break check failed:", err);
       }
 
-      // 8) Go to dashboard
+      // 6️⃣ Navigate
       navigate("/dashboard");
     } catch (err) {
       console.error("Login error:", err);
-      setErrorMsg(err?.data?.detail || "Login failed. Please check your credentials.");
+      setErrorMsg(
+        err?.data?.detail || "Login failed. Please check your credentials."
+      );
     }
   };
 
