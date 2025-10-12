@@ -245,16 +245,13 @@ from loan.models import Broker  # update import as needed
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-@authentication_classes([])
 def export_brokers_excel(request):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Brokers"
 
-    headers = [
-        'Name', 'Email', 'NMLS', 'Primary Phone', 'Phone',
-        'Address', 'Company Address', 'Created At', 'Updated At', 'Archived At'
-    ]
+    headers = ['Name', 'Email', 'NMLS', 'Primary Phone', 'Phone',
+               'Address', 'Company Address', 'Created At', 'Updated At', 'Archived At']
     ws.append(headers)
 
     for broker in Broker.objects.all().order_by('-created_at'):
@@ -271,7 +268,6 @@ def export_brokers_excel(request):
             broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '-',
         ])
 
-    # Auto-adjust column width
     for col_num, _ in enumerate(headers, 1):
         ws.column_dimensions[get_column_letter(col_num)].width = 25
 
@@ -289,7 +285,6 @@ def export_brokers_excel(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-@authentication_classes([])
 def export_brokers_pdf(request):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
@@ -318,7 +313,7 @@ def export_brokers_pdf(request):
         for line in details:
             p.drawString(50, y, line)
             y -= 15
-            if y < 50:  # new page if needed
+            if y < 50:
                 p.showPage()
                 p.setFont("Helvetica", 10)
                 y = height - 50
@@ -1706,4 +1701,5 @@ class EmployeeBreakViewSet(viewsets.ModelViewSet):
             })
 
         return Response({"has_active_break": False})
+
 
