@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -18,6 +18,7 @@ import { useGetBrokersQuery } from "../../api/brokerApi";
 import { useGetLoanOfficersQuery } from "../../api/loanOfficerApi";
 import { useGetEmployeesQuery } from "../../api/employeeApi";
 import { useGetMilestonesQuery } from "../../api/milestoneApi";
+import { useGetLendersQuery } from "../../api/lenderApiSlice";
 
 export default function LoanFormDialog({
   open,
@@ -38,7 +39,7 @@ export default function LoanFormDialog({
     useGetMilestonesQuery({ page: 1, page_size: 1000 });
   const milestoneOptions = milestonesData.results || [];
 
-  // Loan Officers (fetch only after broker selected)
+  // Loan Officers (after broker)
   const { data: loanOfficersData = {}, isLoading: loadingLoanOfficers } =
     useGetLoanOfficersQuery(
       newLoan.broker_id ? { brokerId: newLoan.broker_id } : {},
@@ -92,6 +93,21 @@ export default function LoanFormDialog({
   const teamManagers = teamManagersData.results || [];
   const processors = processorsData.results || [];
   const supports = supportsData.results || [];
+
+  // Lenders (server-side search + multi-select)
+  const [lenderSearch, setLenderSearch] = useState("");
+  const { data: lendersData = {}, isLoading: loadingLenders } = useGetLendersQuery(
+    { page: 1, page_size: 10, search: lenderSearch }
+  );
+  const lenderOptions = lendersData.results || [];
+
+  // Ensure onSave sends lender_ids (IDs only)
+  const handleSaveClick = useCallback(() => {
+    onSave({
+      ...newLoan,
+      lender_ids: (lenders || []).map((l) => l.id),
+    });
+  }, [onSave, newLoan, lenders]);
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
@@ -147,12 +163,10 @@ export default function LoanFormDialog({
               />
             </FormControl>
 
-            {/* Loan Officer (always visible) */}
+            {/* Loan Officer */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
-                options={
-                  newLoan.broker_id ? loanOfficersFiltered : []
-                }
+                options={newLoan.broker_id ? loanOfficersFiltered : []}
                 getOptionLabel={(option) => option?.name ?? ""}
                 value={
                   loanOfficersFiltered.find(
@@ -275,9 +289,50 @@ export default function LoanFormDialog({
               }
             />
 
-            {/* Lenders */}
-            <LenderFields lenders={lenders} setLenders={setLenders} />
+            {/* Lenders (multi, server search) */}
+            <FormControl fullWidth margin="normal">
+              <Autocomplete
+                multiple
+                options={lenderOptions}
+                loading={loadingLenders}
+                filterSelectedOptions
+                value={lenders || []}
+                onChange={(_e, newValue) => setLenders(newValue || [])}
+                onInputChange={(_e, value, reason) => {
+                  if (reason === "input") setLenderSearch(value);
+                }}
+                getOptionLabel={(option) =>
+                  option?.lender_name ||
+                  option?.executive_email ||
+                  option?.manager_email ||
+                  ""
+                }
+                isOptionEqualToValue={(option, value) =>
+                  String(option?.id) === String(value?.id)
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Lenders"
+                    placeholder="Search by name, email, phone…"
+                    helperText="Type to search and select one or more lenders"
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.id}>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <strong>{option.lender_name}</strong>
+                      <span style={{ fontSize: 12, opacity: 0.75 }}>
+                        {option.executive_email || option.manager_email || "-"}
+                      </span>
+                    </div>
+                  </li>
+                )}
+              />
+            </FormControl>
 
+            {/* Optional legacy fields */}
+            
             {/* Team Lead */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
@@ -321,11 +376,7 @@ export default function LoanFormDialog({
                   });
                 }}
                 renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Team Manager"
-                    variant="outlined"
-                  />
+                  <TextField {...params} label="Team Manager" variant="outlined" />
                 )}
                 isOptionEqualToValue={(option, value) =>
                   String(option?.id) === String(value?.id)
@@ -393,7 +444,7 @@ export default function LoanFormDialog({
         <Button onClick={onClose} color="secondary">
           Cancel
         </Button>
-        <Button variant="contained" onClick={onSave}>
+        <Button variant="contained" onClick={handleSaveClick}>
           Save
         </Button>
       </DialogActions>
