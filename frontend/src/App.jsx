@@ -46,6 +46,7 @@ import { useGetActiveBreakQuery } from "./api/breakApi";
 function App() {
   useInitializeAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const initial = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
   const [mode, setMode] = useState(() => localStorage.getItem("themeMode") || initial);
 
