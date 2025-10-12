@@ -40,6 +40,8 @@ import ProfilePage from "./employees/ProfilePage";
 
 import MilestoneManagement from "./components/milestone/MilestoneManagement";
 import useMediaQuery from "@mui/material/useMediaQuery";
+import { useGetActiveBreakQuery } from "./api/breakApi"; 
+
 
 function App() {
   useInitializeAuth();
@@ -48,6 +50,11 @@ function App() {
   const [mode, setMode] = useState(() => localStorage.getItem("themeMode") || initial);
 
   const { isAuthenticated, initialized } = useSelector((state) => state.auth);
+  
+   const { data: activeBreak, isSuccess } = useGetActiveBreakQuery(undefined, {
+    skip: !isAuthenticated,  // only run if logged in
+    refetchOnMountOrArgChange: true,
+  });
 
   useEffect(() => {
     localStorage.setItem("themeMode", mode);
@@ -59,6 +66,18 @@ function App() {
     if (mode === "dark") root.classList.add("dark");
     else root.classList.remove("dark");
   }, [mode]);
+
+  useEffect(() => {
+  if (isAuthenticated && isSuccess) {
+    if (activeBreak?.has_active_break && !location.pathname.startsWith("/breaks/")) {
+      navigate(`/breaks/${activeBreak.break.id}`, { replace: true });
+    } 
+    // Optional: If break ended, and user is still on /breaks/:id, send them back to dashboard
+    else if (!activeBreak?.has_active_break && location.pathname.startsWith("/breaks/")) {
+      navigate("/dashboard", { replace: true });
+    }
+  }
+}, [isAuthenticated, isSuccess, activeBreak, navigate, location.pathname]);
 
   useEffect(() => {
     if (initialized && !isAuthenticated) {
@@ -125,6 +144,8 @@ function App() {
 
             {/* Breaks */}
             <Route path="/breaks" element={<BreakPage />} />
+            <Route path="/breaks/:id" element={<BreakPage />} />
+
 
             {/* Meetings (if applicable) */}
             <Route path="/admin/meetings" element={<MeetingAdminPage />} />
