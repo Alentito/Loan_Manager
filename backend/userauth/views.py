@@ -23,11 +23,14 @@ from django.middleware import csrf
 from django.contrib.auth.models import Permission
 #from .serializers import PermissionSerializer
 
+from employee.utils import mark_attendance_on_login, mark_attendance_on_logout
 
 from rest_framework.permissions import BasePermission
 
 
 from employee.models import Employee
+
+from django.utils import timezone
 
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
@@ -182,7 +185,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
 
             print("Login for user:", request.data.get("username"))
             print("Access token:", access)
-            print("Refresh token:", refresh
+            print("Refresh token:", refresh)
             
             try:
                 user = User.objects.get(username=username)
