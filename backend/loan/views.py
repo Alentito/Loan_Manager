@@ -16,10 +16,10 @@ from .models import LoanContact
 from .serializers import LoanContactSerializer
 
 
-from .models import Loan, ChecklistQuestion, LoanChecklistAnswer, Lender, LoanDocStatus,Task, Employee
+from .models import Loan, ChecklistQuestion, LoanChecklistAnswer,  LoanDocStatus,Task, Employee
 from .serializers import (
     LoanSerializer, ChecklistQuestionSerializer, 
-     LenderSerializer, LoanDocStatusSerializer,TaskSerializer
+      LoanDocStatusSerializer,TaskSerializer
 )
 from rest_framework.views import APIView
 
@@ -79,8 +79,8 @@ from django.db.models import Q
 from .models import Milestone
 from .serializers import MilestoneSerializer, MilestoneListSerializer
 
-from .models import IncomeAssetNote
-from .serializers import IncomeAssetNoteSerializer
+
+
 
 
 
@@ -748,7 +748,7 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
 
         loans.delete()
         return Response({"status": "deleted"}, status=status.HTTP_204_NO_CONTENT)
-
+        
     @action(detail=True, methods=["get", "put", "patch"], url_path="income-asset-note")
     def income_asset_note(self, request, pk=None):
         loan = self.get_object()
@@ -768,6 +768,7 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
         serializer = IncomeAssetNoteSerializer(note)
         return Response(serializer.data)
 
+
 class ChecklistQuestionViewSet(viewsets.ModelViewSet):
     queryset = ChecklistQuestion.objects.all().order_by('order')
     serializer_class = ChecklistQuestionSerializer
@@ -775,10 +776,6 @@ class ChecklistQuestionViewSet(viewsets.ModelViewSet):
 
 
 
-
-class LendorViewSet(viewsets.ModelViewSet):
-    queryset = Lender.objects.all()
-    serializer_class = LenderSerializer
 
 
 
