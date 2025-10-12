@@ -15,22 +15,6 @@ from django.core.validators import RegexValidator
 
 # ...existing models...
 
-class IncomeAssetNote(models.Model):
-    loan = models.OneToOneField("Loan", on_delete=models.CASCADE, related_name="income_asset_note")
-    editor_state = models.JSONField(default=dict, blank=True)   # stores Lexical JSON as-is
-    plain_text = models.TextField(blank=True)                   # optional quick-read/search
-    created_by = models.ForeignKey(get_user_model(), null=True, blank=True,
-                                   on_delete=models.SET_NULL, related_name="income_asset_notes_created")
-    updated_by = models.ForeignKey(get_user_model(), null=True, blank=True,
-                                   on_delete=models.SET_NULL, related_name="income_asset_notes_updated")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"IncomeAssetNote(loan={self.loan_id})"
-
-
-
 class Milestone(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),
@@ -258,11 +242,7 @@ class LoanChecklistAnswer(models.Model):
 
 # Create your models here.
 
-class Lender(models.Model):
-    name = models.CharField(max_length=100)
 
-    def __str__(self):
-        return self.name
 
 
 
@@ -281,7 +261,7 @@ class Loan(models.Model):
     subject_property = models.CharField(max_length=255, blank=True, null=True)
     loan_comment = models.TextField(blank=True, null=True)
 
-    lenders = models.JSONField(default=list, blank=True)
+    lenders = models.ManyToManyField('employee.Lender', related_name='loans', blank=True)
 
     team_leader = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_leader')
     team_manager = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_manager')
@@ -349,3 +329,18 @@ class Task(models.Model):
     def __str__(self):
         return f"{self.title} ({self.status})"
       
+
+
+class IncomeAssetNote(models.Model):
+    loan = models.OneToOneField("Loan", on_delete=models.CASCADE, related_name="income_asset_note")
+    editor_state = models.JSONField(default=dict, blank=True)   # stores Lexical JSON as-is
+    plain_text = models.TextField(blank=True)                   # optional quick-read/search
+    created_by = models.ForeignKey(get_user_model(), null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="income_asset_notes_created")
+    updated_by = models.ForeignKey(get_user_model(), null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="income_asset_notes_updated")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"IncomeAssetNote(loan={self.loan_id})"
