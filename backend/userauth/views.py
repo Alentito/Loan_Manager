@@ -86,6 +86,16 @@ class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
 @method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
     def post(self, request):
+        user = request.user
+        if user.is_authenticated:
+            try:
+                attendance = mark_attendance_on_logout(user, logout_dt=timezone.now())
+                if attendance:
+                    print(f"[ATTENDANCE] user={user.username} -> logout at {attendance.logout_time}, worked={attendance.worked_minutes} mins")
+            except Exception as e:
+                print(f"[ERROR] mark_attendance_on_logout failed: {e}")
+                
+        
         res = Response({"message": "Logged out"})
         res.delete_cookie(
             key="access_token",
@@ -156,6 +166,9 @@ class CookieTokenRefreshView(APIView):
             print("Refresh error:", e)  # <-- Now 'e' is defined!
             return Response({'detail': 'Invalid refresh token', 'error': str(e)}, status=status.HTTP_401_UNAUTHORIZED)
 
+
+User = get_user_model()
+
 class CookieTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
@@ -164,11 +177,21 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             data = response.data
             refresh = data["refresh"]
             access = data["access"]
+            username = request.data.get("username")
 
 
             print("Login for user:", request.data.get("username"))
             print("Access token:", access)
-            print("Refresh token:", refresh)
+            print("Refresh token:", refresh
+            
+            try:
+                user = User.objects.get(username=username)
+                if hasattr(user, "employee") and user.employee:
+                    attendance = mark_attendance_on_login(user, login_dt=timezone.now())
+                    print(f"[ATTENDANCE] user={user.username} -> {attendance.status}")
+            except Exception as e:
+                print(f"[ERROR] mark_attendance_on_login failed: {e}")
+
 
             res = Response(status=status.HTTP_200_OK)
             res.set_cookie(
