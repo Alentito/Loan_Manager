@@ -68,6 +68,12 @@ function App() {
   }, [mode]);
 
   useEffect(() => {
+    if (initialized && !isAuthenticated) {
+      navigate("/login", { replace: true });
+    }
+  }, [initialized, isAuthenticated, navigate]);
+
+  useEffect(() => {
   if (isAuthenticated && isSuccess) {
     if (activeBreak?.has_active_break && !location.pathname.startsWith("/breaks/")) {
       navigate(`/breaks/${activeBreak.break.id}`, { replace: true });
@@ -79,11 +85,6 @@ function App() {
   }
 }, [isAuthenticated, isSuccess, activeBreak, navigate, location.pathname]);
 
-  useEffect(() => {
-    if (initialized && !isAuthenticated) {
-      navigate("/login", { replace: true });
-    }
-  }, [initialized, isAuthenticated, navigate]);
 
   const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
 
@@ -149,7 +150,7 @@ function App() {
 
             {/* Meetings (if applicable) */}
             <Route path="/admin/meetings" element={<MeetingAdminPage />} />
-             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Route>
         </Route>
       </Routes>
