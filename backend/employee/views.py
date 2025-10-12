@@ -245,6 +245,7 @@ from loan.models import Broker  # update import as needed
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 def export_brokers_excel(request):
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -288,6 +289,7 @@ def export_brokers_excel(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 def export_brokers_pdf(request):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
@@ -1704,3 +1706,4 @@ class EmployeeBreakViewSet(viewsets.ModelViewSet):
             })
 
         return Response({"has_active_break": False})
+
