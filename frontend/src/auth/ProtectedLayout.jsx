@@ -22,7 +22,7 @@ export default function ProtectedLayout({ mode, setMode }) {
           sx={{
             flex: 1,
             overflowY: "auto",
-            p: { xs: 1, sm: 2, md: 3 },
+            p: { xs: 0, sm: 0, md: 0 },
             bgcolor: "background.default",
             color: "text.primary",
           }}
