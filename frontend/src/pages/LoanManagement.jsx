@@ -258,7 +258,7 @@ const loanQueryArgs = useMemo(() => {
         point_file: newLoan.point_file || null,
         subject_property: newLoan.subject_property || null,
         loan_comment: newLoan.loan_comment || null,
-        lender_ids: (lenders || []).map((l) => l.id), // M2M IDs
+        lender_ids: (lenders || []).map((l) => l?.id).filter((id) => id != null), // M2M IDs
         team_leader_id: newLoan.team_leader_id || null,
         team_manager_id: newLoan.team_manager_id || null,
         processor_id: newLoan.processor_id || null,
@@ -515,7 +515,7 @@ const loanQueryArgs = useMemo(() => {
                 processor_id: "",
                 support_id: "",
               });
-              setLenders([{ lender: "", comment: "" }]);
+              setLenders([]);
               setEditMode(false);
               setSelectedLoan(null);
               setOpenNew(true);
