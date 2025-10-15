@@ -240,7 +240,7 @@ export default function TopNavbar({ mode, setMode, onOpenSidebar = () => {} }) {
           }}
         >
           <Box px={2} py={1} fontWeight="bold">
-            {user.username} {user.lastName}
+            { "Hi'" + user.username} {user.lastName}
           </Box>
           <Divider />
           <MenuItem
