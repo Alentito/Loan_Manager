@@ -578,58 +578,75 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        print (f"User: {user}, is_staff: {user.is_staff}, is_superuser: {user.is_superuser}, perms: {user.get_all_permissions()}")
-
-        # Get the Employee instance for this user
-        
+        if not user.is_authenticated:
+            return Loan.objects.none()
 
         qs = Loan.objects.all()
 
-        include_archived = self.request.query_params.get("include_archived", "").lower()
-        if include_archived != "true":
-            qs = qs.filter(is_archived=False)
-        return qs
-
-        select_candidates = [
-            f for f in ("broker","loan_officer","team_leader","team_manager","processor","support")
-            if _has_field(Loan, f)
-        ]
-        # Staff/privileged users see all loans
-        if not (user and (user.is_staff or user.is_superuser or user.has_perm("loan.view_all_loans"))):
-            try:
-                employee = Employee.objects.get(user=user)
-            except Employee.DoesNotExist:
-                return Loan.objects.none()
-
-            assigned_q = Q()
-            if _has_field(Loan, "team_manager"):
-                assigned_q |= Q(team_manager=employee)
-            if _has_field(Loan, "team_leader"):
-                assigned_q |= Q(team_leader=employee)
-            if _has_field(Loan, "processor"):
-                assigned_q |= Q(processor=employee)
-            if _has_field(Loan, "support"):
-                assigned_q |= Q(support=employee)
-
-            if assigned_q:
-                qs = qs.filter(assigned_q).distinct()
-            else:
-                return Loan.objects.none()
-
-        # Archive filtering (skip for archive/unarchive actions so we can find the record)
-        action = getattr(self, "action", None)
-        if action not in ("archive", "unarchive"):
+        # Superusers or users with explicit permission see all loans
+        if user.is_superuser or user.has_perm("loan.view_all_loans"):
             include_archived = self.request.query_params.get("include_archived", "").lower()
-            if include_archived != "true":
+            if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
                 qs = qs.filter(is_archived=False)
+            # Prefetch common FKs if present
+            select_candidates = [f for f in ("broker","loan_officer","team_leader","team_manager","processor","support") if _has_field(Loan, f)]
+            if select_candidates:
+                try:
+                    qs = qs.select_related(*select_candidates)
+                except Exception:
+                    logger.exception("select_related failed")
+            return qs.order_by("-created_at")
 
+        # Non-privileged: restrict to loans where user is involved
+        try:
+            employee = Employee.objects.get(user=user)
+        except Employee.DoesNotExist:
+            employee = None
+
+        # Team membership on the loan (Employee FK fields)
+        visibility_q = Q()
+        if employee:
+            if _has_field(Loan, "team_manager"):
+                visibility_q |= Q(team_manager=employee)
+            if _has_field(Loan, "team_leader"):
+                visibility_q |= Q(team_leader=employee)
+            if _has_field(Loan, "processor"):
+                visibility_q |= Q(processor=employee)
+            if _has_field(Loan, "support"):
+                visibility_q |= Q(support=employee)
+
+        # Optional: creator (if your Loan model has created_by)
+        if _has_field(Loan, "created_by"):
+            visibility_q |= Q(created_by=user)
+
+        # Tasks: assigner (User) or assignee (Employee)
+        assigner_exists = Task.objects.filter(loan_id=OuterRef("pk"), assigner_id=user.id)
+        if employee:
+            assignee_exists = Task.objects.filter(loan_id=OuterRef("pk"), assignee_id=employee.id)
+        else:
+            assignee_exists = Task.objects.none()
+
+        qs = qs.annotate(
+            is_assigner=Exists(assigner_exists),
+            is_assignee=Exists(assignee_exists),
+        ).filter(
+            visibility_q | Q(is_assigner=True) | Q(is_assignee=True)
+        )
+
+        # Exclude archived unless explicitly requested (and not in archive/unarchive actions)
+        include_archived = self.request.query_params.get("include_archived", "").lower()
+        if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
+            qs = qs.filter(is_archived=False)
+
+        # Optimize FKs
+        select_candidates = [f for f in ("broker","loan_officer","team_leader","team_manager","processor","support") if _has_field(Loan, f)]
         if select_candidates:
             try:
                 qs = qs.select_related(*select_candidates)
             except Exception:
                 logger.exception("select_related failed")
 
-        return qs
+        return qs.distinct().order_by("-created_at")
         
     @action(detail=True, methods=['post'], permission_classes=[StrictDjangoModelPermissions])
     def archive(self, request, pk=None):
