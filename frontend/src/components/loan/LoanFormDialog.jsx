@@ -103,10 +103,13 @@ export default function LoanFormDialog({
 
   // Ensure onSave sends lender_ids (IDs only)
   const handleSaveClick = useCallback(() => {
-    onSave({
-      ...newLoan,
-      lender_ids: (lenders || []).map((l) => l.id),
-    });
+    const lenderIds = (lenders || [])
+     .map((l) => l?.id)
+     .filter((id) => id !== undefined && id !== null);
+   onSave({
+     ...newLoan,
+      lender_ids: lenderIds,
+   });
   }, [onSave, newLoan, lenders]);
 
   return (
