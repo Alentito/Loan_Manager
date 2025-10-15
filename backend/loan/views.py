@@ -12,7 +12,7 @@ from .models import IncomeAssetNote
 from .serializers import IncomeAssetNoteSerializer
 from django.db import transaction
 
-from django.db.models import Max, F
+from django.db.models import Max, F, Exists, OuterRef, Q
 from .models import LoanContact
 from .serializers import LoanContactSerializer
 
