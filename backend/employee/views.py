@@ -1373,7 +1373,7 @@ class LenderViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at", "lender_name"]
     ordering = ["-created_at"]  # default ordering
     pagination_class = PageNumberPagination
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, StrictDjangoModelPermissions]
 
     
 @api_view(["POST"])
@@ -1701,5 +1701,6 @@ class EmployeeBreakViewSet(viewsets.ModelViewSet):
             })
 
         return Response({"has_active_break": False})
+
 
 
