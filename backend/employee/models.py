@@ -26,6 +26,11 @@ class Broker(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
 
+    class Meta:
+        permissions = [           
+            ("sidebar_broker", "Can view in sidebar"),
+        ]
+    
     def __str__(self):
         return self.name
     
@@ -41,7 +46,12 @@ class LoanOfficer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
     last_updated = models.DateTimeField(auto_now=True, db_index=True)
-    
+
+    class Meta:
+        permissions = [           
+            ("sidebar_loanofficer", "Can view in sidebar"),
+        ]
+        
     def __str__(self):
         return f"{self.name} ({self.broker_company.name})"
 
@@ -83,6 +93,11 @@ class Employee(models.Model):
             self.user.save(update_fields=["username"])
         super().save(*args, **kwargs)
 
+    class Meta:
+        permissions = [           
+            ("sidebar_employee", "Can view in sidebar"),
+        ]
+        
     def __str__(self):
         return f"{self.name} ({self.login_id})"
     
@@ -308,16 +323,18 @@ class Lender(models.Model):
     executive_email = models.EmailField(unique=True)
     executive_phone = models.CharField(max_length=20, unique=True)
     executive_address = models.TextField(blank=True, null=True)
-
     account_manager_name = models.CharField(max_length=255, blank=True, null=True)
     manager_email = models.EmailField(unique=True)
     manager_contact = models.CharField(max_length=20, unique=True)
     manager_address = models.TextField(blank=True, null=True)
-
     mortgage_clause = models.TextField(blank=True, null=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        permissions = [           
+            ("sidebar_lender", "Can view in sidebar"),
+        ]
+        
     def __str__(self):
         return self.lender_name
     
@@ -394,4 +411,5 @@ class EmployeeBreak(models.Model):
             return (self.end_time - self.start_time).total_seconds()
         return None
     
+
 
