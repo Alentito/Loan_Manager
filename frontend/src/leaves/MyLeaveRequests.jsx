@@ -180,7 +180,8 @@ export default function MyLeaveRequests() {
                 "Approval Type",
                 "Leave Balance",
                 "Start Date",
-                "End Date",
+                "End Date", 
+                "Created At",
                 "Status",
                 "Reason",
               ].map((label) => (
@@ -213,6 +214,7 @@ export default function MyLeaveRequests() {
                       <TableCell>{req.employee_balance ?? "—"}</TableCell>
                       <TableCell>{formatToCSTDate(req.start_date)}</TableCell>
                       <TableCell>{formatToCSTDate(req.end_date)}</TableCell>
+                      <TableCell>{formatToCSTDate(req.created_at)}</TableCell>
                       <TableCell>
                         <StatusBox status={req.status} />
                       </TableCell>
