@@ -81,19 +81,27 @@ export default function AttendanceCalendar({
   // Attendance events
   const attendanceDates = new Set();
   const eventsFromAttendance = [];
-  attendance.forEach(({ date, status }) => {
-    const dateStr = formatToCSTDate(date);
-    if (!dateStr) return;
-    attendanceDates.add(dateStr);
+  attendance.forEach(({ date, status, daily_late_hhmmss }) => {
+  const dateStr = formatToCSTDate(date);
+  if (!dateStr) return;
+  attendanceDates.add(dateStr);
 
-    const normalized = (status || "").toLowerCase();
-    eventsFromAttendance.push({
-      id: `att-${dateStr}`,
-      title: STATUS_TITLES[normalized] || `🔹 ${status}`,
-      date: dateStr,
-      classNames: [`status-${normalized}`],
-    });
+  const normalized = (status || "").toLowerCase();
+  let title = STATUS_TITLES[normalized] || `🔹 ${status}`;
+
+  // 🕒 Add per-day late time if exists
+  if (normalized === "late" && daily_late_hhmmss && daily_late_hhmmss !== "00:00:00") {
+    title += `\n⏱️ ${daily_late_hhmmss}`;
+  }
+
+  eventsFromAttendance.push({
+    id: `att-${dateStr}`,
+    title,
+    date: dateStr,
+    classNames: [`status-${normalized}`],
   });
+});
+
   const eventsFromBreaks = [];
 breaks.forEach(({ id, start_time, end_time }) => {
   const dateStr = formatToCSTDate(start_time);
