@@ -82,6 +82,7 @@ class StrictDjangoModelPermissions(DjangoModelPermissions):
         'DELETE': ['%(app_label)s.delete_%(model_name)s'],
     }
 
+
 logger = logging.getLogger(__name__)
 current_time = timezone.localtime(timezone.now())  # Respect server's timezone
 
@@ -95,7 +96,6 @@ class BrokerPagination(PageNumberPagination):
 # ✅ Main API ViewSet
 class BrokerViewSet(viewsets.ModelViewSet):
     permission_classes = [StrictDjangoModelPermissions]
-
     queryset = Broker.objects.all()
     serializer_class = BrokerSerializer
     parser_classes = (MultiPartParser, FormParser)
@@ -115,6 +115,7 @@ class BrokerViewSet(viewsets.ModelViewSet):
         instance.save()
 
     def get_queryset(self):
+     
         archived = self.request.query_params.get("archived")
         queryset = Broker.objects.all().order_by('-created_at')
 
@@ -250,8 +251,10 @@ def export_brokers_excel(request):
     ws = wb.active
     ws.title = "Brokers"
 
-    headers = ['Name', 'Email', 'NMLS', 'Primary Phone', 'Phone',
-               'Address', 'Company Address', 'Created At', 'Updated At', 'Archived At']
+    headers = [
+        'Name', 'Email', 'NMLS', 'Primary Phone', 'Phone',
+        'Address', 'Company Address', 'Created At', 'Updated At', 'Archived At'
+    ]
     ws.append(headers)
 
     for broker in Broker.objects.all().order_by('-created_at'):
@@ -268,6 +271,7 @@ def export_brokers_excel(request):
             broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '-',
         ])
 
+    # Auto-adjust column width
     for col_num, _ in enumerate(headers, 1):
         ws.column_dimensions[get_column_letter(col_num)].width = 25
 
@@ -313,7 +317,7 @@ def export_brokers_pdf(request):
         for line in details:
             p.drawString(50, y, line)
             y -= 15
-            if y < 50:
+            if y < 50:  # new page if needed
                 p.showPage()
                 p.setFont("Helvetica", 10)
                 y = height - 50
@@ -371,6 +375,7 @@ class LoanOfficerViewSet(viewsets.ModelViewSet):
         instance.save()
 
     def get_queryset(self):
+     
         archived = self.request.query_params.get("archived")
         queryset = LoanOfficer.objects.select_related('broker_company').all().order_by('-created_at')
 
@@ -697,6 +702,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return response
     
     def get_queryset(self):
+        
         queryset = Employee.objects.select_related('team', 'primary_shift').all().order_by('-created_at')
         is_archived = self.request.query_params.get("is_archived")
         
@@ -1183,7 +1189,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         Prefetch("breaks", queryset=Break.objects.all())
     )
     serializer_class = AttendanceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, StrictDjangoModelPermissions]
     pagination_class = None 
     
     def get_queryset(self):
@@ -1335,7 +1341,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             queryset, many=True, context={"leave_summary": leave_summary}
         )
         return Response(serializer.data)
-
+    
 class MonthlyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MonthlyAttendanceSummarySerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -1365,9 +1371,9 @@ class MonthlyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class LenderViewSet(viewsets.ModelViewSet):
-    queryset = Lender.objects.all()  # remove .order_by
+    queryset = Lender.objects.all()  # default
     serializer_class = LenderSerializer
-    filter_backends = [filters.SearchFilter, DjangoFilterBackend, OrderingFilter]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
     search_fields = ["lender_name", "executive_email", "manager_email", "account_executive_name"]
     filterset_fields = ["lender_name", "executive_email"]
     ordering_fields = ["created_at", "lender_name"]
@@ -1375,7 +1381,35 @@ class LenderViewSet(viewsets.ModelViewSet):
     pagination_class = PageNumberPagination
     permission_classes = [IsAuthenticated, StrictDjangoModelPermissions]
 
-    
+    def get_queryset(self):
+       
+        qs = super().get_queryset()
+        archived = self.request.query_params.get("archived")
+        if archived == "true":
+            return qs.filter(is_archived=True)
+        elif archived == "false":
+            return qs.filter(is_archived=False)
+        return qs
+
+    @action(detail=True, methods=["POST"])
+    def archive(self, request, pk=None):
+        """Archive a lender"""
+        lender = self.get_object()
+        lender.is_archived = True
+        lender.archived_at = timezone.now()
+        lender.save()
+        return Response({"success": "Lender archived successfully"}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["POST"])
+    def unarchive(self, request, pk=None):
+        """Unarchive a lender"""
+        lender = self.get_object()
+        lender.is_archived = False
+        lender.archived_at = None
+        lender.save()
+        return Response({"success": "Lender unarchived successfully"}, status=status.HTTP_200_OK)
+
+
 @api_view(["POST"])
 def validate_lender_field(request):
     """Check if executive email, phone, manager email, or contact is unique."""
@@ -1386,7 +1420,6 @@ def validate_lender_field(request):
         return Response({"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST)
 
     exists = Lender.objects.filter(**{field: value}).exists()
-
     return Response({"exists": exists})
 
 @api_view(['GET'])
@@ -1574,7 +1607,11 @@ class EmployeeBreakViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = EmployeeBreak.objects.all()
 
-        emp_id = self.request.query_params.get("employeeId")
+        emp_id = (
+            self.request.query_params.get("employeeId")
+            or self.request.query_params.get("employee")
+            or self.request.query_params.get("userId")
+        )
 
         if emp_id:
             try:
@@ -1701,6 +1738,3 @@ class EmployeeBreakViewSet(viewsets.ModelViewSet):
             })
 
         return Response({"has_active_break": False})
-
-
-
