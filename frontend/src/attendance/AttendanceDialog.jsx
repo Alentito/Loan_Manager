@@ -55,18 +55,35 @@ const AttendanceDialog = ({ open, onClose, date, attendance, holiday, meetings =
 
       {/* Attendance */}
       <Box mb={2}>
-        <Typography gutterBottom fontWeight={600}>
-          📝 Attendance
-        </Typography>
-        {attendance ? (
-          <Chip
-            label={capitalize(attendance)}
-            sx={{ bgcolor: getStatusColor(attendance), color: "#fff", fontWeight: 600 }}
-          />
-        ) : (
-          <Typography color="textSecondary">No attendance marked</Typography>
+  <Typography gutterBottom fontWeight={600}>
+    📝 Attendance
+  </Typography>
+
+  {attendance ? (
+    <>
+      <Chip
+        label={capitalize(attendance.status || attendance)}
+        sx={{
+          bgcolor: getStatusColor(attendance.status || attendance),
+          color: "#fff",
+          fontWeight: 600,
+          mb: 1,
+        }}
+      />
+
+      {/* 🕒 Late time display */}
+      {attendance.daily_late_hhmmss &&
+        attendance.daily_late_hhmmss !== "00:00:00" && (
+          <Typography variant="body2" color="warning.main" sx={{ fontWeight: 600 }}>
+            ⏱️ Late by {attendance.daily_late_hhmmss}
+          </Typography>
         )}
-      </Box>
+    </>
+  ) : (
+    <Typography color="textSecondary">No attendance marked</Typography>
+  )}
+</Box>
+
 
       <Divider sx={{ my: 2 }} />
 
