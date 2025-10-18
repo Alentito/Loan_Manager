@@ -238,7 +238,17 @@ if (
   status = "ABSENT";
 }
 
-    setSelectedDateInfo({ date: dateStr, attendance: { status }, holiday, meetings: dayMeetings, breaks: dayBreaks, totalBreak: dayTotalBreak });
+    setSelectedDateInfo({
+  date: dateStr,
+  attendance: att
+    ? att // full attendance object from backend
+    : { status }, // fallback if no record found
+  holiday,
+  meetings: dayMeetings,
+  breaks: dayBreaks,
+  totalBreak: dayTotalBreak,
+});
+
     setDialogOpen(true);
   }, [attendance, allHolidays, meetings, todayStr, getBreaksForDate]);
 
@@ -308,7 +318,7 @@ if (
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         date={selectedDateInfo.date}
-        attendance={selectedDateInfo.attendance?.status}
+        attendance={selectedDateInfo.attendance}
         holiday={selectedDateInfo.holiday?.title}
         meetings={selectedDateInfo.meetings}
         breaks={selectedDateInfo.breaks}
