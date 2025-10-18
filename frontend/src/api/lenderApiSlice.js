@@ -7,15 +7,16 @@ export const lenderApi = createApi({
   tagTypes: ["Lender"],
 
   endpoints: (builder) => ({
-    // 📌 Fetch lenders with pagination, search & ordering
+    // 📌 Fetch lenders with pagination, search, ordering, and archived filter
     getLenders: builder.query({
-      query: ({ page = 1, pageSize = 10, search, ordering } = {}) => {
+      query: ({ page = 1, pageSize = 10, search, ordering, archived } = {}) => {
         const params = new URLSearchParams({
           page,
           page_size: pageSize,
         });
         if (search) params.set("search", search);
         if (ordering) params.set("ordering", ordering);
+        if (archived !== undefined) params.set("archived", archived); // 'true' or 'false'
 
         return `lenders/?${params.toString()}`;
       },
@@ -69,7 +70,7 @@ export const lenderApi = createApi({
       ],
     }),
 
-    // 📌 Validate unique fields (email, phone, etc.)
+    // 📌 Validate unique fields
     validateLenderField: builder.mutation({
       query: (payload) => ({
         url: "lenders/validate/",
@@ -77,19 +78,24 @@ export const lenderApi = createApi({
         body: payload,
       }),
     }),
-    archiveLender: builder.mutation({
-          query: (id) => ({
-              url: `/lenders/${id}/archive/`,
-              method: "POST",
-          }),
-      }),
-    unarchiveLender: builder.mutation({
-          query: (id) => ({
-              url: `/lenders/${id}/unarchive/`,
-              method: "POST",
-          }),
-      }),
 
+    // 📌 Archive lender
+    archiveLender: builder.mutation({
+      query: (id) => ({
+        url: `lenders/${id}/archive/`,
+        method: "POST",
+      }),
+      invalidatesTags: [{ type: "Lender", id: "LIST" }],
+    }),
+
+    // 📌 Unarchive lender
+    unarchiveLender: builder.mutation({
+      query: (id) => ({
+        url: `lenders/${id}/unarchive/`,
+        method: "POST",
+      }),
+      invalidatesTags: [{ type: "Lender", id: "LIST" }],
+    }),
   }),
 });
 
