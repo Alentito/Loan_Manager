@@ -76,6 +76,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     alternate_shift_name = serializers.CharField(source='alternate_shift.name', read_only=True)
     manager_id = serializers.IntegerField(source='team.manager.id', read_only=True)
     team_manager_name = serializers.CharField(source='team.manager.name', read_only=True)  # ✅ new
+    created_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Employee
@@ -314,6 +315,9 @@ class AttendanceSerializer(serializers.ModelSerializer):
     shift_name = serializers.CharField(source="shift.name", read_only=True)
     leave_balance = serializers.SerializerMethodField()
     yearly_late_seconds = serializers.SerializerMethodField()
+    employee_details = EmployeeSerializer(source="employee", read_only=True)
+    daily_late_hhmmss = serializers.SerializerMethodField()
+
     class Meta:
         model = Attendance
         fields = [
@@ -321,6 +325,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
             "employee",
             "employee_id",
             "employee_name",
+            "employee_details",
             "date",
             "shift",
             "shift_name",
@@ -328,6 +333,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
             "counted_from",
             "status",
             "minutes_late",
+            "daily_late_hhmmss",
             "worked_minutes",
             "total_break_minutes",
             "net_worked_minutes",
@@ -374,12 +380,24 @@ class AttendanceSerializer(serializers.ModelSerializer):
         return adjusted_minutes * 60  # convert back to seconds
 
 
+    def get_daily_late_hhmmss(self, obj):
+        if not obj.minutes_late or not obj.shift:
+            return "00:00:00"
+
+        grace = obj.shift.grace_period_minutes or 0
+        adjusted_minutes = max(0, obj.minutes_late - grace)
+        total_seconds = adjusted_minutes * 60
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
     def get_status(self, obj):
         if obj.minutes_late > 0:
             return "LATE"
         return obj.status.upper() if obj.status else "ABSENT"
     
-
 class MonthlyAttendanceSummarySerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source="employee.user.username", read_only=True)
     attendance_details = serializers.SerializerMethodField()
