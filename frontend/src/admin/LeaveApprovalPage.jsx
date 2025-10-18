@@ -280,6 +280,7 @@ export default function LeaveApprovalPage() {
                 "Leave Balance",
                 "Start Date",
                 "End Date",
+                "Created At",
                 "Status",
                 "Reason",
                 "Reviewed By",
@@ -319,6 +320,9 @@ export default function LeaveApprovalPage() {
                     </TableCell>
                     <TableCell sx={{ px: 2 }}>
                       {formatToCSTDate(req.end_date)}
+                    </TableCell>
+                    <TableCell sx={{ px: 2 }}>
+                      {formatToCSTDate(req.created_at)}
                     </TableCell>
                     <TableCell sx={{ px: 2 }}>
                       <StatusBox status={req.status} />
@@ -414,7 +418,7 @@ export default function LeaveApprovalPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 5 }}>
+                <TableCell colSpan={10} align="center" sx={{ py: 5 }}>
                   No leave requests found.
                 </TableCell>
               </TableRow>
