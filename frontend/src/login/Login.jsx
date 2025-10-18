@@ -5,7 +5,7 @@ import { useDispatch } from "react-redux";
 import { setAuthenticated } from "../api/authSlice";
 import { loanApi } from "../api/loanApi";
 import { Eye, EyeOff, Mail, Lock, Loader2, LogIn } from "lucide-react";
-import { useMarkAttendanceMutation, useLazyGetTodayAttendanceQuery } from "../api/attendanceApi";
+import { useLazyGetTodayAttendanceQuery } from "../api/attendanceApi";
 import { useLazyGetActiveBreakQuery } from "../api/breakApi";
 
 export default function Login() {
@@ -19,8 +19,6 @@ export default function Login() {
   const dispatch = useDispatch();
 
   const [errorMsg, setErrorMsg] = useState("");
-
-  const [markAttendance] = useMarkAttendanceMutation();
   const [triggerGetTodayAttendance] = useLazyGetTodayAttendanceQuery();
   const [triggerGetActiveBreak] = useLazyGetActiveBreakQuery();
 
@@ -46,23 +44,13 @@ export default function Login() {
       if (!user) throw new Error("Failed to fetch user info.");
 
       // 4) Mark today's attendance (safe to ignore failures)
-      try {
-        const employeeId = user.employee_id || user.employee?.id || user.id;
-        const todayDate = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-        await markAttendance({
-          employee: employeeId,
-          date: todayDate,
-          status: "PRESENT", // or your logic for status
-        }).unwrap();
-      } catch (err) {
-        console.warn("Mark attendance skipped:", err);
-      }
+      
 
       // 5) Fetch today's attendance (normalize to array)
       let today = [];
       try {
         const todayData = await triggerGetTodayAttendance().unwrap();
-        today = todayData ? (Array.isArray(todayData) ? todayData : [todayData]) : [];
+        today = todayData ? [todayData] : [];
       } catch (err) {
         console.warn("Today attendance not found:", err);
       }
