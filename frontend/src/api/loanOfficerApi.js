@@ -1,5 +1,5 @@
 // src/components/redux/loanOfficerApi.js
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { createApi } from '@reduxjs/toolkit/query/react';
 import baseQueryWithReauth from "./baseApi";
 
 export const loanOfficerApi = createApi({
@@ -8,11 +8,11 @@ export const loanOfficerApi = createApi({
   tagTypes: ['LoanOfficer'],
   endpoints: (builder) => ({
     getLoanOfficers: builder.query({
-      query: ({ brokerId } = {}) => {
-        const params = new URLSearchParams({ archived: "false", page_size: 100 });
-        if (brokerId) params.append("broker_id", brokerId);
-        return `loan-officers/?${params.toString()}`;
-      },
+      query: (params) => ({
+        url: 'loan-officers/',
+        method: 'GET',
+        params,
+      }),
       providesTags: ['LoanOfficer'],
     }),
     getLoanOfficerById: builder.query({
@@ -48,6 +48,20 @@ export const loanOfficerApi = createApi({
         body: data,
       }),
     }),
+    archiveLoanOfficer: builder.mutation({
+      query: (id) => ({
+        url: `loan-officers/${id}/archive/`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['LoanOfficer'],
+    }),
+    unarchiveLoanOfficer: builder.mutation({
+      query: (id) => ({
+        url: `loan-officers/${id}/unarchive/`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['LoanOfficer'],
+    }),
   }),
 });
 
@@ -57,5 +71,8 @@ export const {
   useGetLoanOfficerByIdQuery,
   useCreateLoanOfficerMutation,
   useUpdateLoanOfficerMutation,
-  useDeleteLoanOfficerMutation, // ✅ Required by LoanOfficerForm.js
+  useDeleteLoanOfficerMutation,
+  useArchiveLoanOfficerMutation,   // new
+  useUnarchiveLoanOfficerMutation, // new
+  useValidateLoanOfficerMutation,
 } = loanOfficerApi;
