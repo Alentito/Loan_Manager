@@ -29,6 +29,21 @@ import { selectCurrentUser } from "../api/authSlice";
 
 const pageSizeDefault = 10;
 
+const formatToCST = (dateStr) => {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(date);
+};
+
+
 const EmployeeList = () => {
   const isMobile = useMediaQuery('(max-width:600px)');
   const [page, setPage] = useState(1);
@@ -148,15 +163,15 @@ const EmployeeList = () => {
   };
 
   const handleExport = (format) => {
-  const map = {
-    excel: 'export/employees/excel/',
-    pdf: 'export/employees/pdf/',
-  };
+    const map = {
+      excel: 'export/employees/excel/',
+      pdf: 'export/employees/pdf/',
+    };
 
-  if (format && map[format]) {
-    window.open(`https://backend-l3f9.onrender.com/api/${map[format]}`, '_blank');
-  }
-};
+    if (format && map[format]) {
+      window.open(`http://localhost:8000/api/${map[format]}`, '_blank');
+    }
+  };
 
 
 
@@ -286,7 +301,7 @@ const EmployeeList = () => {
                   />
                 </TableCell>
                 {[
-                  'Avatar', 'Name', 'Login ID', 'Company Email', 'Contact No:', 'Team Manager', 'Team', 'Primary Shift',
+                  'Avatar', 'Name', 'Login ID', 'Company Email', 'Contact No:', 'Role', 'Team Manager', 'Team', 'Primary Shift',
                   ...(showArchived ? ['Archived At'] : []),
                   'Actions'
                 ].map((label, idx) => (
@@ -324,13 +339,15 @@ const EmployeeList = () => {
                       <TableCell>{emp.login_id}</TableCell>
                       <TableCell>{emp.company_email}</TableCell>
                       <TableCell>{emp.contact_number}</TableCell>
+                      <TableCell>{emp.role_names?.[0] || '-'}</TableCell>
                       <TableCell>{emp.team_manager_name || '-'}</TableCell>
                       <TableCell>{emp.team_name || '-'}</TableCell>
                       <TableCell>{emp.primary_shift_name || '-'}</TableCell>
 
                       {showArchived && (
-                        <TableCell>{emp.archived_at ? new Date(emp.archived_at).toLocaleDateString() : '-'}</TableCell>
+                        <TableCell>{formatToCST(emp.archived_at)}</TableCell>
                       )}
+
 
                       <TableCell>
                         <Tooltip title="View">
@@ -456,15 +473,14 @@ const EmployeeList = () => {
                 ['Login ID', viewingEmployee.login_id],
                 ['Company Email', viewingEmployee.company_email],
                 ['Contact Number', viewingEmployee.contact_number],
-                ['Roles', viewingEmployee.roles],
+                ['Role', viewingEmployee.role_names?.[0]],
                 ['Team Manager', viewingEmployee.team_manager_name],
                 ['Team Lead', viewingEmployee.team_name],
                 ['Primary Shift', viewingEmployee.primary_shift_name],
                 //['Alternative Shift', viewingEmployee.alternate_shift_name],
-                ['Created At - MM:DD:YY', new Date(viewingEmployee.created_at).toLocaleString()],
-                
-                ['Last Updated - MM:DD:YY', new Date(viewingEmployee.updated_at).toLocaleString()],
-                ['Archived At', viewingEmployee.archived_at ? new Date(viewingEmployee.archived_at).toLocaleString() : '-'],
+                ['Created At - MM:DD:YY', formatToCST(viewingEmployee.created_at)],
+                ['Last Updated - MM:DD:YY', formatToCST(viewingEmployee.updated_at)],
+                ['Archived At', formatToCST(viewingEmployee.archived_at)],
               ].map(([label, value]) => (
                 <Typography key={label}><strong>{label}:</strong> {value || '-'}</Typography>
               ))}
