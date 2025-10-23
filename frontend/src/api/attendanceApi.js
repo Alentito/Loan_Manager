@@ -66,6 +66,20 @@ export const attendanceApi = createApi({
         return `attendance/summary/${queryString ? "?" + queryString : ""}`;
       },
     }),
+    getMonthlyLateSummary: builder.query({
+      query: ({ employeeId, year } = {}) => {
+        const params = new URLSearchParams();
+        if (employeeId) params.append("employeeId", employeeId);
+        if (year) params.append("year", year);
+        const queryString = params.toString();
+        return `attendance/monthly-summary/${queryString ? "?" + queryString : ""}`;
+      },
+      providesTags: (result, error, arg) =>
+        result
+          ? [{ type: "Attendance", id: `Monthly-${arg.employeeId || "self"}` }]
+          : [{ type: "Attendance", id: "LIST" }],
+    }),
+
   }),
 });
 
@@ -76,4 +90,5 @@ export const {
   useGetTodayAttendanceQuery,
   useLazyGetTodayAttendanceQuery,
   useGetAttendanceSummaryQuery,
+  useGetMonthlyLateSummaryQuery,
 } = attendanceApi;
