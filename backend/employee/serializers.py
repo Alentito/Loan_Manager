@@ -67,10 +67,8 @@ class MeetingSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class EmployeeSerializer(serializers.ModelSerializer):
-    roles = serializers.PrimaryKeyRelatedField(
-        queryset=Group.objects.all(),
-        many=True
-    )
+    roles = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all(), many=True)
+    role_names = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name', source='roles')
     team_name = serializers.CharField(source='team.name', read_only=True)
     primary_shift_name = serializers.CharField(source='primary_shift.name', read_only=True)
     alternate_shift_name = serializers.CharField(source='alternate_shift.name', read_only=True)
@@ -80,7 +78,15 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Employee
-        fields = '__all__'
+        fields = [
+            'id', 'user', 'roles', 'role_names', 'login_id', 'name',
+            'company_email', 'contact_number', 'designation', 'team',
+            'primary_shift', 'alternate_shift', 'is_archived',
+            'archived_at', 'created_at', 'updated_at', 'login_password',
+            'yearly_paid_leaves', 'leave_balance',
+            'team_name', 'primary_shift_name', 'alternate_shift_name',
+            'manager_id', 'team_manager_name'
+        ]
 
     def create(self, validated_data):
         roles = validated_data.pop('roles', [])
