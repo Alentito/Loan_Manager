@@ -61,12 +61,13 @@ from django.db.models import Count
 from .utils import today_cst, mark_attendance_for_leave
 from .utils import now_cst
 from django.db.models import Prefetch
-from django.db.models import Sum, F, ExpressionWrapper, DurationField
+from django.db.models import Sum, F, ExpressionWrapper, DurationField, IntegerField, Case, When, Value
 from .utils import to_cst, add_us_holidays, get_cst_date
 from django.utils.dateparse import parse_date
 from django.contrib.auth.decorators import permission_required
 from django.views.decorators.csrf import csrf_exempt
-
+from django.utils import timezone as dj_timezone
+from django.db.models.functions import TruncMonth
 
 
 
@@ -1258,8 +1259,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def summary(self, request):
         user = request.user
         employee_id = request.query_params.get("employeeId")
-        year = int(request.query_params.get("year") or timezone.now().year)
 
+        # Use CST time for year reference
+        now_cst = to_cst(timezone.now())
+        year = int(request.query_params.get("year") or now_cst.year)
+
+        # Resolve employee
         if not employee_id:
             if hasattr(user, "employee"):
                 employee_id = user.employee.id
@@ -1267,8 +1272,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 return Response({"detail": "Employee ID is required"}, status=400)
 
         try:
-            employee = Employee.objects.get(id=employee_id)
-        except Employee.DoesNotExist:
+            employee = Employee.objects.get(id=int(employee_id))
+        except (ValueError, Employee.DoesNotExist):
             return Response({"detail": "Employee not found"}, status=404)
 
         # Permission check
@@ -1276,39 +1281,117 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             if not (user.is_superuser or user.has_perm("employee.view_employee")):
                 return Response({"detail": "Not allowed"}, status=403)
 
-        # Total late minutes including grace
-        total_minutes = Attendance.objects.filter(
-            employee=employee,
-            date__year=year
-        ).aggregate(total_late=Sum("minutes_late"))["total_late"] or 0
+        # ✅ Grace-aware yearly late total (CST aligned)
+        adjusted_minutes = (
+            Attendance.objects.filter(employee=employee, date__year=year)
+            .aggregate(
+                total_adjusted=Sum(
+                    Case(
+                        When(
+                            minutes_late__gt=F("shift__grace_period_minutes"),
+                            then=F("minutes_late") - F("shift__grace_period_minutes"),
+                        ),
+                        default=Value(0),
+                        output_field=IntegerField(),
+                    )
+                )
+            )["total_adjusted"]
+            or 0
+        )
 
-        # Total grace minutes for the year
-        total_grace = Attendance.objects.filter(
-            employee=employee,
-            date__year=year,
-            shift__isnull=False
-        ).annotate(grace_minutes=F("shift__grace_period_minutes")).aggregate(
-            total_grace=Sum("grace_minutes")
-        )["total_grace"] or 0
-
-        # Adjust late minutes by subtracting grace
-        adjusted_minutes = max(0, total_minutes - total_grace)
+        # Format time
         total_seconds = adjusted_minutes * 60
+        hh = total_seconds // 3600
+        mm = (total_seconds % 3600) // 60
+        ss = total_seconds % 60
 
-        hours = total_seconds // 3600
-        minutes = (total_seconds % 3600) // 60
-        seconds = total_seconds % 60
-        hh_mm_ss = f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+        return Response(
+            {
+                "employee_id": employee.id,
+                "employee_name": employee.name,
+                "leave_balance": employee.leave_balance,
+                "year": year,
+                "yearly_late_minutes": adjusted_minutes,
+                "yearly_late_seconds": total_seconds,
+                "yearly_late_hhmmss": f"{hh:02d}:{mm:02d}:{ss:02d}",
+            }
+        )
 
-        data = {
-            "employee_id": employee.id,
-            "employee_name": employee.name,
-            "leave_balance": employee.leave_balance,
-            "yearly_late_hhmmss": hh_mm_ss,
-            "yearly_late_seconds": total_seconds,
-        }
+    # ✅ MONTHLY SUMMARY (CST safe + grace aware)
+    @action(detail=False, methods=["get"], url_path="monthly-summary")
+    def monthly_summary(self, request):
+        user = request.user
+        employee_id = request.query_params.get("employeeId")
 
-        return Response(data)
+        now_cst = to_cst(timezone.now())
+        year = int(request.query_params.get("year") or now_cst.year)
+
+        # Resolve employee
+        if not employee_id:
+            if hasattr(user, "employee"):
+                employee_id = user.employee.id
+            else:
+                return Response({"detail": "Employee ID is required"}, status=400)
+
+        try:
+            employee = Employee.objects.get(id=int(employee_id))
+        except (ValueError, Employee.DoesNotExist):
+            return Response({"detail": "Employee not found"}, status=404)
+
+        # Permission check
+        if hasattr(user, "employee") and user.employee.id != employee.id:
+            if not (user.is_superuser or user.has_perm("employee.view_employee")):
+                return Response({"detail": "Not allowed"}, status=403)
+
+        # ✅ CST-aligned query (grace-aware)
+        monthly_qs = (
+            Attendance.objects.filter(employee=employee, date__year=year)
+            .annotate(month=TruncMonth("date"))
+            .values("month")
+            .annotate(
+                total_adjusted=Sum(
+                    Case(
+                        When(
+                            minutes_late__gt=F("shift__grace_period_minutes"),
+                            then=F("minutes_late") - F("shift__grace_period_minutes"),
+                        ),
+                        default=Value(0),
+                        output_field=IntegerField(),
+                    )
+                )
+            )
+            .order_by("month")
+        )
+
+        # JSON clean output
+        raw_by_month = {row["month"].month: row["total_adjusted"] or 0 for row in monthly_qs}
+
+        result = []
+        for m in range(1, 13):
+            adjusted_minutes = raw_by_month.get(m, 0)
+            seconds = adjusted_minutes * 60
+            hrs = seconds // 3600
+            mins = (seconds % 3600) // 60
+            secs = seconds % 60
+            result.append(
+                {
+                    "month": m,
+                    "month_name": calendar.month_name[m],
+                    "late_minutes": adjusted_minutes,
+                    "total_late_seconds": seconds,
+                    "late_hhmmss": f"{hrs:02d}:{mins:02d}:{secs:02d}",
+                }
+            )
+
+        return Response(
+            {
+                "employee_id": employee.id,
+                "employee_name": employee.name,
+                "year": year,
+                "monthly": result,
+            }
+        )
+    
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -1341,6 +1424,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             queryset, many=True, context={"leave_summary": leave_summary}
         )
         return Response(serializer.data)
+    
     
 class MonthlyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MonthlyAttendanceSummarySerializer
