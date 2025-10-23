@@ -328,6 +328,8 @@ class Lender(models.Model):
     manager_contact = models.CharField(max_length=20, unique=True)
     manager_address = models.TextField(blank=True, null=True)
     mortgage_clause = models.TextField(blank=True, null=True)
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -411,5 +413,6 @@ class EmployeeBreak(models.Model):
             return (self.end_time - self.start_time).total_seconds()
         return None
     
+
 
 
