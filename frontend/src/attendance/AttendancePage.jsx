@@ -12,6 +12,7 @@ import {
   useGetEmployeeAttendanceQuery,
   useMarkAttendanceMutation,
   useGetAttendanceSummaryQuery,
+  useGetMonthlyLateSummaryQuery,
 
 } from "../api/attendanceApi";
 import { useGetHolidaysQuery } from "../api/holidayApi";
@@ -67,7 +68,7 @@ const AttendancePage = () => {
   const { data: employeeData } = useGetEmployeeByIdQuery(employeeIdToFetch, {
     skip: !employeeIdToFetch,
   });
-  
+
   // ---------------------- Attendance summary ----------------------
 
 
@@ -93,6 +94,13 @@ const AttendancePage = () => {
     { employeeId: employeeIdToFetch, year },
     { skip: !employeeIdToFetch }
   );
+
+  // ✅ Monthly late summary
+  const { data: monthlyLateSummary } = useGetMonthlyLateSummaryQuery(
+    { employeeId: employeeIdToFetch, year },
+    { skip: !employeeIdToFetch }
+  );
+
 
   const { data: allHolidayData } = useGetHolidaysQuery({ page: 1, pageSize: 9999 });
   const { data: meetings = [] } = useGetMeetingsQuery();
@@ -137,9 +145,15 @@ const AttendancePage = () => {
 
   const leaveBalance = useMemo(() => attendanceSummary?.leave_balance ?? 0, [attendanceSummary]);
   const yearlyLateHHMMSS = useMemo(() => {
-  if (!attendanceSummary?.yearly_late_seconds) return "00:00:00";
-  return formatSecondsToHHMMSS(attendanceSummary.yearly_late_seconds);
-}, [attendanceSummary]);
+    if (!attendanceSummary?.yearly_late_seconds) return "00:00:00";
+    return formatSecondsToHHMMSS(attendanceSummary.yearly_late_seconds);
+  }, [attendanceSummary]);
+
+  const monthlyLateHHMMSS = useMemo(() => {
+    if (!monthlyLateSummary?.monthly) return "00:00:00";
+    const monthData = monthlyLateSummary.monthly.find(m => m.month === month);
+    return monthData?.late_hhmmss || "00:00:00";
+  }, [monthlyLateSummary, month]);
 
   // ---------------------- Attendance summary ----------------------
   const {
@@ -151,7 +165,7 @@ const AttendancePage = () => {
     let present = 0, late = 0, paidLeave = 0, unpaidLeave = 0, absent = 0, early = 0;
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const employeeCreationStr = formatToCSTDate(displayedEmployee?.created_at);
-    
+
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = formatToCSTDate(new Date(Date.UTC(year, month - 1, d, 12)));
       if (!dateStr) continue;
@@ -165,13 +179,13 @@ const AttendancePage = () => {
         else if (status === "ABSENT") absent++;
         else if (status === "EARLY") early++;
       } else if (
-  !isWeekendFromDateStr(dateStr) &&
-  !holidaySet.has(dateStr) &&
-  !isFuture &&
-  (!employeeCreationStr || dateStr >= employeeCreationStr)
-) {
-  absent++;
-}
+        !isWeekendFromDateStr(dateStr) &&
+        !holidaySet.has(dateStr) &&
+        !isFuture &&
+        (!employeeCreationStr || dateStr >= employeeCreationStr)
+      ) {
+        absent++;
+      }
     }
     return {
       totalPresent: present,
@@ -223,34 +237,33 @@ const AttendancePage = () => {
     const dayTotalBreak = formatSecondsToHHMMSS(dayBreaks.reduce((sum, b) => b.end_time ? sum + (new Date(b.end_time) - new Date(b.start_time)) / 1000 : sum, 0));
 
     let status = att?.status;
-const isHoliday = !!holiday;
-const isFuture = dateStr > todayStr;
-const employeeCreationStr = formatToCSTDate(displayedEmployee?.created_at);
+    const isHoliday = !!holiday;
+    const isWeekend = isWeekendFromDateStr(dateStr);
+    const isFuture = dateStr > todayStr;
+    const employeeCreationStr = formatToCSTDate(displayedEmployee?.created_at);
 
-// Only mark absent if date is after employee creation
-if (
-  !status &&
-  !isHoliday &&
-  !isWeekendFromDateStr(dateStr) &&
-  !isFuture &&
-  (!employeeCreationStr || dateStr >= employeeCreationStr)
-) {
-  status = "ABSENT";
-}
+    // Only mark absent if date is after employee creation
+    if (
+      !status &&
+      !isHoliday &&
+      !isWeekendFromDateStr(dateStr) &&
+      !isFuture &&
+      (!employeeCreationStr || dateStr >= employeeCreationStr)
+    ) {
+      status = "ABSENT";
+    }
 
     setSelectedDateInfo({
-  date: dateStr,
-  attendance: att
-    ? att // full attendance object from backend
-    : { status }, // fallback if no record found
-  holiday,
-  meetings: dayMeetings,
-  breaks: dayBreaks,
-  totalBreak: dayTotalBreak,
-});
+      date: dateStr,
+      attendance: att ? att : status ? { status } : null,  // fallback if no record found
+      holiday,
+      meetings: dayMeetings,
+      breaks: dayBreaks,
+      totalBreak: dayTotalBreak,
+    });
 
     setDialogOpen(true);
-  }, [attendance, allHolidays, meetings, todayStr, getBreaksForDate]);
+  }, [attendance, allHolidays, meetings, todayStr, getBreaksForDate, displayedEmployee]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDateInfo, setSelectedDateInfo] = useState({});
@@ -284,6 +297,7 @@ if (
             { key: "break", label: "☕ Break Hours", count: totalBreakHHMMSS, color: "info" },
             { key: "leave_balance", label: "📝 Leave Balance", count: leaveBalance, color: "info" },
             { key: "yearly_late", label: "⏱️ Yearly Late", count: yearlyLateHHMMSS, color: "warning" },
+            { key: "monthly_late", label: "📅 Monthly Late", count: monthlyLateHHMMSS, color: "warning" },
           ].map(({ key, label, count, color }) => (
             <Paper key={key} sx={{
               p: 1, borderRadius: 1.5, textAlign: "center", cursor: "pointer",
