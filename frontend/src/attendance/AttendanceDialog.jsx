@@ -16,8 +16,10 @@ import {
 import { CalendarToday, Event, AssignmentTurnedIn } from "@mui/icons-material";
 import { formatSecondsToHHMMSS } from "./utils"; // ⬅️ Import your utility
 
-const capitalize = (str) =>
-  str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+const capitalize = (str) => {
+  if (typeof str !== "string") return ""; // return empty string for non-strings
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
 
 const getStatusColor = (status) => {
   switch (status) {
@@ -35,7 +37,7 @@ const getStatusColor = (status) => {
   }
 };
 
-const AttendanceDialog = ({ open, onClose, date, attendance, holiday, meetings = [], breaks = [] }) => (
+const AttendanceDialog = ({ open, onClose, date, attendance, holiday, breaks = [] }) => (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
     {/* Header */}
     <DialogTitle>
@@ -55,35 +57,42 @@ const AttendanceDialog = ({ open, onClose, date, attendance, holiday, meetings =
 
       {/* Attendance */}
       <Box mb={2}>
-  <Typography gutterBottom fontWeight={600}>
-    📝 Attendance
-  </Typography>
+        <Typography gutterBottom fontWeight={600}>
+          📝 Attendance
+        </Typography>
 
-  {attendance ? (
-    <>
-      <Chip
-        label={capitalize(attendance.status || attendance)}
-        sx={{
-          bgcolor: getStatusColor(attendance.status || attendance),
-          color: "#fff",
-          fontWeight: 600,
-          mb: 1,
-        }}
-      />
-
-      {/* 🕒 Late time display */}
-      {attendance.daily_late_hhmmss &&
-        attendance.daily_late_hhmmss !== "00:00:00" && (
-          <Typography variant="body2" color="warning.main" sx={{ fontWeight: 600 }}>
-            ⏱️ Late by {attendance.daily_late_hhmmss}
-          </Typography>
+        {attendance ? (
+          <>
+            <Chip
+              label={capitalize(attendance?.status || "")}
+              sx={{
+                bgcolor: getStatusColor(attendance?.status || ""),
+                color: "#fff",
+                fontWeight: 600,
+                mb: 1,
+              }}
+            />
+            {attendance.daily_late_hhmmss &&
+              attendance.daily_late_hhmmss !== "00:00:00" && (
+                <Typography variant="body2" color="warning.main" sx={{ fontWeight: 600 }}>
+                  ⏱️ Late by {attendance.daily_late_hhmmss}
+                </Typography>
+              )}
+          </>
+        ) : (
+          <>
+            <Typography color="textSecondary">No attendance marked</Typography>
+            {/* ✅ Always check for weekend regardless of attendance */}
+            {["Saturday", "Sunday"].includes(
+              new Date(date).toLocaleDateString("en-US", { weekday: "long" })
+            ) && (
+                <Typography color="textSecondary" sx={{ fontStyle: "italic" }}>
+                  Weekend
+                </Typography>
+              )}
+          </>
         )}
-    </>
-  ) : (
-    <Typography color="textSecondary">No attendance marked</Typography>
-  )}
-</Box>
-
+      </Box>
 
       <Divider sx={{ my: 2 }} />
 
@@ -120,31 +129,7 @@ const AttendanceDialog = ({ open, onClose, date, attendance, holiday, meetings =
       <Divider sx={{ my: 2 }} />
 
       {/* Meetings */}
-      <Box>
-        <Typography gutterBottom fontWeight={600}>
-          📅 Meetings
-        </Typography>
-        {meetings.length > 0 ? (
-          <List dense>
-            {meetings.map((m) => (
-              <ListItem key={m.id} alignItems="flex-start">
-                <Event sx={{ mr: 1, mt: 0.5 }} fontSize="small" color="primary" />
-                <ListItemText
-                  primary={<strong>{m.title}</strong>}
-                  secondary={
-                    <>
-                      {m.time && <Typography variant="body2" color="text.secondary">{m.time}</Typography>}
-                      {m.description && <Typography variant="body2">{m.description}</Typography>}
-                    </>
-                  }
-                />
-              </ListItem>
-            ))}
-          </List>
-        ) : (
-          <Typography color="textSecondary">No meetings scheduled</Typography>
-        )}
-      </Box>
+
     </DialogContent>
 
     <DialogActions>
