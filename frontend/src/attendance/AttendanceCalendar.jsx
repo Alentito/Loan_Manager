@@ -69,51 +69,51 @@ export default function AttendanceCalendar({
     );
   }
   const formatDurationHHMMSS = (start, end) => {
-  if (!start || !end) return "00:00:00";
-  const totalSeconds = (new Date(end) - new Date(start)) / 1000;
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = Math.floor(totalSeconds % 60);
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-};
+    if (!start || !end) return "00:00:00";
+    const totalSeconds = (new Date(end) - new Date(start)) / 1000;
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  };
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
   // Attendance events
   const attendanceDates = new Set();
   const eventsFromAttendance = [];
   attendance.forEach(({ date, status, daily_late_hhmmss }) => {
-  const dateStr = formatToCSTDate(date);
-  if (!dateStr) return;
-  attendanceDates.add(dateStr);
+    const dateStr = formatToCSTDate(date);
+    if (!dateStr) return;
+    attendanceDates.add(dateStr);
 
-  const normalized = (status || "").toLowerCase();
-  let title = STATUS_TITLES[normalized] || `🔹 ${status}`;
+    const normalized = (status || "").toLowerCase();
+    let title = STATUS_TITLES[normalized] || `🔹 ${status}`;
 
-  // 🕒 Add per-day late time if exists
-  if (normalized === "late" && daily_late_hhmmss && daily_late_hhmmss !== "00:00:00") {
-    title += `\n⏱️ ${daily_late_hhmmss}`;
-  }
+    // 🕒 Add per-day late time if exists
+    if (normalized === "late" && daily_late_hhmmss && daily_late_hhmmss !== "00:00:00") {
+      title += `\n⏱️ ${daily_late_hhmmss}`;
+    }
 
-  eventsFromAttendance.push({
-    id: `att-${dateStr}`,
-    title,
-    date: dateStr,
-    classNames: [`status-${normalized}`],
+    eventsFromAttendance.push({
+      id: `att-${dateStr}`,
+      title,
+      date: dateStr,
+      classNames: [`status-${normalized}`],
+    });
   });
-});
 
   const eventsFromBreaks = [];
-breaks.forEach(({ id, start_time, end_time }) => {
-  const dateStr = formatToCSTDate(start_time);
-  if (!dateStr) return;
-  const durationHHMMSS = end_time ? formatDurationHHMMSS(start_time, end_time) : "Ongoing";
-  eventsFromBreaks.push({
-    id: `break-${id}`,
-    title: `☕ Break (${durationHHMMSS})`,
-    date: dateStr,
-    classNames: ["status-break"],
+  breaks.forEach(({ id, start_time, end_time }) => {
+    const dateStr = formatToCSTDate(start_time);
+    if (!dateStr) return;
+    const durationHHMMSS = end_time ? formatDurationHHMMSS(start_time, end_time) : "Ongoing";
+    eventsFromBreaks.push({
+      id: `break-${id}`,
+      title: `☕ Break (${durationHHMMSS})`,
+      date: dateStr,
+      classNames: ["status-break"],
+    });
   });
-});
 
   // Holiday events
   const holidayDates = new Set();
@@ -149,22 +149,22 @@ breaks.forEach(({ id, start_time, end_time }) => {
       });
     }
 
-const employeeCreationStr = formatToCSTDate(employee?.created_at); // pass employee as prop
+    const employeeCreationStr = formatToCSTDate(employee?.created_at); // pass employee as prop
 
-if (
-  !isWeekendYMD(year, month, d) &&
-  !holidayDates.has(dateStr) &&
-  !attendanceDates.has(dateStr) &&
-  isPastDay &&
-  (!employeeCreationStr || dateStr >= employeeCreationStr)
-) {
-  generatedEvents.push({
-    id: `absent-${dateStr}`,
-    title: STATUS_TITLES["absent"],
-    date: dateStr,
-    classNames: ["status-absent"],
-  });
-}
+    if (
+      !isWeekendYMD(year, month, d) &&
+      !holidayDates.has(dateStr) &&
+      !attendanceDates.has(dateStr) &&
+      isPastDay &&
+      (!employeeCreationStr || dateStr >= employeeCreationStr)
+    ) {
+      generatedEvents.push({
+        id: `absent-${dateStr}`,
+        title: STATUS_TITLES["absent"],
+        date: dateStr,
+        classNames: ["status-absent"],
+      });
+    }
 
   }
 
@@ -201,7 +201,7 @@ if (
 
   return (
     <FullCalendar
-      
+
       timeZone="America/Chicago"
       plugins={[dayGridPlugin, interactionPlugin]}
       initialView="dayGridMonth"
