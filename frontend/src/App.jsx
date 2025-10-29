@@ -42,6 +42,9 @@ import MilestoneManagement from "./components/milestone/MilestoneManagement";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useGetActiveBreakQuery } from "./api/breakApi"; 
 
+import PayrollManagement from "./pages/PayrollManagemnet";
+
+
 
 function App() {
   useInitializeAuth();
@@ -115,7 +118,6 @@ function App() {
             <Route path="/brokers" element={<BrokerList />} />
             <Route path="/loan-officers" element={<LoanOfficerList />} />
             <Route path="/employees" element={<EmployeeList />} />
-            <Route path="/payroll" element={<Payroll />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/role-management" element={<RoleManagement />} />
@@ -152,6 +154,9 @@ function App() {
             {/* Meetings (if applicable) */}
             <Route path="/admin/meetings" element={<MeetingAdminPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+
+            <Route path="/payroll" element={<PayrollManagement />} />
+
           </Route>
         </Route>
       </Routes>

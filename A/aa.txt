@@ -53,3 +53,8 @@ git branch
 git status
 
 git checkout -b ver3              
+
+
+
+
+bash -lc "python3 manage.py makemigrations && python3 manage.py migrate --noinput && python3 manage.py shell -c \"from django.contrib.auth import get_user_model;User=get_user_model();User.objects.filter(username='admin').exists() or User.objects.create_superuser('admin','admin@example.com','1234')\" && python3 manage.py collectstatic --noinput && daphne -b 0.0.0.0 -p $PORT config.asgi:application"

@@ -44,7 +44,6 @@ export function SidebarContent() {
     { path: "/brokers", label: "Brokers", icon: UserRound, permission: "employee.view_broker" },
     { path: "/loan-officers", label: "Loan Officers", icon: Building2, permission: "employee.view_loanofficer" },
     { path: "/employees", label: "Employees", icon: Users, permission: "employee.view_employee" },
-    { path: "/payroll", label: "Payroll", icon: BadgeDollarSign, permission: "employee.view_payroll" },
     { path: "/reports", label: "Reports", icon: FileText, permission: "loan.view_report" },
     { path: "/audit", label: "Audit", icon: ClipboardList, permission: "audit.view_auditevent" },
     { path: "/role-management", label: "Role Management", icon: UsersRound, permission: "auth.view_group" },
@@ -61,6 +60,8 @@ export function SidebarContent() {
     { path: "/admin/token-approvals", label: "Token Approvals", icon: ClipboardList, permission: "employee.approve_tokens" },
     { path: "/token/new", label: "Request Token", icon: ClipboardList, permission: "employee.add_employeetoken" },
     { path: "/breaks", label: "Breaks", icon: Clock, permission: null },
+    { path: "/payroll", label: "Payroll", icon: BadgeDollarSign, permission: "payroll.view_employeepayroll" },
+
   ];
 
   const filteredNavItems = navItems.filter((i) => !i.permission || userPermissions.includes(i.permission));

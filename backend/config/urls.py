@@ -69,6 +69,8 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/', include(loans_router.urls)),
     path('api/', include('employee.urls')),
+    path("api/payroll/", include("payroll.urls")),  
+
 
 
     #path("token/", CookieTokenObtainPairView.as_view(), name="token_obtain_pair"),

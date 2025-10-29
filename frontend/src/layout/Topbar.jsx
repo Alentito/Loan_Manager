@@ -203,7 +203,7 @@ export default function TopNavbar({ mode, setMode, onOpenSidebar = () => {} }) {
         </Menu>
 
         {/* Avatar (lucide User used as fallback when avatarSrc is missing) */}
-        <Tooltip title={`${user.Firstname} ${user.lastName}`}>
+        <Tooltip title={`${user.username} ${user.lastName}`}>
           <IconButton
             onClick={handleUserClick}
             size="small"
@@ -215,7 +215,7 @@ export default function TopNavbar({ mode, setMode, onOpenSidebar = () => {} }) {
             {user.avatarSrc ? (
               <Avatar
                 src={user.avatarSrc}
-                alt={`${user.Firstname} ${user.lastName}`}
+                alt={`Hi' ${user.Firstname} ${user.lastName}`}
               />
             ) : (
               <Avatar sx={{ width: 40, height: 40 }}>
@@ -240,7 +240,7 @@ export default function TopNavbar({ mode, setMode, onOpenSidebar = () => {} }) {
           }}
         >
           <Box px={2} py={1} fontWeight="bold">
-            {user.firstName} {user.lastName}
+            { "Hi'" + user.firstName} {user.lastName}
           </Box>
           <Divider />
           <MenuItem

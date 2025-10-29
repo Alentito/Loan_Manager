@@ -28,6 +28,8 @@ import { teamManagerApi} from '../api/teamManagerApi';
 import { tokenApi } from '../api/tokenApi';
 import { incomeAssetNoteApi } from "../api/incomeAssetNoteApi";
 
+import { payrollApi } from "../api/payrollApi";
+
 
 export const store = configureStore({
   reducer: {
@@ -55,7 +57,9 @@ export const store = configureStore({
     [teamLeadApi.reducerPath]: teamLeadApi.reducer,
     [teamManagerApi.reducerPath]: teamManagerApi.reducer,
     [tokenApi.reducerPath]: tokenApi.reducer,
-        [incomeAssetNoteApi.reducerPath]: incomeAssetNoteApi.reducer,
+    [incomeAssetNoteApi.reducerPath]: incomeAssetNoteApi.reducer,
+    [payrollApi.reducerPath]: payrollApi.reducer,
+
 
     
   },
@@ -81,7 +85,7 @@ export const store = configureStore({
       .concat(teamManagerApi.middleware)
       .concat(tokenApi.middleware)
       .concat(incomeAssetNoteApi.middleware)
-      
+      .concat(payrollApi.middleware)
 });
 
 // also export default for easier imports
