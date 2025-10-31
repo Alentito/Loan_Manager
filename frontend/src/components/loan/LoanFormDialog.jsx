@@ -16,7 +16,7 @@ import {
 import LenderFields from "./LenderFields";
 import { useGetBrokersQuery } from "../../api/brokerApi";
 import { useGetLoanOfficersQuery } from "../../api/loanOfficerApi";
-import { useGetEmployeesQuery } from "../../api/employeeApi";
+import { useGetEmployeesQuery,useGetAllEmployeesQuery } from "../../api/employeeApi";
 import { useGetMilestonesQuery } from "../../api/milestoneApi";
 import { useGetLendersQuery } from "../../api/lenderApiSlice";
 
