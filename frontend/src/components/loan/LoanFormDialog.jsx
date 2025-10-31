@@ -72,19 +72,19 @@ export default function LoanFormDialog({
   }, [newLoan.broker_id, loadingLoanOfficers]);
 
   // Employees
-  const { data: teamLeadsData = {} } = useGetEmployeesQuery({
+  const { data: teamLeadsData = {} } = useGetAllEmployeesQuery({
     position: "team_lead",
     page_size: 100,
   });
-  const { data: teamManagersData = {} } = useGetEmployeesQuery({
+  const { data: teamManagersData = {} } = useGetAllEmployeesQuery({
     position: "team_manager",
     page_size: 100,
   });
-  const { data: processorsData = {} } = useGetEmployeesQuery({
+  const { data: processorsData = {} } = useGetAllEmployeesQuery({
     position: "processor",
     page_size: 100,
   });
-  const { data: supportsData = {} } = useGetEmployeesQuery({
+  const { data: supportsData = {} } = useGetAllEmployeesQuery({
     position: "junior_processor",
     page_size: 100,
   });
