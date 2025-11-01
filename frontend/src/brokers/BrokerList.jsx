@@ -115,16 +115,41 @@ const BrokerList = () => {
     setBulkArchiveDialogOpen(false);
   };
 
-  const handleExport = (format) => {
-  const map = {
-    excel: 'export/brokers/excel/',
-    pdf: 'export/brokers/pdf/',
+  const handleExport = async (format) => {
+  const urls = {
+    excel: 'http://localhost:8000/api/export/brokers/excel/',
+    pdf: 'http://localhost:8000/api/export/brokers/pdf/',
   };
 
-  if (format && map[format]) {
-    window.open(`https://backend-l3f9.onrender.com/api/${map[format]}`, '_blank');
+  const url = urls[format];
+  if (!url) return;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      // 🔹 Only include token if backend requires auth
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+      },
+    });
+
+    if (!response.ok) throw new Error('Failed to export file');
+
+    const blob = await response.blob();
+    const fileUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = fileUrl;
+    a.download = `brokers.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(fileUrl);
+  } catch (err) {
+    toast.error(err.message || 'Export failed');
   }
 };
+
+
 
   // --- Render ---
   return (
@@ -370,6 +395,3 @@ const BrokerList = () => {
 };
 
 export default BrokerList;
-
-
-
