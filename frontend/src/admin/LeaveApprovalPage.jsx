@@ -55,7 +55,14 @@ function useDebounce(value, delay) {
   return debounced;
 }
 
-// Convert any date to CST midnight
+// Return current CST Date
+const getCSTNow = () => {
+  return new Date(
+    new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
+  );
+};
+
+// Convert any date to CST midnight (safe normalization)
 const toCSTDate = (date) => {
   if (!date) return null;
   const cstString = date.toLocaleString("en-US", { timeZone: "America/Chicago" });
@@ -63,6 +70,7 @@ const toCSTDate = (date) => {
   cstDate.setHours(0, 0, 0, 0);
   return cstDate;
 };
+
 
 // ------------------ Main Component ------------------
 export default function LeaveApprovalPage() {
@@ -86,8 +94,8 @@ export default function LeaveApprovalPage() {
   const debouncedSearch = useDebounce(search, 300);
   const [page, setPage] = useState(1);
   const [rowsPerPage] = useState(pageSizeDefault);
-  const [viewMode, setViewMode] = useState("day"); // day/week/month
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState("month"); // day/week/month
+  const [currentDate, setCurrentDate] = useState(getCSTNow);
   const [approvalTypes, setApprovalTypes] = useState({});
 
   const { data, isLoading, refetch } = useGetAllLeaveRequestsQuery({
@@ -207,7 +215,7 @@ export default function LeaveApprovalPage() {
         gap={1}
       >
         <Typography variant="h5" fontWeight="bold" color="primary">
-          Employee Leave Requests
+          Employee Leave Approval
         </Typography>
 
         {/* Day/Week/Month + Date picker + Search + Status */}
@@ -232,11 +240,22 @@ export default function LeaveApprovalPage() {
           </Button>
 
           <TextField
-            type="date"
-            value={currentDate.toISOString().split("T")[0]}
-            onChange={(e) => setCurrentDate(new Date(e.target.value))}
-            size="small"
-          />
+  type="date"
+  value={currentDate instanceof Date && !isNaN(currentDate) ? currentDate.toISOString().split("T")[0] : ""}
+  onChange={(e) => {
+  const value = e.target.value;
+  if (!value) {
+    // Clear button pressed → reset to CST today
+    setCurrentDate(getCSTNow());
+  } else {
+    // Parse input date safely in CST context
+    const selectedDate = new Date(`${value}T00:00:00`);
+    setCurrentDate(toCSTDate(selectedDate));
+  }
+}}
+  size="small"
+/>
+
 
           <TextField
             size="small"
