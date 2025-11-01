@@ -16,6 +16,8 @@ import { toast } from "react-hot-toast";
 import { useGetGroupsQuery } from "../api/authApi";
 import { useGetTeamsQuery, useGetTeamByIdQuery } from "../api/teamApi";
 import { useGetShiftsQuery } from "../api/shiftApi";
+import { useValidateEmployeeFieldMutation } from "../api/employeeApi";
+
 
 const EmployeeForm = ({
   existingData = {},
@@ -38,7 +40,7 @@ const EmployeeForm = ({
   });
 
   const [localErrors, setLocalErrors] = useState({});
-
+  const [validateField] = useValidateEmployeeFieldMutation();
   // Teams & Shifts
   const { data: teamData, isLoading: teamLoading } = useGetTeamsQuery({ page: 1, page_size: 100 });
   const teams = teamData?.results || [];
@@ -83,6 +85,34 @@ const EmployeeForm = ({
     }
   };
 
+  const handleFieldValidation = async (field, value) => {
+  if (!value) return;
+
+  // Email pattern check
+  if (field === "company_email") {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!emailRegex.test(value)) {
+      setLocalErrors((prev) => ({
+        ...prev,
+        [field]: "Invalid email format",
+      }));
+      return;
+    }
+  }
+
+  try {
+    const res = await validateField({ field, value }).unwrap();
+    if (res.exists) {
+      setLocalErrors((prev) => ({
+        ...prev,
+        [field]: `${field.replace("_", " ")} already exists`,
+      }));
+      toast.error(`${field.replace("_", " ")} already exists`);
+    }
+  } catch {
+    toast.error("Validation failed. Please try again.");
+  }
+};
   const getError = (field) =>
     localErrors[field] || serverErrors?.[field]?.[0] || "";
 
@@ -92,34 +122,22 @@ const EmployeeForm = ({
   };
 
   const validateForm = () => {
-    const errors = {};
-    const requiredFields = [
-      "login_id",
-      "name",
-      "company_email",
-      "contact_number",
-      "roles",
-      "team",
-      "shift",
-    ];
+  const errors = {};
 
-    requiredFields.forEach((field) => {
-      if (
-        field === "roles"
-          ? formData.roles.length === 0
-          : !formData[field]?.toString().trim()
-      ) {
-        errors[field] = "This field is required";
-      }
-    });
+  // ✅ Only login_id is required
+  if (!formData.login_id?.toString().trim()) {
+    errors.login_id = "Login ID is required";
+  }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    if (formData.company_email && !emailRegex.test(formData.company_email)) {
-      errors.company_email = "Invalid email format";
-    }
+  // ✅ Optional: validate email only if it's entered
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  if (formData.company_email && !emailRegex.test(formData.company_email)) {
+    errors.company_email = "Invalid email format";
+  }
 
-    return errors;
-  };
+  return errors;
+};
+
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -201,14 +219,32 @@ const EmployeeForm = ({
     <Box component="form" noValidate onSubmit={handleSubmit}>
       <Grid container spacing={2}>
         <Grid item xs={12} sm={6}>
-          {renderTextField("login_id", "Login ID")}
-        </Grid>
+  <TextField
+    fullWidth
+    label="Login ID"
+    value={formData.login_id || ""}
+    onChange={(e) => handleChange("login_id", e.target.value)}
+    onBlur={(e) => handleFieldValidation("login_id", e.target.value)} // 👈 validation on blur
+    error={!!getError("login_id")}
+    helperText={getError("login_id")}
+    disabled={submitting}
+  />
+</Grid>
         <Grid item xs={12} sm={6}>
           {renderTextField("name", "Name")}
         </Grid>
         <Grid item xs={12} sm={6}>
-          {renderTextField("company_email", "Company Email")}
-        </Grid>
+  <TextField
+    fullWidth
+    label="Company Email"
+    value={formData.company_email || ""}
+    onChange={(e) => handleChange("company_email", e.target.value)}
+    onBlur={(e) => handleFieldValidation("company_email", e.target.value)} // 👈 validation on blur
+    error={!!getError("company_email")}
+    helperText={getError("company_email")}
+    disabled={submitting}
+  />
+</Grid>
         <Grid item xs={12} sm={6}>
           {renderTextField("contact_number", "Contact Number")}
         </Grid>
@@ -217,66 +253,82 @@ const EmployeeForm = ({
           {renderRolesField()}
         </Grid>
 
-        {/* Team Dropdown */}
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth error={!!getError("team")}>
-            <InputLabel id="team-label">Team</InputLabel>
-            <Select
-              labelId="team-label"
-              label="Team"
-              value={formData.team || ""}
-              onChange={(e) => handleChange("team", e.target.value)}
-              disabled={submitting || teamLoading}
-              sx={{ minWidth: 250 }}
-              fullWidth
-            >
-              {teamLoading ? (
-                <MenuItem disabled>Loading...</MenuItem>
-              ) : (
-                teams.map((team) => (
-                  <MenuItem key={team.id} value={team.id}>
-                    {team.name}
-                  </MenuItem>
-                ))
-              )}
-            </Select>
-            {getError("team") && (
-              <Box color="error.main" fontSize={12} mt={0.5}>
-                {getError("team")}
-              </Box>
-            )}
-          </FormControl>
-        </Grid>
+{/* Team Dropdown (searchable + scrollable + wider) */}
+<Grid item xs={12} sm={6}>
+  <FormControl
+    fullWidth
+    error={!!getError("team")}
+    sx={{ "& .MuiAutocomplete-root": { minWidth: "100%" } }}
+  >
+    <Autocomplete
+      options={teams}
+      getOptionLabel={(option) => option?.name || ""}
+      value={teams.find((t) => t.id === formData.team) || null}
+      onChange={(e, newValue) =>
+        handleChange("team", newValue ? newValue.id : "")
+      }
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label="Team"
+          placeholder="Search or select team"
+          error={!!getError("team")}
+          helperText={getError("team")}
+          sx={{
+            minWidth: 180, // 💡 wider box
+            "& .MuiInputBase-root": {
+              borderRadius: 2,
+            },
+          }}
+        />
+      )}
+      ListboxProps={{
+        style: { maxHeight: 250, overflowY: "auto" },
+      }}
+      disabled={submitting || teamLoading}
+    />
+  </FormControl>
+</Grid>
 
-        {/* Shift Dropdown (auto-populated from team) */}
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth error={!!getError("shift")}>
-            <InputLabel id="shift-label">Shift</InputLabel>
-            <Select
-              labelId="shift-label"
-              label="Shift"
-              value={formData.shift || ""}
-              onChange={(e) => handleChange("shift", e.target.value)}
-              disabled={submitting || shiftLoading}
-              sx={{ minWidth: 250 }}
-            >
-              {shiftLoading ? (
-                <MenuItem disabled>Loading...</MenuItem>
-              ) : (
-                shifts.map((shift) => (
-                  <MenuItem key={shift.id} value={shift.id}>
-                    {shift.name}
-                  </MenuItem>
-                ))
-              )}
-            </Select>
-            {getError("shift") && (
-              <Box color="error.main" fontSize={12} mt={0.5}>
-                {getError("shift")}
-              </Box>
-            )}
-          </FormControl>
-        </Grid>
+
+        {/* Shift Dropdown (searchable + scrollable + wider) */}
+<Grid item xs={12} sm={6}>
+  <FormControl
+    fullWidth
+    error={!!getError("shift")}
+    sx={{ "& .MuiAutocomplete-root": { minWidth: "100%" } }}
+  >
+    <Autocomplete
+      options={shifts}
+      getOptionLabel={(option) => option?.name || ""}
+      value={shifts.find((s) => s.id === formData.shift) || null}
+      onChange={(e, newValue) =>
+        handleChange("shift", newValue ? newValue.id : "")
+      }
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label="Shift"
+          placeholder="Search or select shift"
+          error={!!getError("shift")}
+          helperText={getError("shift")}
+          sx={{
+            minWidth: 180, // 💡 wider box
+            "& .MuiInputBase-root": {
+              borderRadius: 2,
+            },
+          }}
+        />
+      )}
+      ListboxProps={{
+        style: { maxHeight: 250, overflowY: "auto" },
+      }}
+      disabled={submitting || shiftLoading}
+    />
+  </FormControl>
+</Grid>
+
+
 
         {/* Alternate Shift (free text + dropdown) */}
         {/* Alternate Shift (Autocomplete but stores ID) 
