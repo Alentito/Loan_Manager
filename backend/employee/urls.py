@@ -14,7 +14,8 @@ from .views import (
     export_lenders_excel, export_lenders_pdf,
     LenderViewSet, validate_lender_field,
     TeamLeadViewSet, TeamManagerViewSet,
-    EmployeeTokenViewSet, EmployeeBreakViewSet
+    EmployeeTokenViewSet, EmployeeBreakViewSet,
+    validate_employee_field
 )
 
 # Routers for ViewSets
@@ -53,6 +54,7 @@ urlpatterns = [
     # Employee exports
     path('export/employees/pdf/', export_employees_pdf, name='export-employees-pdf'),
     path('export/employees/excel/', export_employees_excel, name='export-employees-excel'),
+    path('employees/validate-field/', validate_employee_field, name='validate_employee_field'),
     # Leave Requests by Employee
     path('leave-requests/employee/<int:employee_id>/', LeaveRequestViewSet.as_view({'get': 'by_employee'})),
 
