@@ -436,33 +436,35 @@ class LoanOfficerViewSet(viewsets.ModelViewSet):
         except LoanOfficer.DoesNotExist:
             return Response({"error": "Archived loan officer not found"}, status=status.HTTP_404_NOT_FOUND)
     
-@api_view(['GET'])
+@api_view(['POST'])
 def validate_loan_officer(request):
-    email = request.GET.get('email')
-    phone = request.GET.get('phone')
-    nmls = request.GET.get('nmls')
-    exclude_id = request.GET.get('exclude_id')
+    email = request.data.get('email')
+    phone = request.data.get('phone')
+    nmls = request.data.get('nmls')
+    exclude_id = request.data.get('exclude_id')
 
     errors = {}
 
-    # Convert exclude_id to int or None safely
     try:
         exclude_id = int(exclude_id) if exclude_id else None
     except ValueError:
         exclude_id = None
 
     base_qs = LoanOfficer.objects.all()
-    if exclude_id is not None:
+    if exclude_id:
         base_qs = base_qs.exclude(id=exclude_id)
 
     if email and base_qs.filter(email=email).exists():
-        errors['email'] = 'Email already exists.'
+        errors['email'] = ['Email already exists.']
     if phone and base_qs.filter(contact_number=phone).exists():
-        errors['phone'] = 'Phone number already exists.'
+        errors['phone'] = ['Phone number already exists.']
     if nmls and base_qs.filter(NMLS=nmls).exists():
-        errors['nmls'] = 'NMLS already exists.'
+        errors['nmls'] = ['NMLS already exists.']
 
-    return Response({'errors': errors})
+    if errors:
+        return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({'message': 'Valid data'}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET']) 
@@ -637,6 +639,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Error creating employee', 'error': str(e)},
                             status=status.HTTP_400_BAD_REQUEST)
         
+        
     def perform_update(self, serializer):
         instance = serializer.save()  # team & shift logic already handled
 
@@ -715,6 +718,17 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         else:
             queryset = queryset.filter(is_archived=False)
 
+        role_param = self.request.query_params.get("role")
+        if role_param:
+            try:
+                # if numeric, filter by ID
+                if role_param.isdigit():
+                    queryset = queryset.filter(roles__id=int(role_param))
+                else:
+                    queryset = queryset.filter(roles__name__iexact=role_param)
+            except Group.DoesNotExist:
+                pass
+            
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
@@ -748,6 +762,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
         return Response({"message": "Employee archived successfully"}, status=status.HTTP_200_OK)
 
+    
 
     @action(detail=True, methods=['post'], url_path='unarchive')
     def unarchive(self, request, pk=None):
@@ -775,6 +790,19 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         return super().list(request, *args, **kwargs)
     
+    @action(detail=False, methods=["get"], url_path="Managers")
+    def get_managers(self, request):
+        
+        manager_employees = Employee.objects.filter(roles__name__iexact="Manager", is_archived=False)
+        serializer = self.get_serializer(manager_employees, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="Leads")
+    def get_leads(self, request):
+        
+        lead_employees = Employee.objects.filter(roles__name__iexact="Lead", is_archived=False)
+        serializer = self.get_serializer(lead_employees, many=True)
+        return Response(serializer.data)
     
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -860,6 +888,20 @@ def export_employees_pdf(request):
         headers={'Content-Disposition': 'attachment; filename="employees.pdf"'},
     )
 
+@api_view(["POST"])
+def validate_employee_field(request):
+    """Check if login_id or company_email is unique."""
+    field = request.data.get("field")
+    value = request.data.get("value")
+
+    if not field or not value:
+        return Response({"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if field not in ["login_id", "company_email"]:
+        return Response({"error": "Invalid field"}, status=status.HTTP_400_BAD_REQUEST)
+
+    exists = Employee.objects.filter(**{field: value}).exists()
+    return Response({"exists": exists})
 
 class LargeResultsSetPagination(PageNumberPagination):
     page_size = 10
@@ -963,23 +1005,30 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
         date_str = self.request.query_params.get("date")
         if date_str:
-            date_obj = parse_date(date_str)
+            date_obj = get_cst_date(date_str)
             if date_obj:
-                # Filter leaves that include the selected day
+                date_obj = date_obj.date()
                 qs = qs.filter(start_date__lte=date_obj, end_date__gte=date_obj)
-
                 return qs
 
+        # --- Date range filter ---
         start_str = self.request.query_params.get("start_date")
         end_str = self.request.query_params.get("end_date")
         if start_str and end_str:
-            start_obj = parse_date(start_str)
-            end_obj = parse_date(end_str)
+            start_obj = get_cst_date(start_str)
+            end_obj = get_cst_date(end_str)
             if start_obj and end_obj:
-                # include leaves that overlap the requested window
                 qs = qs.filter(start_date__lte=end_obj, end_date__gte=start_obj)
+                return qs
 
-        return qs
+        # --- Default: current CST month ---
+        today = today_cst()
+        start_of_month = today.replace(day=1)
+        next_month = (start_of_month + timedelta(days=32)).replace(day=1)
+        end_of_month = next_month - timedelta(days=1)
+
+        return qs.filter(start_date__lte=end_of_month, end_date__gte=start_of_month)
+
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve_request(self, request, pk=None):
