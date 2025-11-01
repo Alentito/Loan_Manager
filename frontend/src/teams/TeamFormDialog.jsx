@@ -1,61 +1,62 @@
 // src/components/teams/TeamFormDialog.js
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Button, MenuItem, Autocomplete, Alert
-} from '@mui/material';
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Autocomplete,
+  Alert,
+} from "@mui/material";
 import {
   useAddTeamMutation,
-  useUpdateTeamMutation
-} from '../api/teamApi';
-import { useGetAllEmployeesQuery } from '../api/employeeApi';
-import { useGetShiftsQuery } from '../api/shiftApi';
-import { useGetTeamsQuery } from '../api/teamApi';
+  useUpdateTeamMutation,
+  useGetManagersQuery,
+  useGetLeadsQuery,
+} from "../api/teamApi";
+import { useGetShiftsQuery } from "../api/shiftApi";
 
 const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
   const isEdit = Boolean(team);
 
   const [formData, setFormData] = useState({
-    name: '',
-    head: null,
+    name: "",
     manager: null,
-    shift: '',
+    head: null,
+    shift: "",
   });
-
   const [error, setError] = useState(null);
 
   const [addTeam] = useAddTeamMutation();
   const [updateTeam] = useUpdateTeamMutation();
-
-  // ✅ Fetch all employees for dropdown (no pagination)
-  const { data: employeesData, isLoading: employeesLoading } = useGetAllEmployeesQuery();
+  const { data: managerEmployeesData } = useGetManagersQuery();
+  const { data: headEmployeesData } = useGetLeadsQuery();
   const { data: shiftsData } = useGetShiftsQuery({ page_size: 1000 });
-  const { data: teamsData } = useGetTeamsQuery({ page_size: 1000 });
-  
-  // Ensure always arrays
-  const employees = Array.isArray(employeesData)
-    ? employeesData
-    : employeesData?.results || [];
 
+  const managerEmployees = Array.isArray(managerEmployeesData?.results)
+    ? managerEmployeesData.results
+    : managerEmployeesData || [];
+  const headEmployees = Array.isArray(headEmployeesData?.results)
+    ? headEmployeesData.results
+    : headEmployeesData || [];
   const shifts = Array.isArray(shiftsData)
     ? shiftsData
     : shiftsData?.results || [];
 
-  const teams = Array.isArray(teamsData)
-    ? teamsData
-    : teamsData?.results || [];
-
+  // 🔁 Populate form when editing
   useEffect(() => {
     if (open) {
       if (isEdit && team) {
         setFormData({
-          name: team.name || '',
-          head: team.head || null,
+          name: team.name || "",
           manager: team.manager || null,
-          shift: team.shift || '',
+          head: team.head || null,
+          shift: team.shift || "",
         });
       } else {
-        setFormData({ name: '', head: null, manager: null, shift: '' });
+        setFormData({ name: "", manager: null, head: null, shift: "" });
       }
       setError(null);
     }
@@ -67,14 +68,11 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
   };
 
   const validateForm = () => {
-    const { head, manager } = formData;
-
-    if (head && manager && head === manager) {
+    const { name, manager, head, shift } = formData;
+    if (!name) return "Team name is required.";
+    if (!shift) return "Please select a shift.";
+    if (manager && head && manager === head)
       return "An employee cannot be both Manager and Head in the same team.";
-    }
-
-    
-
     return null;
   };
 
@@ -87,8 +85,8 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
 
     const payload = {
       name: formData.name,
-      head: formData.head || null,
       manager: formData.manager || null,
+      head: formData.head || null,
       shift: formData.shift || null,
     };
 
@@ -98,25 +96,37 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
       } else {
         await addTeam(payload).unwrap();
       }
-      setFormData({ name: '', head: null, manager: null, shift: '' });
+      setFormData({ name: "", manager: null, head: null, shift: "" });
       setError(null);
       onSave();
     } catch (err) {
-      console.error('Error saving team:', err);
+      console.error("Error saving team:", err);
       setError("Failed to save team. Please try again.");
     }
   };
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth>
-      <DialogTitle sx={{ m: 0, p: 2, backgroundColor: "#1976d2", color: "#fff" }}>
-        {isEdit ? 'Edit Team' : 'Add Team'}
+      <DialogTitle
+        sx={{
+          m: 0,
+          p: 2,
+          backgroundColor: "#1976d2",
+          color: "#fff",
+          fontWeight: 600,
+        }}
+      >
+        {isEdit ? "Edit Team" : "Add Team"}
       </DialogTitle>
 
       <DialogContent dividers>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
 
-        {/* Team Name */}
+        {/* 🔹 Team Name */}
         <TextField
           label="Team Name"
           name="name"
@@ -127,13 +137,15 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
           required
         />
 
-        {/* Team Manager */}
+        {/* 🔹 Team Manager (search + scroll + rounded) */}
         <Autocomplete
-          options={employees.filter((emp) => emp.id !== formData.head)}
+          options={managerEmployees}
           getOptionLabel={(option) =>
-            option.login_id ? `${option.login_id} - ${option.name}` : ''
+            option.login_id ? `${option.login_id} - ${option.name}` : ""
           }
-          value={employees.find((emp) => emp.id === formData.manager) || null}
+          value={
+            managerEmployees.find((emp) => emp.id === formData.manager) || null
+          }
           onChange={(event, newValue) =>
             setFormData((prev) => ({
               ...prev,
@@ -141,20 +153,33 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
             }))
           }
           renderInput={(params) => (
-            <TextField {...params} label="Team Manager (Login ID)" margin="normal" fullWidth />
+            <TextField
+              {...params}
+              label="Team Manager"
+              margin="normal"
+              fullWidth
+              placeholder="Search or select manager"
+            />
           )}
-          ListboxProps={{ style: { maxHeight: 300, overflowY: 'auto' } }}
+          ListboxProps={{
+            style: {
+              maxHeight: 250,
+              overflowY: "auto",
+            },
+          }}
           filterSelectedOptions
-          disabled={employeesLoading}
+          sx={{
+            "& .MuiAutocomplete-inputRoot": { borderRadius: 2 },
+          }}
         />
 
-        {/* Team Head */}
+        {/* 🔹 Team Head (search + scroll + rounded) */}
         <Autocomplete
-          options={employees.filter((emp) => emp.id !== formData.manager)}
+          options={headEmployees}
           getOptionLabel={(option) =>
-            option.login_id ? `${option.login_id} - ${option.name}` : ''
+            option.login_id ? `${option.login_id} - ${option.name}` : ""
           }
-          value={employees.find((emp) => emp.id === formData.head) || null}
+          value={headEmployees.find((emp) => emp.id === formData.head) || null}
           onChange={(event, newValue) =>
             setFormData((prev) => ({
               ...prev,
@@ -162,35 +187,70 @@ const TeamFormDialog = ({ open, handleClose, team, onSave }) => {
             }))
           }
           renderInput={(params) => (
-            <TextField {...params} label="Team Head (Login ID)" margin="normal" fullWidth />
+            <TextField
+              {...params}
+              label="Team Head"
+              margin="normal"
+              fullWidth
+              placeholder="Search or select lead"
+            />
           )}
-          ListboxProps={{ style: { maxHeight: 300, overflowY: 'auto' } }}
+          ListboxProps={{
+            style: {
+              maxHeight: 250,
+              overflowY: "auto",
+            },
+          }}
           filterSelectedOptions
-          disabled={employeesLoading}
+          sx={{
+            "& .MuiAutocomplete-inputRoot": { borderRadius: 2 },
+          }}
         />
 
-        {/* Shift */}
-        <TextField
-          select
-          label="Shift"
-          name="shift"
-          value={formData.shift}
-          onChange={handleChange}
-          fullWidth
-          margin="normal"
-        >
-          {shifts.map((s) => (
-            <MenuItem key={s.id} value={s.id}>
-              {s.name}
-            </MenuItem>
-          ))}
-        </TextField>
+        {/* 🔹 Shift (search + scroll + rounded) */}
+        <Autocomplete
+          options={shifts}
+          getOptionLabel={(option) => option?.name || ""}
+          value={shifts.find((s) => s.id === formData.shift) || null}
+          onChange={(event, newValue) =>
+            setFormData((prev) => ({
+              ...prev,
+              shift: newValue ? newValue.id : null,
+            }))
+          }
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Shift"
+              margin="normal"
+              fullWidth
+              placeholder="Search or select shift"
+            />
+          )}
+          ListboxProps={{
+            style: {
+              maxHeight: 250,
+              overflowY: "auto",
+            },
+          }}
+          sx={{
+            "& .MuiAutocomplete-inputRoot": { borderRadius: 2 },
+          }}
+          disableClearable
+          filterSelectedOptions
+        />
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={handleClose} color="inherit">Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained">
-          {isEdit ? 'Update' : 'Create'}
+        <Button onClick={handleClose} color="inherit">
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={!formData.name || !formData.shift}
+        >
+          {isEdit ? "Update" : "Create"}
         </Button>
       </DialogActions>
     </Dialog>
