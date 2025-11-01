@@ -100,7 +100,7 @@ export default function MyTokens() {
 
   const [page, setPage] = useState(1);
   const [selectedToken, setSelectedToken] = useState(null);
-  const [viewMode, setViewMode] = useState("day"); // day/week/month
+  const [viewMode, setViewMode] = useState("month"); // day/week/month
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const { data, isLoading, isError } = useGetTokensQuery(
