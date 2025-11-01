@@ -74,6 +74,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     alternate_shift_name = serializers.CharField(source='alternate_shift.name', read_only=True)
     manager_id = serializers.IntegerField(source='team.manager.id', read_only=True)
     team_manager_name = serializers.CharField(source='team.manager.name', read_only=True)  # ✅ new
+    team_head_name = serializers.CharField(source='team.head.name', read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
@@ -81,6 +82,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'roles', 'role_names', 'login_id', 'name',
             'company_email', 'contact_number', 'designation', 'team',
+            'team_head_name',
             'primary_shift', 'alternate_shift', 'is_archived',
             'archived_at', 'created_at', 'updated_at', 'login_password',
             'yearly_paid_leaves', 'leave_balance',
@@ -97,6 +99,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
         employee = Employee.objects.create(**validated_data)
         employee.roles.set(roles)
+        
         return employee
 
     def update(self, instance, validated_data):
