@@ -45,7 +45,7 @@ const TeamList = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
 
   const { data, isLoading, error, refetch } = useGetTeamsQuery({
-    page:1,
+    page,
     page_size: 10,
     search: debouncedSearch,
     ordering,
