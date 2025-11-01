@@ -5,7 +5,7 @@ import baseQueryWithReauth from './baseApi';
 export const employeeApi = createApi({
   reducerPath: 'employeeApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Employee'],
+  tagTypes: ['Employee', 'Team'],
   endpoints: (builder) => ({
     // Paginated / Filterable employees
     getEmployees: builder.query({
@@ -137,6 +137,15 @@ export const employeeApi = createApi({
         body: credentials,
       }),
     }),
+    // Add inside endpoints: (builder) => ({
+validateEmployeeField: builder.mutation({
+  query: ({ field, value }) => ({
+    url: `employees/validate-field/`,
+    method: "POST",
+    body: { field, value },
+  }),
+}),
+
   }),
 });
 
@@ -151,5 +160,6 @@ export const {
   useUnarchiveEmployeeMutation,
   useBulkArchiveEmployeesMutation,
   useBulkUnarchiveEmployeesMutation,
+  useValidateEmployeeFieldMutation,
 } = employeeApi;
 
