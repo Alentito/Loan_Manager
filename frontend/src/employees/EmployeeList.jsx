@@ -70,8 +70,8 @@ const EmployeeList = () => {
   const [exportFormat, setExportFormat] = useState('');
 
   const debounceRef = useRef(null);
-  const { data: teamsData } = useGetTeamsQuery({ page: 1, page_size: 100 });
-  const { data: shiftsData } = useGetShiftsQuery({ page: 1, page_size: 100 });
+  const { data: teamsData } = useGetTeamsQuery({ page: 1, page_size: 1000 });
+  const { data: shiftsData } = useGetShiftsQuery({ page: 1, page_size: 1000 });
 
   const currentUser = useSelector(selectCurrentUser);
   const userPermissions = currentUser?.permissions || [];
@@ -226,14 +226,21 @@ const EmployeeList = () => {
           </FormControl>
 
           <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Team</InputLabel>
-            <Select value={teamFilter} label="Team" onChange={(e) => setTeamFilter(e.target.value)}>
-              <MenuItem value="">All</MenuItem>
-              {(teamsData?.results || []).map((team) => (
-                <MenuItem key={team.id} value={team.id}>{team.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+  <InputLabel>Team Lead</InputLabel>
+  <Select
+    value={teamFilter}
+    label="Team Lead"
+    onChange={(e) => setTeamFilter(e.target.value)}
+  >
+    <MenuItem value="">All</MenuItem>
+    {(teamsData?.results || []).map((team) => (
+      <MenuItem key={team.id} value={team.id}>
+        {team.head_name || "—"}
+      </MenuItem>
+    ))}
+  </Select>
+</FormControl>
+
 
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Export</InputLabel>
@@ -474,9 +481,10 @@ const EmployeeList = () => {
                 ['Company Email', viewingEmployee.company_email],
                 ['Contact Number', viewingEmployee.contact_number],
                 ['Role', viewingEmployee.role_names?.[0]],
+                ['Team ', viewingEmployee.team_name],
                 ['Team Manager', viewingEmployee.team_manager_name],
-                ['Team Lead', viewingEmployee.team_name],
-                ['Primary Shift', viewingEmployee.primary_shift_name],
+                ['Team Head', viewingEmployee.team_head_name],
+                ['Shift', viewingEmployee.primary_shift_name],
                 //['Alternative Shift', viewingEmployee.alternate_shift_name],
                 ['Created At - MM:DD:YY', formatToCST(viewingEmployee.created_at)],
                 ['Last Updated - MM:DD:YY', formatToCST(viewingEmployee.updated_at)],
