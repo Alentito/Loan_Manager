@@ -158,7 +158,7 @@ const LenderFormDialog = ({ open, onClose, editingLender, onSuccess }) => {
               { name: "executive_address", label: "Executive Address", multiline: true },
               { name: "account_manager_name", label: "Account Manager Name" },
               { name: "manager_email", label: "Manager Email", required: true, validate: true },
-              { name: "manager_contact", label: "Manager Contact #", required: true, validate: true },
+              { name: "manager_contact", label: "Manager Contact", required: true, validate: true },
               { name: "manager_address", label: "Manager Address", multiline: true },
               { name: "mortgage_clause", label: "Mortgage Clause", multiline: true },
             ].map((f, i) => (
