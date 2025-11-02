@@ -38,7 +38,7 @@ const BreakPage = () => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  const [viewMode, setViewMode] = useState("day");
+  const [viewMode, setViewMode] = useState("month");
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const [reason, setReason] = useState("");
