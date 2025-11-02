@@ -58,8 +58,9 @@ export function SidebarContent() {
     { path: "/lenders", label: "Lenders", icon: Building2, permission: "employee.sidebar_lender" },
     { path: "/attendance/summary", label: "Monthly Summary", icon: ClipboardList, permission: "employee.view_attendancesummary" },
     //{ path: "/tokens/my-tokens", label: "My Tokens", icon: ClipboardList, permission: "employee.view_tokens" },
-    { path: "/admin/token-approvals", label: "Token Approvals", icon: ClipboardList, permission: "employee.approve_tokens" },
     { path: "/token/new", label: "Request Token", icon: ClipboardList, permission: "employee.add_employeetoken" },
+    { path: "/admin/token-approvals", label: "Token Approvals", icon: ClipboardList, permission: "employee.approve_tokens" },
+    
     { path: "/breaks", label: "Breaks", icon: Clock, permission: null },
   ];
 
