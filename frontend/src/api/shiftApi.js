@@ -1,14 +1,15 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
-import { customBaseQuery } from './authBaseQuery';
+import baseQueryWithReauth from "./baseApi";
+
 
 export const shiftApi = createApi({
   reducerPath: 'shiftApi',
-  baseQuery: customBaseQuery,
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['Shift'],
   endpoints: (builder) => ({
     getShifts: builder.query({
-      query: ({ page = 1, page_size = 10, search = '' }) =>
-        `shifts/?page=${page}&page_size=${page_size}&search=${search}`,
+      query: ({ page = 1, page_size = 10, search = '', ordering = '-created_at' }) =>
+        `shifts/?page=${page}&page_size=${page_size}&search=${encodeURIComponent(search)}&ordering=${encodeURIComponent(ordering)}`,
       providesTags: (result) =>
         result?.results
           ? [...result.results.map(({ id }) => ({ type: 'Shift', id })), { type: 'Shift', id: 'LIST' }]
