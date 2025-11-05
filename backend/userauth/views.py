@@ -23,7 +23,7 @@ from django.middleware import csrf
 from django.contrib.auth.models import Permission
 #from .serializers import PermissionSerializer
 
-from employee.utils import mark_attendance_on_login, mark_attendance_on_logout, mark_missing_absents
+from employee.utils import mark_attendance_on_login, mark_attendance_on_logout
 
 from rest_framework.permissions import BasePermission
 
@@ -190,14 +190,8 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             try:
                 user = User.objects.get(username=username)
                 if hasattr(user, "employee") and user.employee:
-                   employee = user.employee
-
-                    # 1️⃣ Mark all missing absents for past days
-                    mark_missing_absents(employee)
-
-                    # 2️⃣ Mark today’s attendance based on login
-                    attendance_today = mark_attendance_on_login(user, login_dt=timezone.now()))
-                    print(f"[ATTENDANCE] user={user.username} -> {attendance_today.status}")
+                    attendance = mark_attendance_on_login(user, login_dt=timezone.now())
+                    print(f"[ATTENDANCE] user={user.username} -> {attendance.status}")
             except Exception as e:
                 print(f"[ERROR] mark_attendance_on_login failed: {e}")
 
