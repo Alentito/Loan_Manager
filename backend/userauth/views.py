@@ -1,21 +1,14 @@
 from django.shortcuts import render
-
 from django.contrib.auth import get_user_model
-
-
-# Create your views here.
 from django.contrib.auth.models import Group
-
 from rest_framework import viewsets, permissions
 #from django.contrib.auth.models import Group, Permission
 from .serializers import GroupSerializer, PermissionSerializer
-# views.py
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
-
 from rest_framework.views import APIView
 from employee.utils import mark_attendance_on_login, mark_attendance_on_logout, mark_missing_absents
 from django.utils.decorators import method_decorator
@@ -48,18 +41,20 @@ class MeView(APIView):
             "email": user.email,
             "groups": [g.name for g in user.groups.all()],
             "permissions": list(user.get_all_permissions()),
+            "firstName": user.first_name,
 
+            
             "employee": {
-                "id": employee.id if employee else None,
-                "login_id": employee.login_id if employee else None,
-                "name": employee.name if employee else None,
-                "company_email": employee.company_email if employee else None,
-                "contact_number": employee.contact_number if employee else None,
-                "team_name": employee.team.name if employee and employee.team else None,
-                "primary_shift": employee.primary_shift.name if employee and employee.primary_shift else None,
-                "alternate_shift": employee.alternate_shift.name if employee and employee.alternate_shift else None,
-            } if employee else None
-        })
+                    "id": employee.id if employee else None,
+                    "login_id": employee.login_id if employee else None,
+                    "name": employee.name if employee else None,
+                    "company_email": employee.company_email if employee else None,
+                    "contact_number": employee.contact_number if employee else None,
+                    "team_name": employee.team.name if employee and employee.team else None,
+                    "primary_shift": employee.primary_shift.name if employee and employee.primary_shift else None,
+                    "alternate_shift": employee.alternate_shift.name if employee and employee.alternate_shift else None,
+                } if employee else None
+            })
 
 
 class HasGroupPermission(BasePermission):
@@ -125,8 +120,8 @@ class CookieTokenRefreshView(APIView):
                 key="access_token",
                 value=new_access,
                 httponly=True,
-                secure=False,
-                samesite="Lax" ,
+                secure=True,
+                samesite="None" ,
                 max_age=15 * 60,
                 path="/"
             )
@@ -136,12 +131,20 @@ class CookieTokenRefreshView(APIView):
                 key="refresh_token",
                 value=refresh_token,
                 httponly=True,
-                secure=False,
-                samesite="Lax" ,
+                secure=True,
+                samesite="None" ,
                 max_age=7 * 24 * 3600,
                 path="/"
             )
-            csrf.get_token(request)
+            csrf_token = csrf.get_token(request)
+            res.set_cookie(
+                key="csrftoken",
+                value=csrf_token,
+                httponly=False,
+                secure=True,
+                samesite="None",
+                path="/",
+            )
             return res
         except Exception as e:
             print("Refresh error:", e)  # <-- Now 'e' is defined!
@@ -176,10 +179,31 @@ class CookieTokenObtainPairView(TokenObtainPairView):
 
             # Set JWT cookies
             res = Response(status=status.HTTP_200_OK)
-            res.set_cookie("access_token", access, httponly=True, secure=False, samesite="Lax")
-            res.set_cookie("refresh_token", refresh, httponly=True, secure=False, samesite="Lax")
+            res.set_cookie(
+                key="access_token",
+                value=access,
+                httponly=True,
+                secure=True,  # only sent over HTTPS
+                samesite="None",  # allow cross-site cookie sending
+            )
+            res.set_cookie(
+                key="refresh_token",
+                value=refresh,
+                httponly=True,
+                secure=True,
+                samesite="None",
+            )
+            # Ensure a CSRF token exists and explicitly set it as a cookie so frontend JS can read it
+            csrf_token = csrf.get_token(request)
+            res.set_cookie(
+                key="csrftoken",
+                value=csrf_token,
+                httponly=False,
+                secure=True,
+                samesite="None",
+                path="/",
+            )
             res.data = {"message": "Login successful"}
             return res
 
         return response
-
