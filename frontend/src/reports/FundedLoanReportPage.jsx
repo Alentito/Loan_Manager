@@ -1,13 +1,8 @@
-// File: frontend/src/reports/FundedLoanReportPage.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Typography,
   Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   TextField,
   Button,
   Paper,
@@ -17,189 +12,214 @@ import {
   TableCell,
   TableBody,
   CircularProgress,
-  Pagination,
 } from "@mui/material";
 import Autocomplete from "@mui/material/Autocomplete";
-import { useGetFundedLoanReportQuery, useGetBrokerLinkedEmployeesQuery } from "@/api/fundedLoanReportApi";
+import {
+  useGetFundedLoanReportQuery,
+  useGetBrokerLinkedEmployeesQuery,
+  useGetTeamLeadProcessorsQuery,
+
+} from "@/api/fundedLoanReportApi";
 import { useGetBrokersQuery } from "@/api/brokerApi";
-import { useGetEmployeesQuery } from "@/api/employeeApi";
+import { useGetAllEmployeesQuery } from "@/api/employeeApi";
+import { useNavigate } from "react-router-dom";
+
+
 
 export default function FundedLoanReportPage() {
+  const navigate = useNavigate();
+
   const [filters, setFilters] = useState({
-    broker: "",
-    loan_officer: "",
-    team_leader: "",
-    processor: "",
+    broker: null,
+    loan_officer: null,
+    team_leader: null,
+    processor: null,
     start_date: "",
     end_date: "",
     page: 1,
   });
 
-  const [linkedOptions, setLinkedOptions] = useState({
-    loan_officers: [],
-    team_leaders: [],
-    processors: [],
-  });
-  const { data: linkedData } = useGetBrokerLinkedEmployeesQuery(filters.broker, {
-  skip: !filters.broker,
-});
-
-
-  // 🔹 Base data
+  // 🔹 Fetch all brokers
   const { data: brokers, isLoading: isBrokersLoading } = useGetBrokersQuery({
     page: 1,
     page_size: 1000,
     archived: false,
   });
-  const { data: employees } = useGetEmployeesQuery();
-  const { data, isLoading } = useGetFundedLoanReportQuery(filters);
+  
+  // 🔹 Fetch all employees (for independent selection)
+  const { data: allEmployees, isFetching: isAllEmployeesLoading } =
+    useGetAllEmployeesQuery();
+    console.log("👥 allEmployees:", allEmployees);
 
 
-  // 🔹 Fetch linked employees when broker changes
-  useEffect(() => {
-    if (!filters.broker) {
-      setLinkedOptions({ loan_officers: [], team_leaders: [], processors: [] });
-      return;
-    }
+  // 🔹 Fetch broker-linked employees
+  const { data: linkedData, isFetching: isLinkedLoading } =
+    useGetBrokerLinkedEmployeesQuery(filters.broker?.id, {
+      skip: !filters.broker?.id,
+    });
 
-    const fetchLinked = async () => {
-      try {
-        const res = await fetch(
-          `/api/report/funded-loans/linked-employees/?broker=${filters.broker}`,
-          { credentials: "include" }
-        );
-        if (res.ok) {
-          const json = await res.json();
-          setLinkedOptions(json);
-        }
-      } catch (err) {
-        console.error("Error fetching linked employees:", err);
-      }
-    };
-    fetchLinked();
-  }, [filters.broker]);
+  // 🔹 Fetch processors linked to team leader
+  const { data: leadProcessors, isFetching: isProcessorsLoading } =
+    useGetTeamLeadProcessorsQuery(filters.team_leader?.id, {
+      skip: !filters.team_leader?.id,
+    });
 
-  // 🔹 Handlers
-  const handleChange = (field) => (event) =>
-    setFilters({ ...filters, [field]: event.target.value, page: 1 });
+  // 🔹 Fetch report data
+  const { data, isLoading: isReportLoading } = useGetFundedLoanReportQuery({
+    broker: filters.broker?.id,
+    loan_officer: filters.loan_officer?.id,
+    team_leader: filters.team_leader?.id,
+    processor: filters.processor?.id,
+    start_date: filters.start_date,
+    end_date: filters.end_date,
+    page: filters.page,
+  });
 
-  const handleDateChange = (field) => (event) =>
-    setFilters({ ...filters, [field]: event.target.value });
+  // ======================================================
+  // 🔸 Derived dropdown options
+  // ======================================================
+  const loanOfficers = linkedData?.loan_officers || [];
 
-  const handleApplyFilters = () =>
-    setFilters((prev) => ({ ...prev, page: 1 }));
+  const teamLeaders = useMemo(() => {
+  const employees = allEmployees?.results || [];
+  
+  if (filters.broker && linkedData?.team_leaders?.length)
+    return linkedData.team_leaders;
+
+  return employees.filter(
+    (e) => e.role_names?.includes("Lead") || e.role_names?.includes("Team Lead")
+  );
+}, [filters.broker, linkedData, allEmployees]);
+
+
+const processors = useMemo(() => {
+  const employees = allEmployees?.results || [];
+
+  const allProcessorList = employees.filter((e) =>
+    e.role_names?.some((r) => r.toLowerCase().includes("processor"))
+  );
+
+  if (filters.team_leader && leadProcessors?.processors?.length) {
+    const ids = leadProcessors.processors.map((p) => p.id);
+    return allProcessorList.filter((p) => ids.includes(p.id));
+  }
+
+  if (filters.broker && linkedData?.processors?.length) {
+    const ids = linkedData.processors.map((p) => p.id);
+    return allProcessorList.filter((p) => ids.includes(p.id));
+  }
+
+  return allProcessorList;
+}, [filters.team_leader, filters.broker, leadProcessors, linkedData, allEmployees]);
+
+
+  const handleMilestoneClick = (milestone) => {
+  if (milestone) {
+    navigate(`/loans?milestone=${encodeURIComponent(milestone)}`);
+  }
+};
+
+  const handleFilterChange = (field, value) => {
+    setFilters((prev) => ({
+      ...prev,
+      [field]: value,
+      page: 1,
+      ...(field === "broker" && {
+        loan_officer: null,
+        team_leader: null,
+        processor: null,
+      }),
+      ...(field === "team_leader" && { processor: null }),
+    }));
+  };
+
+  const handleDateChange = (field) => (e) =>
+    setFilters((prev) => ({ ...prev, [field]: e.target.value }));
 
   const handleClearFilters = () =>
     setFilters({
-      broker: "",
-      loan_officer: "",
-      team_leader: "",
-      processor: "",
+      broker: null,
+      loan_officer: null,
+      team_leader: null,
+      processor: null,
       start_date: "",
       end_date: "",
       page: 1,
     });
 
-  // 🔹 Render
+  const renderAutocomplete = (label, options, field, loading = false) => (
+    <Autocomplete
+      options={options}
+      getOptionLabel={(opt) => opt?.name || ""}
+      value={filters[field]}
+      onChange={(_, newValue) => handleFilterChange(field, newValue)}
+      loading={loading}
+      renderInput={(params) => (
+        <TextField {...params} label={label} fullWidth />
+      )}
+    />
+  );
+
+  // ======================================================
+  // 🔸 UI
+  // ======================================================
   return (
     <Box p={4}>
       <Typography variant="h5" mb={3} fontWeight={600}>
-        📊 Funded Loan Report
+        📊 Loan Report
       </Typography>
 
-      {/* 🔸 Filters */}
+      {/* 🔸 Filter Section */}
       <Paper sx={{ p: 3, mb: 4 }}>
         <Grid container spacing={2}>
-          {/* Broker */}
-          <Grid item xs={12} sm={6} md={3}>
-            <Autocomplete
-              options={brokers?.results || []}
-              getOptionLabel={(option) => option.name || ""}
-              value={
-                brokers?.results?.find((b) => b.id === filters.broker) || null
-              }
-              onChange={(e, newValue) =>
-                setFilters({
-                  ...filters,
-                  broker: newValue ? newValue.id : "",
-                  loan_officer: "",
-                  team_leader: "",
-                  processor: "",
-                })
-              }
-              renderInput={(params) => (
-                <TextField {...params} label="Broker" fullWidth />
-              )}
-              disabled={isBrokersLoading}
-               sx={{
+          <Grid item xs={12} sm={6} md={3} sx={{
                   minWidth: 200,
                   "& .MuiInputBase-root": { borderRadius: 2 },
-                }}
-            />
+                }}>
+            {renderAutocomplete(
+              "Broker",
+              brokers?.results || [],
+              "broker",
+              isBrokersLoading
+            )}
           </Grid>
 
-          {/* Loan Officer */}
-<Autocomplete
-  options={linkedData?.loan_officers || []}
-  getOptionLabel={(option) => option.loan_officer__name || option.name || ""}
-  value={
-    linkedData?.loan_officers?.find((o) => o.loan_officer__id === filters.loan_officer) || null
-  }
-  onChange={(e, newValue) =>
-    setFilters({
-      ...filters,
-      loan_officer: newValue ? newValue.loan_officer__id : "",
-    })
-  }
-  renderInput={(params) => <TextField {...params} label="Loan Officer" fullWidth />}
-   sx={{
+          <Grid item xs={12} sm={6} md={3} sx={{
                   minWidth: 200,
                   "& .MuiInputBase-root": { borderRadius: 2 },
-                }}
-/>
+                }}>
+            {renderAutocomplete(
+              "Loan Officer",
+              loanOfficers,
+              "loan_officer",
+              isLinkedLoading
+            )}
+          </Grid>
 
-{/* Team Leader */}
-<Autocomplete
-  options={linkedData?.team_leaders || []}
-  getOptionLabel={(option) => option.team_leader__name || option.name || ""}
-  value={
-    linkedData?.team_leaders?.find((t) => t.team_leader__id === filters.team_leader) || null
-  }
-  onChange={(e, newValue) =>
-    setFilters({
-      ...filters,
-      team_leader: newValue ? newValue.team_leader__id : "",
-    })
-  }
-  renderInput={(params) => <TextField {...params} label="Team Leader" fullWidth />}
-   sx={{
+          <Grid item xs={12} sm={6} md={3} sx={{
                   minWidth: 200,
                   "& .MuiInputBase-root": { borderRadius: 2 },
-                }}
-/>
+                }}>
+            {renderAutocomplete(
+              "Team Leader",
+              teamLeaders,
+              "team_leader",
+              isLinkedLoading || isAllEmployeesLoading
+            )}
+          </Grid>
 
-{/* Processor */}
-<Autocomplete
-  options={linkedData?.processors || []}
-  getOptionLabel={(option) => option.processor__name || option.name || ""}
-  value={
-    linkedData?.processors?.find((p) => p.processor__id === filters.processor) || null
-  }
-  onChange={(e, newValue) =>
-    setFilters({
-      ...filters,
-      processor: newValue ? newValue.processor__id : "",
-    })
-  }
-  renderInput={(params) => <TextField {...params} label="Processor" fullWidth />}
-   sx={{
+          <Grid item xs={12} sm={6} md={3} sx={{
                   minWidth: 200,
                   "& .MuiInputBase-root": { borderRadius: 2 },
-                }}
-/>
+                }}>
+            {renderAutocomplete(
+              "Processor",
+              processors,
+              "processor",
+              isProcessorsLoading || isAllEmployeesLoading
+            )}
+          </Grid>
 
-
-          {/* Date Filters */}
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               type="date"
@@ -210,6 +230,7 @@ export default function FundedLoanReportPage() {
               InputLabelProps={{ shrink: true }}
             />
           </Grid>
+
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               type="date"
@@ -221,83 +242,70 @@ export default function FundedLoanReportPage() {
             />
           </Grid>
 
-         
-          <Grid item xs={12} md={2}>
-  <Button
-    fullWidth
-    variant="outlined"
-    color="secondary"
-    sx={{ height: "100%" }}
-    onClick={() =>
-      setFilters({
-        broker: "",
-        loan_officer: "",
-        team_leader: "",
-        processor: "",
-        start_date: "",
-        end_date: "",
-        page: 1,
-      })
-    }
-  >
-    Clear
-  </Button>
-</Grid>
-
+          <Grid item xs={12} sm={6} md={2}>
+            <Button
+              fullWidth
+              variant="outlined"
+              color="secondary"
+              sx={{ height: "100%" }}
+              onClick={handleClearFilters}
+            >
+              Clear
+            </Button>
+          </Grid>
         </Grid>
       </Paper>
 
-      {/* 🔸 Table */}
-      {isLoading ? (
+      {/* 🔸 Loan Report Table */}
+      {isReportLoading ? (
         <Box display="flex" justifyContent="center" py={5}>
           <CircularProgress />
         </Box>
       ) : (
         <Paper sx={{ p: 2 }}>
+          <Typography variant="h6" mb={2}>
+            📠 Milestone Summary
+          </Typography>
+
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Broker</TableCell>
-                <TableCell>Loan Officer</TableCell>
-                <TableCell>Team Leader</TableCell>
-                <TableCell>Processor</TableCell>
-                <TableCell>Funded Count</TableCell>
+                <TableCell>Milestone</TableCell>
+                <TableCell align="right">Count</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {data?.results?.length ? (
-                data.results.map((row, i) => (
-                  <TableRow key={i}>
-                    <TableCell>{row.broker__name || "-"}</TableCell>
-                    <TableCell>{row.loan_officer__name || "-"}</TableCell>
-                    <TableCell>{row.team_leader__name || "-"}</TableCell>
-                    <TableCell>{row.processor__name || "-"}</TableCell>
-                    <TableCell>{row.funded_count}</TableCell>
+              {data?.milestones?.length ? (
+                <>
+                {data.milestones.map((row, i) => (
+  <TableRow
+    key={i}
+    hover
+    sx={{ cursor: "pointer" }}
+    onClick={() => handleMilestoneClick(row.milestone)}
+  >
+    <TableCell>{row.milestone || "Unknown"}</TableCell>
+    <TableCell align="right">{row.count || 0}</TableCell>
+  </TableRow>
+))}
+
+
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Total Loans</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      {data.total_loans || 0}
+                    </TableCell>
                   </TableRow>
-                ))
+                </>
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    No funded loans found.
+                  <TableCell colSpan={2} align="center">
+                    No data found for selected filters.
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
-
-          <Box display="flex" justifyContent="center" mt={3}>
-            <Pagination
-              count={Math.ceil((data?.count || 0) / 10)}
-              page={filters.page}
-              onChange={(e, newPage) =>
-                setFilters({ ...filters, page: newPage })
-              }
-            />
-          </Box>
-
-          <Typography variant="body2" align="right" mt={2}>
-            Total Funded Loans: {data?.total_funded_loans || 0}
-          </Typography>
         </Paper>
       )}
     </Box>

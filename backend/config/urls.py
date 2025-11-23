@@ -47,13 +47,19 @@ urlpatterns = [
 
 
     path('admin/', admin.site.urls),
+    path('api/report/', include('report.urls')),
     path('api/', include(router.urls)),
     path('api/', include(loans_router.urls)),
     path('api/', include('employee.urls')),
-    path('api/report/', include('report.urls')),
+    
+
 
     #path("token/", CookieTokenObtainPairView.as_view(), name="token_obtain_pair"),
     # path('loan/', include('loan.urls')),
     
-]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
+
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 

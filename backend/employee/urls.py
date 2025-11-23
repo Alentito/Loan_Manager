@@ -1,4 +1,3 @@
-# backend/employee/urls.py
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
@@ -16,7 +15,8 @@ from .views import (
     LenderViewSet, validate_lender_field,
     TeamLeadViewSet, TeamManagerViewSet,
     EmployeeTokenViewSet, EmployeeBreakViewSet,
-    validate_employee_field
+    validate_employee_field, PunchInView, PunchOutView
+
 )
 
 # Routers for ViewSets
@@ -51,7 +51,8 @@ urlpatterns = [
     path('export/loan-officers/excel/', export_loan_officers_excel, name='export-loan-officers-excel'),
     path('export/loan-officers/pdf/', export_loan_officers_pdf, name='export-loan-officers-pdf'),
 
-
+    path("attendance/punch-in/", PunchInView.as_view(), name="punch-in"),
+    path("attendance/punch-out/", PunchOutView.as_view(), name="punch-out"),
     # Employee exports
     path('export/employees/pdf/', export_employees_pdf, name='export-employees-pdf'),
     path('export/employees/excel/', export_employees_excel, name='export-employees-excel'),

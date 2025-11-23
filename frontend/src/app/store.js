@@ -49,13 +49,13 @@ export const store = configureStore({
     [shiftApi.reducerPath]: shiftApi.reducer,
     [teamApi.reducerPath]: teamApi.reducer,
     [milestoneApi.reducerPath]: milestoneApi.reducer,
- [attendanceApi.reducerPath]: attendanceApi.reducer,
+    [attendanceApi.reducerPath]: attendanceApi.reducer,
     [breakApi.reducerPath]: breakApi.reducer,
     [lenderApi.reducerPath]: lenderApi.reducer,
     [teamLeadApi.reducerPath]: teamLeadApi.reducer,
     [teamManagerApi.reducerPath]: teamManagerApi.reducer,
     [tokenApi.reducerPath]: tokenApi.reducer,
-        [incomeAssetNoteApi.reducerPath]: incomeAssetNoteApi.reducer,
+    [incomeAssetNoteApi.reducerPath]: incomeAssetNoteApi.reducer,
     [fundedLoanReportApi.reducerPath]: fundedLoanReportApi.reducer,
     
   },
@@ -82,6 +82,7 @@ export const store = configureStore({
       .concat(tokenApi.middleware)
       .concat(incomeAssetNoteApi.middleware)
       .concat(fundedLoanReportApi.middleware),
+
 });
 
 // also export default for easier imports

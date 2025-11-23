@@ -734,7 +734,7 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
                         "new": new_answer
                     }
 
-
+        # Record a grouped audit event for checklist updates
         if diffs:
             persist_event(
                 instance=loan,
@@ -791,4 +791,9 @@ class ChecklistQuestionViewSet(viewsets.ModelViewSet):
     queryset = ChecklistQuestion.objects.all().order_by('order')
     serializer_class = ChecklistQuestionSerializer
     pagination_class = None
+
+
+
+
+
 

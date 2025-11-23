@@ -553,3 +553,4 @@ def mark_missing_absents(employee):
         Attendance.objects.bulk_create(absent_records)
         for att in absent_records:
             update_monthly_summary(att)
+

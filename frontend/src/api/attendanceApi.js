@@ -79,6 +79,54 @@ export const attendanceApi = createApi({
           ? [{ type: "Attendance", id: `Monthly-${arg.employeeId || "self"}` }]
           : [{ type: "Attendance", id: "LIST" }],
     }),
+    getMonthlyWorkedHours: builder.query({
+  query: ({ employeeId, month, year }) => {
+    const params = new URLSearchParams();
+    if (employeeId) params.append("employeeId", employeeId);
+    if (month) params.append("month", month);
+    if (year) params.append("year", year);
+    const queryString = params.toString();
+    return `attendance/monthly-worked-hours/?${queryString}`;
+  },
+  providesTags: (result, error, arg) =>
+    result
+      ? [{ type: "Attendance", id: `Worked-${arg.employeeId || "self"}` }]
+      : [{ type: "Attendance", id: "LIST" }],
+}),
+
+// ✅ Punch In (login)
+punchIn: builder.mutation({
+  query: (body) => ({
+    url: "attendance/punch-in/",
+    method: "POST",
+    body,
+  }),
+  invalidatesTags: [{ type: "Attendance", id: "LIST" }],
+}),
+
+// ✅ Punch Out (logout)
+punchOut: builder.mutation({
+  query: (body) => ({
+    url: "attendance/punch-out/",
+    method: "POST",
+    body,
+  }),
+  invalidatesTags: [{ type: "Attendance", id: "LIST" }],
+}),
+// ✅ Get Late Logins list (day/week/month)
+getLateLogins: builder.query({
+  query: (filter = "day") => `attendance/late-logins/?filter=${filter}`,
+  transformResponse: (response) =>
+    response?.results ?? response ?? [],
+  providesTags: (result) =>
+    result
+      ? [
+          ...result.map(({ id }) => ({ type: "Attendance", id })),
+          { type: "Attendance", id: "LateLogins" },
+        ]
+      : [{ type: "Attendance", id: "LateLogins" }],
+}),
+
 
   }),
 });
@@ -91,4 +139,8 @@ export const {
   useLazyGetTodayAttendanceQuery,
   useGetAttendanceSummaryQuery,
   useGetMonthlyLateSummaryQuery,
+  useGetMonthlyWorkedHoursQuery, 
+  usePunchInMutation,
+  usePunchOutMutation,
+  useGetLateLoginsQuery,
 } = attendanceApi;

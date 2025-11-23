@@ -45,7 +45,7 @@ export function SidebarContent() {
     { path: "/loan-officers", label: "Loan Officers", icon: Building2, permission: "employee.sidebar_loanofficer" },
     { path: "/employees", label: "Employees", icon: Users, permission: "employee.sidebar_employee" },
     { path: "/payroll", label: "Payroll", icon: BadgeDollarSign, permission: "employee.view_payroll" },
-    
+    { path: "/reports", label: "Reports", icon: FileText, permission: "loan.view_report" },
     { path: "/audit", label: "Audit", icon: ClipboardList, permission: "audit.view_auditevent" },
     { path: "/role-management", label: "Role Management", icon: UsersRound, permission: "auth.view_group" },
     { path: "/teams", label: "Teams", icon: Users, permission: "employee.view_team" },
@@ -57,10 +57,11 @@ export function SidebarContent() {
     { path: "/admin/holidays", label: "Holidays", icon: CalendarCheck2, permission: "employee.view_publicholiday" },
     { path: "/lenders", label: "Lenders", icon: Building2, permission: "employee.sidebar_lender" },
     { path: "/attendance/summary", label: "Monthly Summary", icon: ClipboardList, permission: "employee.view_attendancesummary" },
+    { path: "/attendance/late-logins", label: "Late Logins", icon: Clock, permission: "employee.view_latelogins" },
     //{ path: "/tokens/my-tokens", label: "My Tokens", icon: ClipboardList, permission: "employee.view_tokens" },
     { path: "/token/new", label: "Request Token", icon: ClipboardList, permission: "employee.add_employeetoken" },
     { path: "/admin/token-approvals", label: "Token Approvals", icon: ClipboardList, permission: "employee.approve_tokens" },
-    { path: "/reports/funded-loans", label: "Funded Loan Report", icon: FileText, permission: "loan.view_report" },
+    { path: "/reports/funded-loans", label: "Report", icon: FileText, permission: "loan.View_reports" },
     { path: "/breaks", label: "Breaks", icon: Clock, permission: null },
   ];
 

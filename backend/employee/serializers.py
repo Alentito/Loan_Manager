@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from employee.models import Broker, LoanOfficer, Employee, PublicHoliday, Meeting,LeaveRequests, Shift, Team, Designation,  Attendance, Break, MonthlyAttendanceSummary, Lender, TeamLead, TeamManager, EmployeeToken, EmployeeBreak
+from employee.models import Broker, LoanOfficer, Employee, PublicHoliday, Meeting,LeaveRequests, Shift, Team, Designation,  Attendance, Break, MonthlyAttendanceSummary, Lender, TeamLead, TeamManager, EmployeeToken, EmployeeBreak, AttendanceLog
 from django.contrib.auth.models import Group  # or from userauth.models import Role if custom
 from django.contrib.auth import get_user_model
 import pytz
@@ -312,7 +312,12 @@ class BreakSerializer(serializers.ModelSerializer):
     # Optional: format datetime fields nicely
     break_in = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     break_out = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
-    
+
+class AttendanceLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AttendanceLog
+        fields = ["id", "login_time", "logout_time"]
+
 class AttendanceSerializer(serializers.ModelSerializer):
     breaks = BreakSerializer(many=True, read_only=True)
     total_break_minutes = serializers.IntegerField(read_only=True)
@@ -346,7 +351,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
             "worked_minutes",
             "total_break_minutes",
             "net_worked_minutes",
-            "breaks", 'leave_balance', 'yearly_late_seconds'
+            "breaks", 'leave_balance', 'yearly_late_seconds',"login_time", "logout_time", "logs"
         ]
         read_only_fields = [
             "worked_minutes",

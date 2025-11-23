@@ -7,77 +7,72 @@ export const fundedLoanReportApi = createApi({
   tagTypes: ["FundedLoanReport"],
 
   endpoints: (builder) => ({
+    // 🔹 Fetch Funded Loan Report
     getFundedLoanReport: builder.query({
-      query: ({
-        page = 1,
-        pageSize = 10,
-        milestone = "Funded",
-        broker,
-        loan_officer,
-        team_leader,
-        manager,
-        processor,
-        start_date,
-        end_date,
-      }) => {
-        const params = new URLSearchParams();
-        params.append("page", page);
-        params.append("page_size", pageSize);
-        params.append("milestone", milestone);
+  query: ({
+    page = 1,
+    pageSize = 10,
+    broker,
+    loan_officer,
+    team_leader,
+    processor,
+    start_date,
+    end_date,
+  }) => {
+    const params = new URLSearchParams();
+    params.append("page", page);
+    params.append("page_size", pageSize);
 
-        if (broker) params.append("broker", broker);
-        if (loan_officer) params.append("loan_officer", loan_officer);
-        if (team_leader) params.append("team_leader", team_leader);
-        if (manager) params.append("manager", manager);
-        if (processor) params.append("processor", processor);
+    if (broker) params.append("broker", broker);
+    if (loan_officer) params.append("loan_officer", loan_officer);
+    if (team_leader) params.append("team_leader", team_leader);
+    if (processor) params.append("processor", processor);
 
-        // ✅ Convert date to ISO format compatible with backend CST filter
-        const toISODate = (d) => (d ? new Date(d).toISOString() : null);
-        if (start_date) params.append("start_date", toISODate(start_date));
-        if (end_date) params.append("end_date", toISODate(end_date));
+    // ✅ no ISO conversion, dates are already yyyy-MM-dd
+    if (start_date) params.append("start_date", start_date);
+    if (end_date) params.append("end_date", end_date);
 
-        return `report/funded-loans/?${params.toString()}`;
-      },
+    return `report/funded-loans/?${params.toString()}`;
+  },
 
-      // ✅ Transform the backend response to a simpler structure for the UI
-      transformResponse: (response) => {
-        // Handle nested results structure
-        const nested = response?.results;
-        if (nested && nested.results) {
-          return {
-            count: response.count,
-            next: response.next,
-            previous: response.previous,
-            results: nested.results,
-            total_funded_loans: nested.total_funded_loans,
-            milestone: nested.milestone,
-          };
-        }
-        // If already flat
-        return response;
-      },
+
+      // ✅ Transform backend response
+      transformResponse: (response) => ({
+        milestones: response?.results || [],
+        default_milestone: response?.default_milestone || "Funded",
+        total_loans: response?.total_loans || 0,
+        message: response?.message || "",
+      }),
 
       providesTags: (result) =>
-        result
-          ? [
-              { type: "FundedLoanReport", id: "LIST" },
-              ...(result.results || []).map((_, index) => ({
-                type: "FundedLoanReport",
-                id: index,
-              })),
-            ]
-          : [{ type: "FundedLoanReport", id: "LIST" }],
-    }),
-    getBrokerLinkedEmployees: builder.query({
-  query: (brokerId) => `report/broker-linked-employees/?broker=${brokerId}`,
-}),
+  result?.milestones?.length
+    ? [
+        { type: "FundedLoanReport", id: "LIST" },
+        ...result.milestones.map((_, i) => ({
+          type: "FundedLoanReport",
+          id: i,
+        })),
+      ]
+    : [{ type: "FundedLoanReport", id: "LIST" }],
 
+    }),
+
+    // 🔹 Get linked employees by Broker
+    getBrokerLinkedEmployees: builder.query({
+      query: (brokerId) => `report/broker-linked-employees/?broker=${brokerId}`,
+      providesTags: ["FundedLoanReport"],
+    }),
+
+    // 🔹 Get processors by Team Leader
+    getTeamLeadProcessors: builder.query({
+      query: (teamLeadId) => `report/team-lead-processors/?team_leader=${teamLeadId}`,
+      providesTags: ["FundedLoanReport"],
+    }),
   }),
 });
 
-export const { 
+export const {
   useGetFundedLoanReportQuery,
   useGetBrokerLinkedEmployeesQuery,
-
-  
- } = fundedLoanReportApi;
+  useGetTeamLeadProcessorsQuery,
+} = fundedLoanReportApi;

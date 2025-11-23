@@ -11,6 +11,7 @@ import LoanDetails from "./pages/LoanDetails";
 import Tasks from "./pages/Tasks";
 import Audit from "./pages/Audit";
 import Payroll from "./pages/Payroll";
+import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import RoleManagement from "./pages/RoleManagement";
 import Login from "./login/Login";
@@ -36,11 +37,12 @@ import TokenApprovalPage from "./tokens/TokenApprovalPage";
 import TokenForm from "./tokens/TokenForm";
 import BreakPage from "./breaks/BreakPage";
 import ProfilePage from "./employees/ProfilePage";
+
 import MilestoneManagement from "./components/milestone/MilestoneManagement";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useGetActiveBreakQuery } from "./api/breakApi"; 
 import FundedLoanReportPage from "@/reports/FundedLoanReportPage";
-
+import LateLoginsPage from "./attendance/LateLoginsPage";
 
 function App() {
   useInitializeAuth();
@@ -115,7 +117,7 @@ function App() {
             <Route path="/loan-officers" element={<LoanOfficerList />} />
             <Route path="/employees" element={<EmployeeList />} />
             <Route path="/payroll" element={<Payroll />} />
-            
+            <Route path="/reports" element={<Reports />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/role-management" element={<RoleManagement />} />
             <Route path="/settings" element={<Settings />} />
@@ -145,11 +147,14 @@ function App() {
 
             {/* Breaks */}
             <Route path="/breaks" element={<BreakPage />} />
-            <Route path="/breaks/:id" element={<BreakPage />} />            
+            <Route path="/breaks/:id" element={<BreakPage />} />
+
+            <Route path="/reports/funded-loans" element={<FundedLoanReportPage />} />
             {/* Meetings (if applicable) */}
             <Route path="/admin/meetings" element={<MeetingAdminPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/reports/funded-loans" element={<FundedLoanReportPage />} />
+            <Route path="/attendance/late-logins" element={<LateLoginsPage />} />
+
           </Route>
         </Route>
       </Routes>

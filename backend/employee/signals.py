@@ -1,5 +1,5 @@
 # employee/signals.py
-from django.db.models.signals import post_save, post_delete
+"""from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from .models import Attendance, MonthlyAttendanceSummary
 
@@ -42,3 +42,4 @@ def update_summary_on_save(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=Attendance)
 def update_summary_on_delete(sender, instance, **kwargs):
     recalc_monthly_summary(instance.employee, instance.date.month, instance.date.year)
+"""

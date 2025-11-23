@@ -50,15 +50,15 @@ class MeView(APIView):
             "permissions": list(user.get_all_permissions()),
 
             "employee": {
-                "id": employee.id if employee else None,
-                "login_id": employee.login_id if employee else None,
-                "name": employee.name if employee else None,
-                "company_email": employee.company_email if employee else None,
-                "contact_number": employee.contact_number if employee else None,
-                "team_name": employee.team.name if employee and employee.team else None,
-                "primary_shift": employee.primary_shift.name if employee and employee.primary_shift else None,
-                "alternate_shift": employee.alternate_shift.name if employee and employee.alternate_shift else None,
-            } if employee else None
+                    "id": employee.id if employee else None,
+                    "login_id": employee.login_id if employee else None,
+                    "name": employee.name if employee else None,
+                    "company_email": employee.company_email if employee else None,
+                    "contact_number": employee.contact_number if employee else None,
+                    "team_name": employee.team.name if employee and employee.team else None,
+                    "primary_shift": employee.primary_shift.name if employee and employee.primary_shift else None,
+                    "alternate_shift": employee.alternate_shift.name if employee and employee.alternate_shift else None,
+                } if employee else None
         })
 
 

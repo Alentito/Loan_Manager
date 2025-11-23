@@ -1,5 +1,5 @@
 // services/authApi.js
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi} from "@reduxjs/toolkit/query/react";
 import baseQueryWithReauth from "./baseApi"; // Import the base query with re-authentication
 
 export const authApi = createApi({

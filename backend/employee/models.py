@@ -6,6 +6,7 @@ from userauth.models import Role, Permission
 from django.conf import settings
 from django.contrib.auth.models import Group
 from zoneinfo import ZoneInfo
+import pytz
 from datetime import datetime, timedelta, time
 from employee.utils import now_cst, CST, to_cst, get_cst_date
 from django.db.models import Sum
@@ -27,10 +28,11 @@ class Broker(models.Model):
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
 
     class Meta:
-        permissions = [           
+        permissions = [
+        
             ("sidebar_broker", "Can view in sidebar"),
         ]
-    
+
     def __str__(self):
         return self.name
     
@@ -46,12 +48,13 @@ class LoanOfficer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
     last_updated = models.DateTimeField(auto_now=True, db_index=True)
-
+    
     class Meta:
-        permissions = [           
+        permissions = [
+        
             ("sidebar_loanofficer", "Can view in sidebar"),
         ]
-        
+
     def __str__(self):
         return f"{self.name} ({self.broker_company.name})"
 
@@ -94,10 +97,11 @@ class Employee(models.Model):
         super().save(*args, **kwargs)
 
     class Meta:
-        permissions = [           
+        permissions = [
+           
             ("sidebar_employee", "Can view in sidebar"),
         ]
-        
+
     def __str__(self):
         return f"{self.name} ({self.login_id})"
     
@@ -244,6 +248,9 @@ class Attendance(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
+        permissions = [
+            ("view_latelogins", "Can view late login records"),
+        ]
         unique_together = ("employee", "date")
         ordering = ("-date",)
 
@@ -262,8 +269,62 @@ class Attendance(models.Model):
         self.worked_minutes = max(0, int(work_duration - break_minutes))
         self.save(update_fields=["worked_minutes", "total_break_minutes", "updated_at"])
 
+    def calculate_effective_work_seconds(self):
+        """
+        Calculate total worked seconds for this attendance record,
+        considering shift timings, multiple login/logout logs, and breaks.
+        """
+        if not self.shift:
+            return 0  # no shift info, cannot calculate accurately
+
+        total_seconds = 0
+        shift_start = timezone.make_aware(
+            datetime.combine(self.date, self.shift.start_time),
+            timezone=pytz.timezone("America/Chicago")
+        )
+        shift_end = timezone.make_aware(
+            datetime.combine(self.date, self.shift.end_time),
+            timezone=pytz.timezone("America/Chicago")
+        )
+
+        for log in self.logs.all():
+            login = to_cst(log.login_time)
+            logout = to_cst(log.logout_time) if log.logout_time else to_cst(timezone.now())
+
+            # constrain within shift boundaries
+            effective_start = max(login, shift_start)
+            effective_end = min(logout, shift_end)
+
+            if effective_end > effective_start:
+                total_seconds += (effective_end - effective_start).total_seconds()
+
+        # subtract total breaks for this day
+        total_break_seconds = sum(b.duration_minutes * 60 for b in self.breaks.all())
+        total_seconds = max(0, total_seconds - total_break_seconds)
+
+        return total_seconds
+
     def __str__(self):
         return f"{self.employee} - {self.date} - {self.status}"
+
+class AttendanceLog(models.Model):
+    attendance = models.ForeignKey(
+        Attendance, on_delete=models.CASCADE, related_name="logs"
+    )
+    login_time = models.DateTimeField()
+    logout_time = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["login_time"]
+
+    def worked_minutes(self):
+        """Calculate duration in minutes for this log."""
+        if self.logout_time:
+            return int((self.logout_time - self.login_time).total_seconds() // 60)
+        return 0
+
+    def __str__(self):
+        return f"{self.attendance.employee} | {self.login_time.strftime('%Y-%m-%d %H:%M')} → {self.logout_time.strftime('%H:%M') if self.logout_time else '...'}"
 
 
 class Break(models.Model):
@@ -323,20 +384,24 @@ class Lender(models.Model):
     executive_email = models.EmailField(unique=True)
     executive_phone = models.CharField(max_length=20, unique=True)
     executive_address = models.TextField(blank=True, null=True)
+
     account_manager_name = models.CharField(max_length=255, blank=True, null=True)
     manager_email = models.EmailField(unique=True)
     manager_contact = models.CharField(max_length=20, unique=True)
     manager_address = models.TextField(blank=True, null=True)
+
     mortgage_clause = models.TextField(blank=True, null=True)
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        permissions = [           
+        permissions = [
+            
             ("sidebar_lender", "Can view in sidebar"),
         ]
-        
+    
     def __str__(self):
         return self.lender_name
     
@@ -413,6 +478,4 @@ class EmployeeBreak(models.Model):
             return (self.end_time - self.start_time).total_seconds()
         return None
     
-
-
 

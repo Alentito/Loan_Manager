@@ -90,7 +90,11 @@ class Milestone(models.Model):
     
     class Meta:
         ordering = ['sort_order', 'name']
-
+        # Remove the custom permissions - Django auto-creates these:
+        # - loan.add_milestone
+        # - loan.change_milestone  
+        # - loan.delete_milestone
+        # - loan.view_milestone
     
     def __str__(self):
         return self.name
@@ -236,20 +240,29 @@ class LoanChecklistAnswer(models.Model):
     def __str__(self):
         return f"Loan {self.loan_id} - Q{self.question.order}: {'✔️' if self.answer else '❌'}"
 
+# Create your models here.
+
+
+
+
 
 class Loan(models.Model):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100,default="Unknown")
+
     broker = models.ForeignKey(Broker, on_delete=models.SET_NULL, null=True)
     loan_officer = models.ForeignKey(LoanOfficer, on_delete=models.SET_NULL, null=True, related_name='loans_officer')
     milestone = models.CharField(max_length=100,null=True)
+
     compensation = models.CharField(max_length=100, blank=True, null=True)
     lock_status = models.CharField(max_length=100, blank=True, null=True)
     closing_date = models.DateField(blank=True, null=True)
     point_file = models.CharField(max_length=255, blank=True, null=True)
     subject_property = models.CharField(max_length=255, blank=True, null=True)
     loan_comment = models.TextField(blank=True, null=True)
+
     lenders = models.ManyToManyField('employee.Lender', related_name='loans', blank=True)
+
     team_leader = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_leader')
     team_manager = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_manager')
     processor = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_processor')
@@ -286,7 +299,7 @@ class Loan(models.Model):
     class Meta:
      permissions = [
         ("view_all_loans", "Can view all loans"),
-        ("view_report", "Can view loan reports"),
+        ("View_reports", "Can view reports"),
      ]
 
     def __str__(self):
@@ -304,8 +317,9 @@ class Task(models.Model):
     status     = models.CharField(max_length=20,
                                   choices=TaskStatus.choices,
                                   default=TaskStatus.TODO)
-    position   = models.PositiveIntegerField(default=0)    
-    tags       = models.JSONField(default=list, blank=True)  
+    position   = models.PositiveIntegerField(default=0)      # order in column
+    
+    tags       = models.JSONField(default=list, blank=True)  # ["Bug", "Story"]
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -320,8 +334,8 @@ class Task(models.Model):
 
 class IncomeAssetNote(models.Model):
     loan = models.OneToOneField("Loan", on_delete=models.CASCADE, related_name="income_asset_note")
-    editor_state = models.JSONField(default=dict, blank=True)   
-    plain_text = models.TextField(blank=True)                   
+    editor_state = models.JSONField(default=dict, blank=True)   # stores Lexical JSON as-is
+    plain_text = models.TextField(blank=True)                   # optional quick-read/search
     created_by = models.ForeignKey(get_user_model(), null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="income_asset_notes_created")
     updated_by = models.ForeignKey(get_user_model(), null=True, blank=True,

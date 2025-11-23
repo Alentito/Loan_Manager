@@ -1,5 +1,5 @@
 // src/services/loanApi.js
-import { createApi} from "@reduxjs/toolkit/query/react";
+import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import baseQueryWithReauth from "./baseApi";
 
 export const loanApi = createApi({
@@ -8,7 +8,7 @@ export const loanApi = createApi({
   tagTypes: ["Loan","IncomeAssetNote",], // For caching and invalidation
   endpoints: (builder) => ({
     getLoans: builder.query({
-      query: ({ page = 1, pageSize, milestone, search,ordering, assigned_to,include_archived,is_archived, start_date, end_date }) => {
+      query: ({ page = 1, pageSize, milestone, search,ordering, assigned_to,include_archived,is_archived, }) => {
         let url = `loan/?page=${page}&page_size=${pageSize}`;
         if (milestone) url += `&milestone=${milestone}`;
         if (search) url += `&search=${encodeURIComponent(search)}`;
@@ -18,8 +18,6 @@ export const loanApi = createApi({
           url += `&include_archived=${include_archived ? "true" : "false"}`;
         if (is_archived !== undefined)
           url += `&is_archived=${is_archived ? "true" : "false"}`;
-        if (start_date) url += `&start_date=${encodeURIComponent(start_date)}`; // 👈 new
-        if (end_date) url += `&end_date=${encodeURIComponent(end_date)}`;
         return url;
       },
       providesTags: (result) =>

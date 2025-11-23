@@ -13,6 +13,7 @@ import {
   useMarkAttendanceMutation,
   useGetAttendanceSummaryQuery,
   useGetMonthlyLateSummaryQuery,
+  useGetMonthlyWorkedHoursQuery,
 
 } from "../api/attendanceApi";
 import { useGetHolidaysQuery } from "../api/holidayApi";
@@ -70,8 +71,7 @@ const AttendancePage = () => {
   });
 
   // ---------------------- Attendance summary ----------------------
-
-
+  
 
   const displayedEmployee = useMemo(() => {
     if (employeeData) return employeeData;
@@ -101,6 +101,19 @@ const AttendancePage = () => {
     { skip: !employeeIdToFetch }
   );
 
+  const { data: monthlyWorkedHoursData } = useGetMonthlyWorkedHoursQuery(
+  { employeeId: employeeIdToFetch, month, year },
+  { skip: !employeeIdToFetch }
+);
+
+const monthlyWorkedHHMMSS = useMemo(() => {
+  if (!monthlyWorkedHoursData?.total_worked_seconds) return "00:00:00";
+  const totalSeconds = monthlyWorkedHoursData.total_worked_seconds;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}, [monthlyWorkedHoursData]);
 
   const { data: allHolidayData } = useGetHolidaysQuery({ page: 1, pageSize: 9999 });
   const { data: meetings = [] } = useGetMeetingsQuery();
@@ -298,6 +311,8 @@ const AttendancePage = () => {
             { key: "leave_balance", label: "📝 Leave Balance", count: leaveBalance, color: "info" },
             { key: "yearly_late", label: "⏱️ Yearly Late", count: yearlyLateHHMMSS, color: "warning" },
             { key: "monthly_late", label: "📅 Monthly Late", count: monthlyLateHHMMSS, color: "warning" },
+            { key: "worked_hours", label: "🕒 Worked Hours", count: monthlyWorkedHHMMSS, color: "success" },
+
           ].map(({ key, label, count, color }) => (
             <Paper key={key} sx={{
               p: 1, borderRadius: 1.5, textAlign: "center", cursor: "pointer",

@@ -1,6 +1,6 @@
 #employee/views.py
 from django.http import HttpResponse
-from .models import Broker, LoanOfficer, Employee, PublicHoliday,Meeting, LeaveRequests, Shift, Team,  Break, Attendance, MonthlyAttendanceSummary, Lender, TeamLead, TeamManager, EmployeeToken, EmployeeBreak
+from .models import Broker, LoanOfficer, Employee, PublicHoliday,Meeting, LeaveRequests, Shift, Team,  Break, Attendance, MonthlyAttendanceSummary, Lender, TeamLead, TeamManager, EmployeeToken, EmployeeBreak, AttendanceLog
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -46,7 +46,7 @@ from django.utils import timezone
 import logging
 from rest_framework import viewsets, permissions
 from django.contrib.auth.models import Group, Permission
-# views.py
+from rest_framework import generics, status
 import json
 from rest_framework.response import Response
 from rest_framework import status
@@ -1474,7 +1474,187 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         )
         return Response(serializer.data)
     
+    @action(detail=False, methods=["get"], url_path="monthly-worked-hours")
+    def monthly_worked_hours(self, request):
+        employee_id = request.query_params.get("employeeId")
+        month = int(request.query_params.get("month", 0))
+        year = int(request.query_params.get("year", 0))
+
+        if not (employee_id and month and year):
+            return Response({"error": "employeeId, month, year required"}, status=400)
+
+        attendances = (
+            Attendance.objects.filter(
+                employee_id=employee_id,
+                date__year=year,
+                date__month=month,
+            )
+            .select_related("shift")
+            .prefetch_related("logs", "breaks")
+            .order_by("date")
+        )
+
+        total_seconds = 0
+        per_day_data = []
+
+        for record in attendances:
+            daily_seconds = record.calculate_effective_work_seconds()
+            total_seconds += daily_seconds
+            per_day_data.append({
+                "date": record.date,
+                "worked_seconds": daily_seconds,
+                "worked_hhmmss": str(timedelta(seconds=int(daily_seconds))),
+                "shift": record.shift.name if record.shift else None,
+            })
+
+        return Response({
+            "employee": employee_id,
+            "month": month,
+            "year": year,
+            "total_worked_seconds": int(total_seconds),
+            "total_worked_hhmmss": str(timedelta(seconds=int(total_seconds))),
+            "per_day": per_day_data,
+        })
+
     
+    @action(detail=False, methods=["get"], url_path="late-logins")
+    def late_logins(self, request):
+        """
+        Return employees who logged in late for a specific day/week/month (CST aligned)
+        Includes proper grace period handling and HH:MM:SS late duration formatting.
+        """
+        tz = pytz.timezone("America/Chicago")
+        filter_type = request.query_params.get("filter", "day")  # 'day' | 'week' | 'month'
+        now = datetime.now(tz)
+
+        # --- Determine date range ---
+        if filter_type == "day":
+            start_date = now.date()
+            end_date = now.date()
+        elif filter_type == "week":
+            start_date = now.date() - timedelta(days=now.weekday())
+            end_date = start_date + timedelta(days=6)
+        elif filter_type == "month":
+            start_date = now.replace(day=1).date()
+            next_month = now.replace(day=28) + timedelta(days=4)
+            end_date = (next_month - timedelta(days=next_month.day)).date()
+        else:
+            return Response({"error": "Invalid filter"}, status=400)
+
+        default_grace_period = 10  # minutes
+
+        qs = (
+            Attendance.objects.filter(
+                date__range=[start_date, end_date],
+                status=Attendance.STATUS_LATE
+            )
+            .select_related("employee", "employee__user", "shift")
+            .order_by("-date", "employee__user__username")
+        )
+
+        results = []
+        for att in qs:
+            emp = att.employee
+            user = getattr(emp, "user", None)
+
+            # --- Determine grace period (from shift or fallback to 10) ---
+            grace = att.shift.grace_period_minutes if getattr(att, "shift", None) and att.shift.grace_period_minutes else default_grace_period
+            
+            # --- Compute late duration ---
+            minutes_late = att.minutes_late or 0
+            adjusted_minutes = max(0, minutes_late - grace)
+            total_seconds = adjusted_minutes * 60
+
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            late_duration = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+            # --- Convert login time to CST if stored in UTC ---
+            login_time = None
+            if att.login_time:
+                if timezone.is_naive(att.login_time):
+                    login_time = pytz.UTC.localize(att.login_time)
+                else:
+                    login_time = att.login_time
+                login_time = login_time.astimezone(tz).strftime("%Y-%m-%d %I:%M:%S %p")
+            else:
+                login_time = "N/A"
+
+            results.append({
+                "employee_id": getattr(emp, "employee_code", getattr(emp, "id", None)),
+                "employee_name": user.get_full_name() if user and user.get_full_name() else user.username if user else "N/A",
+                "date": att.date.strftime("%Y-%m-%d"),
+                "status": att.status,
+                "login_time": login_time,
+                "late_duration": late_duration,
+                "shift_name": getattr(att.shift, "name", "N/A"),
+            })
+
+        return Response({
+            "filter": filter_type,
+            "from": start_date,
+            "to": end_date,
+            "results": results
+        })
+
+
+class PunchInView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        now = now_cst()
+        today = today_cst()
+
+        attendance, _ = Attendance.objects.get_or_create(
+            employee=user.employee,
+            date=today,
+            defaults={"status": Attendance.STATUS_PRESENT}
+        )
+
+        last_log = attendance.logs.order_by("-login_time").first()
+        if last_log and not last_log.logout_time:
+            return Response({"detail": "Already punched in."}, status=400)
+
+        AttendanceLog.objects.create(attendance=attendance, login_time=now)
+        attendance.login_time = attendance.login_time or now
+        attendance.save(update_fields=["login_time"])
+
+        return Response({"detail": "Punch in recorded", "time": now})
+
+
+class PunchOutView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        now = now_cst()
+        today = today_cst()
+
+        try:
+            attendance = Attendance.objects.get(employee=user.employee, date=today)
+        except Attendance.DoesNotExist:
+            return Response({"detail": "No attendance record for today."}, status=404)
+
+        last_log = attendance.logs.order_by("-login_time").first()
+        if not last_log or last_log.logout_time:
+            return Response({"detail": "You have not punched in yet."}, status=400)
+
+        last_log.logout_time = now
+        last_log.save()
+
+        total_minutes = attendance.total_worked_minutes()
+        attendance.worked_minutes = total_minutes
+        attendance.logout_time = now
+        attendance.save(update_fields=["worked_minutes", "logout_time"])
+
+        return Response({
+            "detail": "Punch out recorded",
+            "worked_minutes": total_minutes,
+            "worked_hhmmss": str(timedelta(minutes=total_minutes)),
+        })
+
 class MonthlyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MonthlyAttendanceSummarySerializer
     permission_classes = [permissions.IsAuthenticated]
