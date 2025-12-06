@@ -261,7 +261,7 @@ class Loan(models.Model):
     subject_property = models.CharField(max_length=255, blank=True, null=True)
     loan_comment = models.TextField(blank=True, null=True)
 
-    lenders = models.ManyToManyField('employee.Lender', related_name='loans', blank=True)
+    lenders = models.ManyToManyField('employee.Lender', related_name='loans', null=True, blank=True)
 
     team_leader = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_leader')
     team_manager = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_manager')
