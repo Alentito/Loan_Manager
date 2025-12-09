@@ -4,6 +4,7 @@ from django.shortcuts import render
 
 # Create your views here.
 from django.contrib.auth.models import Group
+from django.db.models import IntegerField, Value, F
 
 from rest_framework import viewsets, permissions
 #from django.contrib.auth.models import Group, Permission
@@ -77,14 +78,31 @@ class HasGroupPermission(BasePermission):
         required_groups = getattr(view, 'required_groups', [])
         return any(group.name in required_groups for group in request.user.groups.all())
 
+from rest_framework.pagination import PageNumberPagination
+
+class GroupPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
 class GroupViewSet(viewsets.ModelViewSet):
-    queryset = Group.objects.all()
+    queryset = Group.objects.all().select_related("metadata").prefetch_related("permissions")
     serializer_class = GroupSerializer
+    pagination_class = GroupPagination
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        assignable = self.request.query_params.get("assignable_on_loan")
+        if assignable is not None:
+            # Filter by related RoleMetadata
+            qs = qs.filter(metadata__assignable_on_loan=(assignable.lower() == "true"))
+        return qs
+
 
 class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Permission.objects.all().select_related("content_type")
     serializer_class = PermissionSerializer
-    pagination_class = None  
+    pagination_class = None 
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
