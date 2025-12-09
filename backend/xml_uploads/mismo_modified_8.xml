@@ -1,0 +1,963 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<MESSAGE xmlns="http://www.mismo.org/residential/2009/schemas" xmlns:DU="http://www.datamodelextension.org/Schema/DU" xmlns:ULAD="http://www.datamodelextension.org/Schema/ULAD" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" MISMOReferenceModelIdentifier="3.4.032420160128" xsi:schemaLocation="http://www.mismo.org/residential/2009/schemas DU_Wrapper_3.4.0_B324.xsd">
+  <ABOUT_VERSIONS>
+    <ABOUT_VERSION>
+      <CreatedDatetime>2025-06-26T16:00:30.045Z</CreatedDatetime>
+    </ABOUT_VERSION>
+  </ABOUT_VERSIONS>
+  <DEAL_SETS>
+    <DEAL_SET>
+      <DEALS>
+        <DEAL>
+          <ASSETS>
+            <ASSET SequenceNumber="1" xlink:label="ASSET_1">
+              <ASSET_DETAIL>
+                <AssetAccountIdentifier>5291</AssetAccountIdentifier>
+                <AssetCashOrMarketValueAmount>10033.00</AssetCashOrMarketValueAmount>
+                <AssetType>CheckingAccount</AssetType>
+              </ASSET_DETAIL>
+              <ASSET_HOLDER>
+                <NAME>
+                  <FullName>BOA</FullName>
+                </NAME>
+              </ASSET_HOLDER>
+            </ASSET>
+            <ASSET SequenceNumber="2" xlink:label="ASSET_2">
+              <OWNED_PROPERTY>
+                <OWNED_PROPERTY_DETAIL>
+                  <OwnedPropertyDispositionStatusType>Retain</OwnedPropertyDispositionStatusType>
+                  <OwnedPropertyLienUPBAmount>476097.00</OwnedPropertyLienUPBAmount>
+                  <OwnedPropertyOwnedUnitCount>1</OwnedPropertyOwnedUnitCount>
+                  <OwnedPropertySubjectIndicator>true</OwnedPropertySubjectIndicator>
+                </OWNED_PROPERTY_DETAIL>
+                <PROPERTY SequenceNumber="1">
+                  <ADDRESS>
+                    <AddressLineText>705 chip drive</AddressLineText>
+                    <CityName>Souderton</CityName>
+                    <CountryCode>US</CountryCode>
+                    <CountyName>MONTGOMERY County</CountyName>
+                    <PostalCode>189642255</PostalCode>
+                    <StateCode>PA</StateCode>
+                  </ADDRESS>
+                  <PROPERTY_DETAIL>
+                    <PropertyCurrentUsageType>PrimaryResidence</PropertyCurrentUsageType>
+                    <PropertyEstimatedValueAmount>595000.00</PropertyEstimatedValueAmount>
+                    <PropertyUsageType>PrimaryResidence</PropertyUsageType>
+                  </PROPERTY_DETAIL>
+                </PROPERTY>
+              </OWNED_PROPERTY>
+            </ASSET>
+          </ASSETS>
+          <COLLATERALS>
+            <COLLATERAL>
+              <SUBJECT_PROPERTY SequenceNumber="1">
+                <ADDRESS>
+                  <AddressLineText>705 chip drive</AddressLineText>
+                  <CityName>Souderton</CityName>
+                  <CountryCode>US</CountryCode>
+                  <CountyName>Montgomery County</CountyName>
+                  <PostalCode>189642255</PostalCode>
+                  <StateCode>PA</StateCode>
+                </ADDRESS>
+                <LOCATION_IDENTIFIER>
+                  <CENSUS_INFORMATION/>
+                  <FIPS_INFORMATION>
+                    <FIPSCountyCode>091</FIPSCountyCode>
+                    <FIPSStateNumericCode>42</FIPSStateNumericCode>
+                  </FIPS_INFORMATION>
+                  <GENERAL_IDENTIFIER/>
+                </LOCATION_IDENTIFIER>
+                <PROPERTY_DETAIL>
+                  <AttachmentType>Detached</AttachmentType>
+                  <ConstructionMethodType>SiteBuilt</ConstructionMethodType>
+                  <FinancedUnitCount>1</FinancedUnitCount>
+                  <PropertyEstateType>FeeSimple</PropertyEstateType>
+                  <PropertyEstimatedValueAmount>595000.00</PropertyEstimatedValueAmount>
+                  <PropertyExistingCleanEnergyLienIndicator>false</PropertyExistingCleanEnergyLienIndicator>
+                  <PropertyExistingLienAmount>476000.00</PropertyExistingLienAmount>
+                  <PropertyInProjectIndicator>false</PropertyInProjectIndicator>
+                  <PropertyMixedUsageIndicator>false</PropertyMixedUsageIndicator>
+                  <PropertyPreviouslyOccupiedIndicator>false</PropertyPreviouslyOccupiedIndicator>
+                  <PropertyUsageType>PrimaryResidence</PropertyUsageType>
+                  <PUDIndicator>false</PUDIndicator>
+                </PROPERTY_DETAIL>
+                <PROPERTY_VALUATIONS>
+                  <PROPERTY_VALUATION>
+                    <PROPERTY_VALUATION_DETAIL>
+                      <PropertyValuationAmount>595000.00</PropertyValuationAmount>
+                    </PROPERTY_VALUATION_DETAIL>
+                  </PROPERTY_VALUATION>
+                </PROPERTY_VALUATIONS>
+              </SUBJECT_PROPERTY>
+            </COLLATERAL>
+          </COLLATERALS>
+          <LIABILITIES>
+            <LIABILITY SequenceNumber="1" xlink:label="LIABILITY_1">
+              <LIABILITY_DETAIL>
+                <LiabilityAccountIdentifier>6230065543407</LiabilityAccountIdentifier>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>4130.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>true</LiabilityPayoffStatusIndicator>
+                <LiabilityRemainingTermMonthsCount>116</LiabilityRemainingTermMonthsCount>
+                <LiabilityType>MortgageLoan</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>476097.00</LiabilityUnpaidBalanceAmount>
+                <EXTENSION>
+                  <MISMO>
+                    <TERMS_OF_LOAN>
+                      <LienPriorityType>FirstLien</LienPriorityType>
+                    </TERMS_OF_LOAN>
+                  </MISMO>
+                </EXTENSION>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <AddressLineText>INTERSTATE CORP CNTR BLD</AddressLineText>
+                  <CityName>NORFOLK</CityName>
+                  <CountryCode>USA</CountryCode>
+                  <CountryName>United States</CountryName>
+                  <PostalCode>23502</PostalCode>
+                </ADDRESS>
+                <NAME>
+                  <FullName>LOANCARE</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="2" xlink:label="LIABILITY_2">
+              <LIABILITY_DETAIL>
+                <LiabilityAccountIdentifier>4100390066801545</LiabilityAccountIdentifier>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>54.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityRemainingTermMonthsCount>100</LiabilityRemainingTermMonthsCount>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>5387.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <CONTACT_POINTS>
+                  <CONTACT_POINT SequenceNumber="1">
+                    <CONTACT_POINT_TELEPHONE>
+                      <ContactPointTelephoneValue>8005335600</ContactPointTelephoneValue>
+                    </CONTACT_POINT_TELEPHONE>
+                    <CONTACT_POINT_DETAIL>
+                      <ContactPointRoleType>Home</ContactPointRoleType>
+                    </CONTACT_POINT_DETAIL>
+                  </CONTACT_POINT>
+                </CONTACT_POINTS>
+                <NAME>
+                  <FullName>CITI</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="3" xlink:label="LIABILITY_3">
+              <LIABILITY_DETAIL>
+                <LiabilityAccountIdentifier>403784011933</LiabilityAccountIdentifier>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>173.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityRemainingTermMonthsCount>8</LiabilityRemainingTermMonthsCount>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>1332.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <AddressLineText>CB DISPUTES PO BOX 108</AddressLineText>
+                  <CityName>SAINT LOUIS</CityName>
+                  <PostalCode>63166</PostalCode>
+                  <StateCode>MO</StateCode>
+                </ADDRESS>
+                <NAME>
+                  <FullName>US BANK</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="4" xlink:label="LIABILITY_4">
+              <LIABILITY_DETAIL>
+                <LiabilityAccountIdentifier>6020</LiabilityAccountIdentifier>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>173.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityRemainingTermMonthsCount>8</LiabilityRemainingTermMonthsCount>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>1332.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <AddressLineText>4325 17TH AVE S</AddressLineText>
+                  <CityName>FARGO</CityName>
+                  <PostalCode>58125</PostalCode>
+                  <StateCode>ND</StateCode>
+                </ADDRESS>
+                <CONTACT_POINTS>
+                  <CONTACT_POINT SequenceNumber="1">
+                    <CONTACT_POINT_TELEPHONE>
+                      <ContactPointTelephoneValue>8888525786</ContactPointTelephoneValue>
+                    </CONTACT_POINT_TELEPHONE>
+                    <CONTACT_POINT_DETAIL>
+                      <ContactPointRoleType>Home</ContactPointRoleType>
+                    </CONTACT_POINT_DETAIL>
+                  </CONTACT_POINT>
+                </CONTACT_POINTS>
+                <NAME>
+                  <FullName>US BANK</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="5" xlink:label="LIABILITY_5">
+              <LIABILITY_DETAIL>
+                <LiabilityAccountIdentifier>1100011119538670</LiabilityAccountIdentifier>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>25.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityRemainingTermMonthsCount>39</LiabilityRemainingTermMonthsCount>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>953.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <CONTACT_POINTS>
+                  <CONTACT_POINT SequenceNumber="1">
+                    <CONTACT_POINT_TELEPHONE>
+                      <ContactPointTelephoneValue>8772555923</ContactPointTelephoneValue>
+                    </CONTACT_POINT_TELEPHONE>
+                    <CONTACT_POINT_DETAIL>
+                      <ContactPointRoleType>Home</ContactPointRoleType>
+                    </CONTACT_POINT_DETAIL>
+                  </CONTACT_POINT>
+                </CONTACT_POINTS>
+                <NAME>
+                  <FullName>APPLE CARD/GS BANK USA</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="6" xlink:label="LIABILITY_6">
+              <LIABILITY_DETAIL>
+                <LiabilityAccountIdentifier>4400668972543997</LiabilityAccountIdentifier>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>35.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityRemainingTermMonthsCount>8</LiabilityRemainingTermMonthsCount>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>273.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <AddressLineText>PO BOX 982235</AddressLineText>
+                  <CityName>EL PASO</CityName>
+                  <PostalCode>79998</PostalCode>
+                  <StateCode>TX</StateCode>
+                </ADDRESS>
+                <CONTACT_POINTS>
+                  <CONTACT_POINT SequenceNumber="1">
+                    <CONTACT_POINT_TELEPHONE>
+                      <ContactPointTelephoneValue>8004212110</ContactPointTelephoneValue>
+                    </CONTACT_POINT_TELEPHONE>
+                    <CONTACT_POINT_DETAIL>
+                      <ContactPointRoleType>Home</ContactPointRoleType>
+                    </CONTACT_POINT_DETAIL>
+                  </CONTACT_POINT>
+                </CONTACT_POINTS>
+                <NAME>
+                  <FullName>BANK OF AMERICA</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="7" xlink:label="LIABILITY_7">
+              <LIABILITY_DETAIL>
+                <LiabilityAccountIdentifier>414740018527</LiabilityAccountIdentifier>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>35.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityRemainingTermMonthsCount>7</LiabilityRemainingTermMonthsCount>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>223.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <AddressLineText>800 BROOKSEDGE BLVD</AddressLineText>
+                  <CityName>WESTERVILLE</CityName>
+                  <PostalCode>43081</PostalCode>
+                  <StateCode>OH</StateCode>
+                </ADDRESS>
+                <CONTACT_POINTS>
+                  <CONTACT_POINT SequenceNumber="1">
+                    <CONTACT_POINT_TELEPHONE>
+                      <ContactPointTelephoneValue>8009559900</ContactPointTelephoneValue>
+                    </CONTACT_POINT_TELEPHONE>
+                    <CONTACT_POINT_DETAIL>
+                      <ContactPointRoleType>Home</ContactPointRoleType>
+                    </CONTACT_POINT_DETAIL>
+                  </CONTACT_POINT>
+                </CONTACT_POINTS>
+                <NAME>
+                  <FullName>JPMCB CARD</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="8" xlink:label="LIABILITY_8">
+              <LIABILITY_DETAIL>
+                <LiabilityAccountIdentifier>510875029073</LiabilityAccountIdentifier>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>29.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityRemainingTermMonthsCount>3</LiabilityRemainingTermMonthsCount>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>68.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <AddressLineText>PO BOX 85520</AddressLineText>
+                  <CityName>RICHMOND</CityName>
+                  <PostalCode>23285</PostalCode>
+                  <StateCode>VA</StateCode>
+                </ADDRESS>
+                <NAME>
+                  <FullName>CAPITAL ONE</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="9" xlink:label="LIABILITY_9">
+              <LIABILITY_DETAIL>
+                <LiabilityAccountIdentifier>468839016306</LiabilityAccountIdentifier>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>21.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>true</LiabilityPayoffStatusIndicator>
+                <LiabilityRemainingTermMonthsCount>1</LiabilityRemainingTermMonthsCount>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>21.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <AddressLineText>PO BOX 85520</AddressLineText>
+                  <CityName>RICHMOND</CityName>
+                  <PostalCode>23285</PostalCode>
+                  <StateCode>VA</StateCode>
+                </ADDRESS>
+                <NAME>
+                  <FullName>CAPITAL ONE</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="10" xlink:label="LIABILITY_10">
+              <LIABILITY_DETAIL>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>41.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>2437.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <CountryCode>USA</CountryCode>
+                  <CountryName>United States</CountryName>
+                </ADDRESS>
+                <NAME>
+                  <FullName>CITICARDS CBNA</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="11" xlink:label="LIABILITY_11">
+              <LIABILITY_DETAIL>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>25.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>1237.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <CountryCode>USA</CountryCode>
+                  <CountryName>United States</CountryName>
+                </ADDRESS>
+                <NAME>
+                  <FullName>CAPITAL ONE BANK USA</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="12" xlink:label="LIABILITY_12">
+              <LIABILITY_DETAIL>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>173.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>637.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <CountryCode>USA</CountryCode>
+                  <CountryName>United States</CountryName>
+                </ADDRESS>
+                <NAME>
+                  <FullName>U.S. BANK</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="13" xlink:label="LIABILITY_13">
+              <LIABILITY_DETAIL>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>19.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>353.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <CountryCode>USA</CountryCode>
+                  <CountryName>United States</CountryName>
+                </ADDRESS>
+                <NAME>
+                  <FullName>APPLE CARD - GS BANK</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="14" xlink:label="LIABILITY_14">
+              <LIABILITY_DETAIL>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>35.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>206.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <CountryCode>USA</CountryCode>
+                  <CountryName>United States</CountryName>
+                </ADDRESS>
+                <NAME>
+                  <FullName>JPMCB CARD SERVICES</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="15" xlink:label="LIABILITY_15">
+              <LIABILITY_DETAIL>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>13.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>13.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <CountryCode>USA</CountryCode>
+                  <CountryName>United States</CountryName>
+                </ADDRESS>
+                <NAME>
+                  <FullName>CITICARDS CBNA</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY SequenceNumber="16" xlink:label="LIABILITY_16">
+              <LIABILITY_DETAIL>
+                <LiabilityExclusionIndicator>false</LiabilityExclusionIndicator>
+                <LiabilityMonthlyPaymentAmount>29.00</LiabilityMonthlyPaymentAmount>
+                <LiabilityPaymentIncludesTaxesInsuranceIndicator>false</LiabilityPaymentIncludesTaxesInsuranceIndicator>
+                <LiabilityPayoffStatusIndicator>false</LiabilityPayoffStatusIndicator>
+                <LiabilityType>Revolving</LiabilityType>
+                <LiabilityUnpaidBalanceAmount>129.00</LiabilityUnpaidBalanceAmount>
+              </LIABILITY_DETAIL>
+              <LIABILITY_HOLDER>
+                <ADDRESS>
+                  <CountryCode>USA</CountryCode>
+                  <CountryName>United States</CountryName>
+                </ADDRESS>
+                <NAME>
+                  <FullName>CAPITAL ONE BANK USA</FullName>
+                </NAME>
+              </LIABILITY_HOLDER>
+            </LIABILITY>
+            <LIABILITY_SUMMARY>
+              <TotalNonSubjectPropertyDebtsToBePaidOffAmount>21.00</TotalNonSubjectPropertyDebtsToBePaidOffAmount>
+              <TotalSubjectPropertyPayoffsAndPaymentsAmount>476097.00</TotalSubjectPropertyPayoffsAndPaymentsAmount>
+            </LIABILITY_SUMMARY>
+          </LIABILITIES>
+          <LOANS>
+            <LOAN LoanRoleType="SubjectLoan" xlink:label="LOAN_1" SequenceNumber="1">
+              <AMORTIZATION>
+                <AMORTIZATION_RULE>
+                  <AmortizationType>Fixed</AmortizationType>
+                  <LoanAmortizationPeriodCount>360</LoanAmortizationPeriodCount>
+                  <LoanAmortizationPeriodType>Month</LoanAmortizationPeriodType>
+                </AMORTIZATION_RULE>
+              </AMORTIZATION>
+              <CLOSING_INFORMATION>
+                <CLOSING_ADJUSTMENT_ITEMS>
+                  <CLOSING_ADJUSTMENT_ITEM SequenceNumber="1">
+                    <CLOSING_ADJUSTMENT_ITEM_DETAIL>
+                      <ClosingAdjustmentItemAmount>4231.44</ClosingAdjustmentItemAmount>
+                      <ClosingAdjustmentItemType>LenderCredit</ClosingAdjustmentItemType>
+                    </CLOSING_ADJUSTMENT_ITEM_DETAIL>
+                  </CLOSING_ADJUSTMENT_ITEM>
+                </CLOSING_ADJUSTMENT_ITEMS>
+                <CLOSING_INFORMATION_DETAIL>
+                  <CashFromBorrowerAtClosingAmount>5077.67</CashFromBorrowerAtClosingAmount>
+                  <CurrentRateSetDate>2024-06-20</CurrentRateSetDate>
+                </CLOSING_INFORMATION_DETAIL>
+              </CLOSING_INFORMATION>
+              <DOCUMENT_SPECIFIC_DATA_SETS>
+                <DOCUMENT_SPECIFIC_DATA_SET SequenceNumber="1">
+                  <URLA>
+                    <URLA_DETAIL>
+                      <AlterationsImprovementsAndRepairsAmount>0.00</AlterationsImprovementsAndRepairsAmount>
+                      <ApplicationTakenMethodType>Internet</ApplicationTakenMethodType>
+                      <EstimatedClosingCostsAmount>6166.92</EstimatedClosingCostsAmount>
+                      <PrepaidItemsEstimatedAmount>3024.19</PrepaidItemsEstimatedAmount>
+                    </URLA_DETAIL>
+                  </URLA>
+                </DOCUMENT_SPECIFIC_DATA_SET>
+              </DOCUMENT_SPECIFIC_DATA_SETS>
+              <HOUSING_EXPENSES>
+                <HOUSING_EXPENSE SequenceNumber="1">
+                  <HousingExpensePaymentAmount>3126.98</HousingExpensePaymentAmount>
+                  <HousingExpenseTimingType>Proposed</HousingExpenseTimingType>
+                  <HousingExpenseType>FirstMortgagePrincipalAndInterest</HousingExpenseType>
+                </HOUSING_EXPENSE>
+                <HOUSING_EXPENSE SequenceNumber="2">
+                  <HousingExpensePaymentAmount>350.00</HousingExpensePaymentAmount>
+                  <HousingExpenseTimingType>Proposed</HousingExpenseTimingType>
+                  <HousingExpenseType>RealEstateTax</HousingExpenseType>
+                </HOUSING_EXPENSE>
+                <HOUSING_EXPENSE SequenceNumber="3">
+                  <HousingExpensePaymentAmount>125.00</HousingExpensePaymentAmount>
+                  <HousingExpenseTimingType>Proposed</HousingExpenseTimingType>
+                  <HousingExpenseType>HomeownersInsurance</HousingExpenseType>
+                </HOUSING_EXPENSE>
+              </HOUSING_EXPENSES>
+              <LOAN_DETAIL>
+                <BalloonIndicator>false</BalloonIndicator>
+                <BelowMarketSubordinateFinancingIndicator>false</BelowMarketSubordinateFinancingIndicator>
+                <BuydownTemporarySubsidyFundingIndicator>false</BuydownTemporarySubsidyFundingIndicator>
+                <ConstructionLoanIndicator>false</ConstructionLoanIndicator>
+                <ConversionOfContractForDeedIndicator>false</ConversionOfContractForDeedIndicator>
+                <InitialFixedPeriodEffectiveMonthsCount>360</InitialFixedPeriodEffectiveMonthsCount>
+                <InterestOnlyIndicator>false</InterestOnlyIndicator>
+                <NegativeAmortizationIndicator>false</NegativeAmortizationIndicator>
+                <PrepaymentPenaltyIndicator>false</PrepaymentPenaltyIndicator>
+                <TotalMortgagedPropertiesCount>0</TotalMortgagedPropertiesCount>
+                <CustomField>My extra data</CustomField>
+              </LOAN_DETAIL>
+              <LOAN_IDENTIFIERS>
+                <LOAN_IDENTIFIER SequenceNumber="1">
+                  <LoanIdentifier>2325598821</LoanIdentifier>
+                  <LoanIdentifierType>LenderLoan</LoanIdentifierType>
+                </LOAN_IDENTIFIER>
+              </LOAN_IDENTIFIERS>
+              <ORIGINATION_SYSTEMS>
+                <ORIGINATION_SYSTEM>
+                  <LoanOriginationSystemName>ARIVE</LoanOriginationSystemName>
+                  <LoanOriginationSystemVendorIdentifier>VWZLEN01X</LoanOriginationSystemVendorIdentifier>
+                  <LoanOriginationSystemVersionIdentifier>6.0.0</LoanOriginationSystemVersionIdentifier>
+                </ORIGINATION_SYSTEM>
+              </ORIGINATION_SYSTEMS>
+              <REFINANCE>
+                <RefinanceCashOutDeterminationType>LimitedCashOut</RefinanceCashOutDeterminationType>
+              </REFINANCE>
+              <TERMS_OF_LOAN>
+                <BaseLoanAmount>476000.00</BaseLoanAmount>
+                <LienPriorityType>FirstLien</LienPriorityType>
+                <LoanPurposeType>Refinance</LoanPurposeType>
+                <MortgageType>Conventional</MortgageType>
+                <NoteAmount>476000.00</NoteAmount>
+                <NoteRatePercent>4.125</NoteRatePercent>
+              </TERMS_OF_LOAN>
+            </LOAN>
+          </LOANS>
+          <PARTIES>
+            <PARTY SequenceNumber="1">
+              <INDIVIDUAL>
+                <CONTACT_POINTS>
+                  <CONTACT_POINT SequenceNumber="1">
+                    <CONTACT_POINT_EMAIL>
+                      <ContactPointEmailValue>paul@entregarsolutions.com</ContactPointEmailValue>
+                    </CONTACT_POINT_EMAIL>
+                  </CONTACT_POINT>
+                  <CONTACT_POINT SequenceNumber="2">
+                    <CONTACT_POINT_TELEPHONE>
+                      <ContactPointTelephoneValue>9645361240</ContactPointTelephoneValue>
+                    </CONTACT_POINT_TELEPHONE>
+                    <CONTACT_POINT_DETAIL>
+                      <ContactPointRoleType>Home</ContactPointRoleType>
+                    </CONTACT_POINT_DETAIL>
+                  </CONTACT_POINT>
+                  <CONTACT_POINT SequenceNumber="3">
+                    <CONTACT_POINT_TELEPHONE>
+                      <ContactPointTelephoneValue>9645361240</ContactPointTelephoneValue>
+                    </CONTACT_POINT_TELEPHONE>
+                    <CONTACT_POINT_DETAIL>
+                      <ContactPointRoleType>Mobile</ContactPointRoleType>
+                    </CONTACT_POINT_DETAIL>
+                  </CONTACT_POINT>
+                </CONTACT_POINTS>
+                <NAME>
+                  <FirstName>Paul</FirstName>
+                  <FullName>Paul Cooper</FullName>
+                  <LastName>Cooper</LastName>
+                </NAME>
+              </INDIVIDUAL>
+              <ADDRESSES>
+                <ADDRESS>
+                  <AddressLineText>705 chip drive</AddressLineText>
+                  <AddressType>Mailing</AddressType>
+                  <CityName>Souderton</CityName>
+                  <CountryCode>US</CountryCode>
+                  <CountyName>MONTGOMERY</CountyName>
+                  <PlusFourZipCode>2255</PlusFourZipCode>
+                  <PostalCode>18964</PostalCode>
+                  <StateCode>PA</StateCode>
+                </ADDRESS>
+              </ADDRESSES>
+              <LANGUAGES>
+                <LANGUAGE>
+                  <LanguageCode>eng</LanguageCode>
+                </LANGUAGE>
+              </LANGUAGES>
+              <ROLES>
+                <ROLE SequenceNumber="1" xlink:label="BORROWER_1">
+                  <BORROWER>
+                    <BORROWER_DETAIL>
+                      <BorrowerBirthDate>1996-07-27</BorrowerBirthDate>
+                      <BorrowerClassificationType>Primary</BorrowerClassificationType>
+                      <CommunityPropertyStateResidentIndicator>false</CommunityPropertyStateResidentIndicator>
+                      <DependentCount>1</DependentCount>
+                      <MaritalStatusType>Married</MaritalStatusType>
+                      <SelfDeclaredMilitaryServiceIndicator>false</SelfDeclaredMilitaryServiceIndicator>
+                    </BORROWER_DETAIL>
+                    <COUNSELING>
+                      <COUNSELING_EVENTS>
+                        <COUNSELING_EVENT SequenceNumber="1" xlink:label="COUNSELING_EVENT_1">
+                          <COUNSELING_EVENT_DETAIL>
+                            <CounselingConfirmationIndicator>false</CounselingConfirmationIndicator>
+                            <CounselingType>Education</CounselingType>
+                          </COUNSELING_EVENT_DETAIL>
+                        </COUNSELING_EVENT>
+                        <COUNSELING_EVENT SequenceNumber="2" xlink:label="COUNSELING_EVENT_2">
+                          <COUNSELING_EVENT_DETAIL>
+                            <CounselingConfirmationIndicator>false</CounselingConfirmationIndicator>
+                            <CounselingType>Counseling</CounselingType>
+                          </COUNSELING_EVENT_DETAIL>
+                        </COUNSELING_EVENT>
+                      </COUNSELING_EVENTS>
+                    </COUNSELING>
+                    <CURRENT_INCOME>
+                      <CURRENT_INCOME_ITEMS>
+                        <CURRENT_INCOME_ITEM SequenceNumber="1" xlink:label="CURRENT_INCOME_ITEM_1">
+                          <CURRENT_INCOME_ITEM_DETAIL>
+                            <CurrentIncomeMonthlyTotalAmount>416.67</CurrentIncomeMonthlyTotalAmount>
+                            <EmploymentIncomeIndicator>true</EmploymentIncomeIndicator>
+                            <IncomeType>Bonus</IncomeType>
+                          </CURRENT_INCOME_ITEM_DETAIL>
+                        </CURRENT_INCOME_ITEM>
+                        <CURRENT_INCOME_ITEM SequenceNumber="2" xlink:label="CURRENT_INCOME_ITEM_2">
+                          <CURRENT_INCOME_ITEM_DETAIL>
+                            <CurrentIncomeMonthlyTotalAmount>10561.83</CurrentIncomeMonthlyTotalAmount>
+                            <EmploymentIncomeIndicator>true</EmploymentIncomeIndicator>
+                            <IncomeType>Base</IncomeType>
+                          </CURRENT_INCOME_ITEM_DETAIL>
+                        </CURRENT_INCOME_ITEM>
+                      </CURRENT_INCOME_ITEMS>
+                    </CURRENT_INCOME>
+                    <DECLARATION>
+                      <DECLARATION_DETAIL>
+                        <BankruptcyIndicator>false</BankruptcyIndicator>
+                        <CitizenshipResidencyType>NonPermanentResidentAlien</CitizenshipResidencyType>
+                        <FHASecondaryResidenceIndicator>false</FHASecondaryResidenceIndicator>
+                        <HomeownerPastThreeYearsType>No</HomeownerPastThreeYearsType>
+                        <IntentToOccupyType>Yes</IntentToOccupyType>
+                        <OutstandingJudgmentsIndicator>false</OutstandingJudgmentsIndicator>
+                        <PartyToLawsuitIndicator>false</PartyToLawsuitIndicator>
+                        <PresentlyDelinquentIndicator>false</PresentlyDelinquentIndicator>
+                        <PriorPropertyDeedInLieuConveyedIndicator>false</PriorPropertyDeedInLieuConveyedIndicator>
+                        <PriorPropertyForeclosureCompletedIndicator>false</PriorPropertyForeclosureCompletedIndicator>
+                        <PriorPropertyShortSaleCompletedIndicator>false</PriorPropertyShortSaleCompletedIndicator>
+                        <PropertyProposedCleanEnergyLienIndicator>false</PropertyProposedCleanEnergyLienIndicator>
+                        <UndisclosedBorrowedFundsIndicator>false</UndisclosedBorrowedFundsIndicator>
+                        <UndisclosedComakerOfNoteIndicator>false</UndisclosedComakerOfNoteIndicator>
+                        <UndisclosedCreditApplicationIndicator>false</UndisclosedCreditApplicationIndicator>
+                        <UndisclosedMortgageApplicationIndicator>false</UndisclosedMortgageApplicationIndicator>
+                        <EXTENSION>
+                          <OTHER>
+                            <ULAD:DECLARATION_DETAIL_EXTENSION>
+                              <ULAD:SpecialBorrowerSellerRelationshipIndicator>false</ULAD:SpecialBorrowerSellerRelationshipIndicator>
+                            </ULAD:DECLARATION_DETAIL_EXTENSION>
+                          </OTHER>
+                        </EXTENSION>
+                      </DECLARATION_DETAIL>
+                    </DECLARATION>
+                    <DEPENDENTS>
+                      <DEPENDENT>
+                        <DependentAgeYearsCount>5</DependentAgeYearsCount>
+                      </DEPENDENT>
+                    </DEPENDENTS>
+                    <EMPLOYERS>
+                      <EMPLOYER SequenceNumber="1" xlink:label="EMPLOYER_1">
+                        <LEGAL_ENTITY>
+                          <CONTACTS>
+                            <CONTACT>
+                              <CONTACT_POINTS>
+                                <CONTACT_POINT SequenceNumber="1">
+                                  <CONTACT_POINT_TELEPHONE>
+                                    <ContactPointTelephoneValue>2153283981</ContactPointTelephoneValue>
+                                  </CONTACT_POINT_TELEPHONE>
+                                  <CONTACT_POINT_DETAIL>
+                                    <ContactPointRoleType>Work</ContactPointRoleType>
+                                  </CONTACT_POINT_DETAIL>
+                                </CONTACT_POINT>
+                              </CONTACT_POINTS>
+                            </CONTACT>
+                          </CONTACTS>
+                          <LEGAL_ENTITY_DETAIL>
+                            <FullName>Entregar solutions</FullName>
+                          </LEGAL_ENTITY_DETAIL>
+                        </LEGAL_ENTITY>
+                        <ADDRESS/>
+                        <EMPLOYMENT>
+                          <EmploymentBorrowerSelfEmployedIndicator>false</EmploymentBorrowerSelfEmployedIndicator>
+                          <EmploymentClassificationType>Primary</EmploymentClassificationType>
+                          <EmploymentPositionDescription>Product Manager</EmploymentPositionDescription>
+                          <EmploymentStartDate>2017-07-10</EmploymentStartDate>
+                          <EmploymentStatusType>Current</EmploymentStatusType>
+                          <EmploymentTimeInLineOfWorkMonthsCount>82</EmploymentTimeInLineOfWorkMonthsCount>
+                          <SpecialBorrowerEmployerRelationshipIndicator>false</SpecialBorrowerEmployerRelationshipIndicator>
+                          <EXTENSION>
+                            <OTHER>
+                              <DU:EMPLOYMENT_EXTENSION>
+                                <DU:ForeignIncomeIndicator>false</DU:ForeignIncomeIndicator>
+                                <DU:SeasonalIncomeIndicator>false</DU:SeasonalIncomeIndicator>
+                              </DU:EMPLOYMENT_EXTENSION>
+                            </OTHER>
+                          </EXTENSION>
+                        </EMPLOYMENT>
+                      </EMPLOYER>
+                    </EMPLOYERS>
+                    <GOVERNMENT_MONITORING>
+                      <GOVERNMENT_MONITORING_DETAIL>
+                        <HMDAEthnicityCollectedBasedOnVisualObservationOrSurnameIndicator>false</HMDAEthnicityCollectedBasedOnVisualObservationOrSurnameIndicator>
+                        <HMDAEthnicityRefusalIndicator>false</HMDAEthnicityRefusalIndicator>
+                        <HMDAGenderCollectedBasedOnVisualObservationOrNameIndicator>false</HMDAGenderCollectedBasedOnVisualObservationOrNameIndicator>
+                        <HMDAGenderRefusalIndicator>false</HMDAGenderRefusalIndicator>
+                        <HMDARaceCollectedBasedOnVisualObservationOrSurnameIndicator>false</HMDARaceCollectedBasedOnVisualObservationOrSurnameIndicator>
+                        <HMDARaceRefusalIndicator>true</HMDARaceRefusalIndicator>
+                        <EXTENSION>
+                          <OTHER>
+                            <ULAD:GOVERNMENT_MONITORING_DETAIL_EXTENSION>
+                              <ULAD:ApplicationTakenMethodType>Internet</ULAD:ApplicationTakenMethodType>
+                              <ULAD:HMDAGenderType>Male</ULAD:HMDAGenderType>
+                            </ULAD:GOVERNMENT_MONITORING_DETAIL_EXTENSION>
+                          </OTHER>
+                        </EXTENSION>
+                      </GOVERNMENT_MONITORING_DETAIL>
+                      <HMDA_RACES>
+                        <HMDA_RACE SequenceNumber="1">
+                          <HMDA_RACE_DESIGNATIONS>
+                            <HMDA_RACE_DESIGNATION SequenceNumber="1">
+                              <EXTENSION>
+                                <OTHER>
+                                  <ULAD:HMDA_RACE_DESIGNATION_EXTENSION>
+                                    <ULAD:HMDARaceDesignationType>AsianIndian</ULAD:HMDARaceDesignationType>
+                                  </ULAD:HMDA_RACE_DESIGNATION_EXTENSION>
+                                </OTHER>
+                              </EXTENSION>
+                            </HMDA_RACE_DESIGNATION>
+                          </HMDA_RACE_DESIGNATIONS>
+                          <HMDA_RACE_DETAIL>
+                            <HMDARaceType>Asian</HMDARaceType>
+                          </HMDA_RACE_DETAIL>
+                        </HMDA_RACE>
+                      </HMDA_RACES>
+                      <EXTENSION>
+                        <OTHER>
+                          <ULAD:GOVERNMENT_MONITORING_EXTENSION>
+                            <ULAD:HMDA_ETHNICITIES>
+                              <ULAD:HMDA_ETHNICITY>
+                                <ULAD:HMDAEthnicityType>NotHispanicOrLatino</ULAD:HMDAEthnicityType>
+                              </ULAD:HMDA_ETHNICITY>
+                            </ULAD:HMDA_ETHNICITIES>
+                          </ULAD:GOVERNMENT_MONITORING_EXTENSION>
+                        </OTHER>
+                      </EXTENSION>
+                    </GOVERNMENT_MONITORING>
+                    <MILITARY_SERVICES>
+                      <MILITARY_SERVICE/>
+                    </MILITARY_SERVICES>
+                    <RESIDENCES>
+                      <RESIDENCE SequenceNumber="1">
+                        <ADDRESS>
+                          <AddressLineText>705 chip drive</AddressLineText>
+                          <CityName>Souderton</CityName>
+                          <CountryCode>US</CountryCode>
+                          <CountyName>MONTGOMERY</CountyName>
+                          <PlusFourZipCode>2255</PlusFourZipCode>
+                          <PostalCode>18964</PostalCode>
+                          <StateCode>PA</StateCode>
+                        </ADDRESS>
+                        <RESIDENCE_DETAIL>
+                          <BorrowerResidencyBasisType>Own</BorrowerResidencyBasisType>
+                          <BorrowerResidencyDurationMonthsCount>30</BorrowerResidencyDurationMonthsCount>
+                          <BorrowerResidencyType>Current</BorrowerResidencyType>
+                        </RESIDENCE_DETAIL>
+                      </RESIDENCE>
+                    </RESIDENCES>
+                  </BORROWER>
+                  <ROLE_DETAIL>
+                    <PartyRoleType>Borrower</PartyRoleType>
+                  </ROLE_DETAIL>
+                </ROLE>
+              </ROLES>
+              <TAXPAYER_IDENTIFIERS>
+                <TAXPAYER_IDENTIFIER SequenceNumber="1">
+                  <TaxpayerIdentifierType>SocialSecurityNumber</TaxpayerIdentifierType>
+                  <TaxpayerIdentifierValue>122334444</TaxpayerIdentifierValue>
+                </TAXPAYER_IDENTIFIER>
+              </TAXPAYER_IDENTIFIERS>
+            </PARTY>
+            <PARTY>
+              <ROLES>
+                <ROLE SequenceNumber="1" xlink:label="HOUSING_COUNSELING_AGENCY_1">
+                  <ROLE_DETAIL>
+                    <PartyRoleType>HousingCounselingAgency</PartyRoleType>
+                  </ROLE_DETAIL>
+                </ROLE>
+              </ROLES>
+            </PARTY>
+            <PARTY>
+              <ROLES>
+                <ROLE SequenceNumber="2" xlink:label="HOUSING_COUNSELING_AGENCY_2">
+                  <ROLE_DETAIL>
+                    <PartyRoleType>HousingCounselingAgency</PartyRoleType>
+                  </ROLE_DETAIL>
+                </ROLE>
+              </ROLES>
+            </PARTY>
+            <PARTY SequenceNumber="4">
+              <LEGAL_ENTITY>
+                <LEGAL_ENTITY_DETAIL>
+                  <FullName>Ensure Home Loans</FullName>
+                </LEGAL_ENTITY_DETAIL>
+              </LEGAL_ENTITY>
+              <ADDRESSES>
+                <ADDRESS>
+                  <AddressLineText>2785 Rockbrook Dr, Suite 304</AddressLineText>
+                  <AddressType>Mailing</AddressType>
+                  <CityName>Lewisville</CityName>
+                  <PostalCode>75067</PostalCode>
+                  <StateCode>TX</StateCode>
+                </ADDRESS>
+              </ADDRESSES>
+              <ROLES>
+                <ROLE SequenceNumber="1" xlink:label="LOAN_ORIGINATION_COMPANY_1">
+                  <LICENSES>
+                    <LICENSE SequenceNumber="1">
+                      <LICENSE_DETAIL>
+                        <LicenseAuthorityLevelType>Private</LicenseAuthorityLevelType>
+                        <LicenseIdentifier>1666674</LicenseIdentifier>
+                      </LICENSE_DETAIL>
+                    </LICENSE>
+                    <LICENSE SequenceNumber="2">
+                      <LICENSE_DETAIL>
+                        <LicenseAuthorityLevelType>PublicState</LicenseAuthorityLevelType>
+                        <LicenseExpirationDate>2024-01-01</LicenseExpirationDate>
+                        <LicenseIdentifier>103613</LicenseIdentifier>
+                        <LicenseIssuingAuthorityStateCode>PA</LicenseIssuingAuthorityStateCode>
+                      </LICENSE_DETAIL>
+                    </LICENSE>
+                  </LICENSES>
+                  <ROLE_DETAIL>
+                    <PartyRoleType>LoanOriginationCompany</PartyRoleType>
+                  </ROLE_DETAIL>
+                </ROLE>
+              </ROLES>
+            </PARTY>
+            <PARTY SequenceNumber="5">
+              <INDIVIDUAL>
+                <CONTACT_POINTS>
+                  <CONTACT_POINT>
+                    <CONTACT_POINT_TELEPHONE>
+                      <ContactPointTelephoneValue>6826229362</ContactPointTelephoneValue>
+                    </CONTACT_POINT_TELEPHONE>
+                    <CONTACT_POINT_DETAIL>
+                      <ContactPointRoleType>Work</ContactPointRoleType>
+                    </CONTACT_POINT_DETAIL>
+                  </CONTACT_POINT>
+                  <CONTACT_POINT>
+                    <CONTACT_POINT_EMAIL>
+                      <ContactPointEmailValue>yojana@ensurehomeloans.com</ContactPointEmailValue>
+                    </CONTACT_POINT_EMAIL>
+                  </CONTACT_POINT>
+                </CONTACT_POINTS>
+                <NAME>
+                  <FirstName>Yojana</FirstName>
+                  <FullName>Yojana Sangu</FullName>
+                  <IndividualTitleDescription>Loan Officer</IndividualTitleDescription>
+                  <LastName>Sangu</LastName>
+                </NAME>
+              </INDIVIDUAL>
+              <ROLES>
+                <ROLE SequenceNumber="1" xlink:label="LOAN_ORIGINATOR_1">
+                  <LOAN_ORIGINATOR>
+                    <LoanOriginatorType>Broker</LoanOriginatorType>
+                  </LOAN_ORIGINATOR>
+                  <LICENSES>
+                    <LICENSE SequenceNumber="1">
+                      <LICENSE_DETAIL>
+                        <LicenseAuthorityLevelType>Private</LicenseAuthorityLevelType>
+                        <LicenseIdentifier>950536</LicenseIdentifier>
+                      </LICENSE_DETAIL>
+                    </LICENSE>
+                    <LICENSE SequenceNumber="2">
+                      <LICENSE_DETAIL>
+                        <LicenseAuthorityLevelType>PublicState</LicenseAuthorityLevelType>
+                        <LicenseExpirationDate>2024-01-01</LicenseExpirationDate>
+                        <LicenseIdentifier>103044</LicenseIdentifier>
+                        <LicenseIssuingAuthorityStateCode>PA</LicenseIssuingAuthorityStateCode>
+                      </LICENSE_DETAIL>
+                    </LICENSE>
+                  </LICENSES>
+                  <ROLE_DETAIL>
+                    <PartyRoleType>LoanOriginator</PartyRoleType>
+                  </ROLE_DETAIL>
+                </ROLE>
+              </ROLES>
+            </PARTY>
+          </PARTIES>
+          <RELATIONSHIPS>
+            <RELATIONSHIP SequenceNumber="1" xlink:from="ASSET_1" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/ASSET_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="2" xlink:from="ASSET_2" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/ASSET_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="3" xlink:from="LIABILITY_1" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="4" xlink:from="LIABILITY_2" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="5" xlink:from="LIABILITY_3" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="6" xlink:from="LIABILITY_4" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="7" xlink:from="LIABILITY_5" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="8" xlink:from="LIABILITY_6" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="9" xlink:from="LIABILITY_7" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="10" xlink:from="LIABILITY_8" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="11" xlink:from="LIABILITY_9" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="12" xlink:from="LIABILITY_10" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="13" xlink:from="LIABILITY_11" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="14" xlink:from="LIABILITY_12" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="15" xlink:from="LIABILITY_13" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="16" xlink:from="LIABILITY_14" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="17" xlink:from="LIABILITY_15" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="18" xlink:from="LIABILITY_16" xlink:to="BORROWER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/LIABILITY_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="19" xlink:from="CURRENT_INCOME_ITEM_2" xlink:to="EMPLOYER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/CURRENT_INCOME_ITEM_IsAssociatedWith_EMPLOYER"/>
+            <RELATIONSHIP SequenceNumber="20" xlink:from="CURRENT_INCOME_ITEM_1" xlink:to="EMPLOYER_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/CURRENT_INCOME_ITEM_IsAssociatedWith_EMPLOYER"/>
+            <RELATIONSHIP SequenceNumber="21" xlink:from="ASSET_2" xlink:to="LIABILITY_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/ASSET_IsAssociatedWith_LIABILITY"/>
+            <RELATIONSHIP SequenceNumber="22" xlink:from="COUNSELING_EVENT_1" xlink:to="HOUSING_COUNSELING_AGENCY_1" xlink:arcrole="urn:fdc:mismo.org:2009:residential/COUNSELING_EVENT_IsAssociatedWith_ROLE"/>
+            <RELATIONSHIP SequenceNumber="23" xlink:from="COUNSELING_EVENT_2" xlink:to="HOUSING_COUNSELING_AGENCY_2" xlink:arcrole="urn:fdc:mismo.org:2009:residential/COUNSELING_EVENT_IsAssociatedWith_ROLE"/>
+          </RELATIONSHIPS>
+        </DEAL>
+      </DEALS>
+    </DEAL_SET>
+  </DEAL_SETS>
+</MESSAGE>
