@@ -275,15 +275,24 @@ const handleSaveClick = useCallback(() => {
                 setNewLoan({ ...newLoan, compensation: e.target.value })
               }
             />
-            <TextField
-              label="Lock Status"
-              fullWidth
-              margin="normal"
-              value={newLoan.lock_status || ""}
-              onChange={(e) =>
-                setNewLoan({ ...newLoan, lock_status: e.target.value })
-              }
-            />
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="lock-status-label">Lock Status</InputLabel>
+              <Select
+                labelId="lock-status-label"
+                label="Lock Status"
+                value={newLoan.lock_status ?? ""}
+                onChange={(e) =>
+                  setNewLoan({ ...newLoan, lock_status: e.target.value || null })
+                }
+              >
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                <MenuItem value="lock">Lock</MenuItem>
+                <MenuItem value="float">Float</MenuItem>
+                {/* <MenuItem value="merge">Merge</MenuItem> */}
+              </Select>
+            </FormControl>
             <TextField
               label="Closing Date"
               type="date"
