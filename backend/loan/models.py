@@ -269,6 +269,10 @@ class LoanRoleAssignment(models.Model):
 
 
 class Loan(models.Model):
+    LOCK_STATUS_CHOICES = [
+        ('lock', 'Lock'),
+        ('float', 'Float'),
+    ]
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100,default="Unknown")
 
@@ -278,7 +282,13 @@ class Loan(models.Model):
     milestone = models.ForeignKey(Milestone, null=True, blank=True, on_delete=models.SET_NULL)
 
     compensation = models.CharField(max_length=100, blank=True, null=True)
-    lock_status = models.CharField(max_length=100, blank=True, null=True)
+    lock_status = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        choices=LOCK_STATUS_CHOICES,
+        default=None,
+    )
     closing_date = models.DateField(blank=True, null=True)
     point_file = models.CharField(max_length=255, blank=True, null=True)
     subject_property = models.CharField(max_length=255, blank=True, null=True)
