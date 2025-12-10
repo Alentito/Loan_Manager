@@ -50,6 +50,8 @@ const formatToCSTDate = (date) => {
   }
 };
 
+const getToday = () => new Date().toISOString().split("T")[0];
+
 // ✅ Status Badge
 const StatusChip = ({ status }) => {
   const colors = {
@@ -84,7 +86,7 @@ export default function TokensPage() {
 
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState("month"); // Default to month
-  const [currentDate, setCurrentDate] = useState(getCSTNow);
+  const [currentDate, setCurrentDate] = useState(getToday);
   const [openDialog, setOpenDialog] = useState(false);
   const [form, setForm] = useState({ title: "", description: "" });
 
@@ -103,29 +105,25 @@ export default function TokensPage() {
 
   const tokens = data?.results || [];
   const total = data?.count || 0;
-
   // ✅ Filter by Day / Week / Month
   const filteredTokens = useMemo(() => {
-    const currentCST = toCSTDate(currentDate);
-    return tokens.filter((token) => {
-      const tokenCST = toCSTDate(token.created_at);
-      if (!tokenCST) return false;
+    const selectedDay = currentDate;
 
-      if (viewMode === "day") return tokenCST.getTime() === currentCST.getTime();
+    return tokens.filter((token) => {
+      const createdDay = token.created_at.split("T")[0];
+
+      if (viewMode === "day") return createdDay === selectedDay;
 
       if (viewMode === "week") {
-        const startOfWeek = new Date(currentCST);
-        startOfWeek.setDate(currentCST.getDate() - currentCST.getDay());
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        return tokenCST >= startOfWeek && tokenCST <= endOfWeek;
+        const selected = new Date(selectedDay);
+        const created = new Date(createdDay);
+
+        const diff = (created - selected) / (1000 * 3600 * 24);
+        return diff >= -selected.getDay() && diff <= (6 - selected.getDay());
       }
 
       if (viewMode === "month") {
-        return (
-          tokenCST.getFullYear() === currentCST.getFullYear() &&
-          tokenCST.getMonth() === currentCST.getMonth()
-        );
+        return createdDay.slice(0, 7) === selectedDay.slice(0, 7);
       }
 
       return true;
@@ -193,14 +191,13 @@ export default function TokensPage() {
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5" fontWeight={600} color="primary">
-          Tokens
+          Complaint
         </Typography>
         <Button variant="contained" color="primary" onClick={() => setOpenDialog(true)}>
-          + Add Token
+          + Add Complaint
         </Button>
       </Box>
 
-      {/* Filters */}
       <Box display="flex" gap={2} mb={2} flexWrap="wrap" alignItems="center">
         {["day", "week", "month"].map((mode) => (
           <Button
@@ -211,22 +208,13 @@ export default function TokensPage() {
             {mode.charAt(0).toUpperCase() + mode.slice(1)}
           </Button>
         ))}
+
+        {/* 📌 Same Date Picker as Leave Approval */}
         <TextField
           type="date"
-          value={currentDate instanceof Date && !isNaN(currentDate) ? currentDate.toISOString().split("T")[0] : ""}
-          onChange={(e) => {
-          const value = e.target.value;
-          if (!value) {
-            // Clear button pressed → reset to CST today
-            setCurrentDate(getCSTNow());
-          } else {
-            // Parse input date safely in CST context
-            const selectedDate = new Date(`${value}T00:00:00`);
-            setCurrentDate(toCSTDate(selectedDate));
-          }
-        }}
-        
           size="small"
+          value={currentDate}
+          onChange={(e) => setCurrentDate(e.target.value || getToday())}
         />
       </Box>
 
