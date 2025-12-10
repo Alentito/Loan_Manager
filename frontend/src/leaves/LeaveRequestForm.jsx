@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -28,59 +28,41 @@ import {
 const ROWS_PER_PAGE = 10;
 
 // ------------------ Helpers ------------------
+// Format for display: accepts ISO strings or YYYY-MM-DD
 const formatToCSTDate = (input) => {
   if (!input) return "—";
+  // If already YYYY-MM-DD, return that
   if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
   const date = new Date(input);
   if (isNaN(date)) return "—";
   return date.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 };
 
-const StatusBox = ({ status }) => {
-  const colors = { approved: "#2e7d32", denied: "#d32f2f", pending: "#ed6c02" };
-  return (
-    <Box
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        px: 2,
-        py: 0.5,
-        borderRadius: "12px",
-        fontWeight: 600,
-        fontSize: "0.8rem",
-        color: "#fff",
-        backgroundColor: colors[status] || "#757575",
-      }}
-    >
-      {status?.toUpperCase() || "—"}
-    </Box>
-  );
+// Return today's date in America/Chicago as 'YYYY-MM-DD'
+const getCSTTodayString = () => {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 };
 
-// Return current CST Date
-const getCSTNow = () => {
-  return new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/Chicago" })
-  );
+// Convert 'YYYY-MM-DD' → JS Date in UTC at midnight (safe, timezone-free)
+const ymdToUTCDate = (ymd) => {
+  if (!ymd) return null;
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
 };
 
-// Convert any date to CST midnight (safe normalization)
-const toCSTDate = (date) => {
-  if (!date) return null;
-  const cstString = date.toLocaleString("en-US", { timeZone: "America/Chicago" });
-  const cstDate = new Date(cstString);
-  cstDate.setHours(0, 0, 0, 0);
-  return cstDate;
-};
-
-
-
-// Parse YYYY-MM-DD → JS Date (UTC)
-const parseCSTDate = (dateString) => {
-  if (!dateString) return null;
-  const [year, month, day] = dateString.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+// Extract YYYY-MM-DD from an ISO-like value. If req value already has 'T', split it.
+// If it is already YYYY-MM-DD, return as-is.
+const extractYMD = (val) => {
+  if (!val) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  if (typeof val === "string") {
+    const idx = val.indexOf("T");
+    if (idx > -1) return val.slice(0, idx);
+    // fallback: try Date parsing and format in en-CA (CST for display is irrelevant here)
+    const d = new Date(val);
+    if (!isNaN(d)) return d.toISOString().slice(0, 10);
+  }
+  return null;
 };
 
 // ------------------ Main Component ------------------
@@ -89,7 +71,9 @@ export default function LeaveRequestsPage() {
   const employeeId = user?.employee?.id;
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState("month");
-  const [currentDate, setCurrentDate] = useState(getCSTNow);
+
+  // store currentDate as 'YYYY-MM-DD' string (CST today by default)
+  const [currentDate, setCurrentDate] = useState(() => getCSTTodayString());
 
   const [openDialog, setOpenDialog] = useState(false);
 
@@ -107,6 +91,7 @@ export default function LeaveRequestsPage() {
     useSubmitLeaveRequestMutation();
 
   const [form, setForm] = useState({
+    // form fields should be YYYY-MM-DD strings (in CST) so date inputs show correctly
     start_date: new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" }),
     end_date: new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" }),
     reason: "",
@@ -123,33 +108,57 @@ export default function LeaveRequestsPage() {
   const leaveRequests = data?.results || [];
   const total = data?.count || 0;
 
+  // Filtered leaves using YYYY-MM-DD comparisons and UTC date math for week/month
   const filteredLeaves = useMemo(() => {
-    const currentCST = toCSTDate(currentDate);
+    const curYMD = extractYMD(currentDate);
+    if (!curYMD) return [];
+
     return leaveRequests
       .filter((req) => {
-        const startCST = toCSTDate(new Date(req.start_date));
-        const endCST = toCSTDate(new Date(req.end_date));
-        if (!startCST || !endCST || !currentCST) return false;
+        const startYMD = extractYMD(req.start_date);
+        const endYMD = extractYMD(req.end_date);
+        if (!startYMD || !endYMD) return false;
 
-        if (viewMode === "day")
-          return currentCST >= startCST && currentCST <= endCST;
+        if (viewMode === "day") {
+          // string safe comparison because format is YYYY-MM-DD
+          return curYMD >= startYMD && curYMD <= endYMD;
+        }
 
         if (viewMode === "week") {
-          const startOfWeek = new Date(currentCST);
-          startOfWeek.setDate(currentCST.getDate() - currentCST.getDay());
-          const endOfWeek = new Date(startOfWeek);
-          endOfWeek.setDate(startOfWeek.getDate() + 6);
-          return startCST <= endOfWeek && endCST >= startOfWeek;
+          // compute startOfWeek and endOfWeek in UTC (week starting Sunday)
+          const curUTC = ymdToUTCDate(curYMD);
+          const dayOfWeek = curUTC.getUTCDay(); // 0 (Sun) to 6 (Sat)
+          const startOfWeekUTC = new Date(curUTC);
+          startOfWeekUTC.setUTCDate(curUTC.getUTCDate() - dayOfWeek);
+          const endOfWeekUTC = new Date(startOfWeekUTC);
+          endOfWeekUTC.setUTCDate(startOfWeekUTC.getUTCDate() + 6);
+
+          const startUTC = ymdToUTCDate(startYMD);
+          const endUTC = ymdToUTCDate(endYMD);
+          if (!startUTC || !endUTC) return false;
+
+          // overlaps
+          return startUTC <= endOfWeekUTC && endUTC >= startOfWeekUTC;
         }
 
         if (viewMode === "month") {
-          const sameMonth =
-            (startCST.getFullYear() === currentCST.getFullYear() &&
-              startCST.getMonth() === currentCST.getMonth()) ||
-            (endCST.getFullYear() === currentCST.getFullYear() &&
-              endCST.getMonth() === currentCST.getMonth());
-          return sameMonth;
+          const curUTC = ymdToUTCDate(curYMD);
+          const curYear = curUTC.getUTCFullYear();
+          const curMonth = curUTC.getUTCMonth();
+
+          const startUTC = ymdToUTCDate(startYMD);
+          const endUTC = ymdToUTCDate(endYMD);
+          if (!startUTC || !endUTC) return false;
+
+          const startMonthMatch =
+            startUTC.getUTCFullYear() === curYear &&
+            startUTC.getUTCMonth() === curMonth;
+          const endMonthMatch =
+            endUTC.getUTCFullYear() === curYear &&
+            endUTC.getUTCMonth() === curMonth;
+          return startMonthMatch || endMonthMatch;
         }
+
         return true;
       })
       .sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
@@ -158,6 +167,11 @@ export default function LeaveRequestsPage() {
   const handleChangeForm = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const parseYMDToUTCDateObj = (ymd) => {
+    if (!ymd) return null;
+    return ymdToUTCDate(ymd);
   };
 
   const handleSubmitForm = async (e) => {
@@ -172,8 +186,8 @@ export default function LeaveRequestsPage() {
       });
     }
 
-    const start = parseCSTDate(start_date);
-    const end = parseCSTDate(end_date);
+    const start = parseYMDToUTCDateObj(start_date);
+    const end = parseYMDToUTCDateObj(end_date);
     if (end < start) {
       return setSnackbar({
         open: true,
@@ -248,24 +262,23 @@ export default function LeaveRequestsPage() {
             {mode.charAt(0).toUpperCase() + mode.slice(1)}
           </Button>
         ))}
+
+        {/* Date picker uses YYYY-MM-DD string value — no timezone conversions */}
         <TextField
-  type="date"
-  value={currentDate instanceof Date && !isNaN(currentDate) ? currentDate.toISOString().split("T")[0] : ""}
-  onChange={(e) => {
-  const value = e.target.value;
-  if (!value) {
-    // Clear button pressed → reset to CST today
-    setCurrentDate(getCSTNow());
-  } else {
-    // Parse input date safely in CST context
-    const selectedDate = new Date(`${value}T00:00:00`);
-    setCurrentDate(toCSTDate(selectedDate));
-  }
-}}
-
-  size="small"
-/>
-
+          type="date"
+          value={currentDate || ""}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (!value) {
+              // if cleared, reset to CST today
+              setCurrentDate(getCSTTodayString());
+            } else {
+              // store raw YYYY-MM-DD string (no timezone conversion)
+              setCurrentDate(value);
+            }
+          }}
+          size="small"
+        />
       </Box>
 
       {/* Table */}
@@ -298,11 +311,30 @@ export default function LeaveRequestsPage() {
                     <TableRow hover>
                       <TableCell>{req.approval_type || "—"}</TableCell>
                       <TableCell>{req.employee_balance ?? "—"}</TableCell>
-                      <TableCell>{formatToCSTDate(req.start_date)}</TableCell>
-                      <TableCell>{formatToCSTDate(req.end_date)}</TableCell>
+                      <TableCell>{formatToCSTDate(extractYMD(req.start_date) || req.start_date)}</TableCell>
+                      <TableCell>{formatToCSTDate(extractYMD(req.end_date) || req.end_date)}</TableCell>
                       <TableCell>{formatToCSTDate(req.created_at)}</TableCell>
                       <TableCell>
-                        <StatusBox status={req.status} />
+                        <Box
+                          sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            px: 2,
+                            py: 0.5,
+                            borderRadius: "12px",
+                            fontWeight: 600,
+                            fontSize: "0.8rem",
+                            color: "#fff",
+                            backgroundColor:
+                              (req.status === "approved" && "#2e7d32") ||
+                              (req.status === "denied" && "#d32f2f") ||
+                              (req.status === "pending" && "#ed6c02") ||
+                              "#757575",
+                          }}
+                        >
+                          {(req.status || "—").toString().toUpperCase()}
+                        </Box>
                       </TableCell>
                       <TableCell>{req.reason || "—"}</TableCell>
                     </TableRow>
