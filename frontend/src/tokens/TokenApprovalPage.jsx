@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogActions,
 } from "@mui/material";
+
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { useGetTokensQuery, useRespondTokenMutation } from "../api/tokenApi";
@@ -108,7 +109,7 @@ const StatusChip = ({ status }) => {
 
 const ResponseDialog = ({ open, onClose, token, responseText, setResponseText, onSubmit }) => (
   <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-    <DialogTitle>Respond to Token</DialogTitle>
+    <DialogTitle>Respond to Complaint</DialogTitle>
     <DialogContent>
       <Typography mb={1}>
         <strong>Title:</strong> {token?.title}
@@ -150,12 +151,12 @@ export default function TokenApprovalPage() {
       </Typography>
     );
   }
-
+const getToday = () => new Date().toISOString().split("T")[0];
   // -------------------- State Management --------------------
   const [page, setPage] = useState(1);
   const rowsPerPage = 10;
   const [viewMode, setViewMode] = useState("month"); // Default view
-  const [currentDate, setCurrentDate] = useState(getCSTNow);
+const [currentDate, setCurrentDate] = useState(getToday());
   const [openModal, setOpenModal] = useState(false);
   const [selectedToken, setSelectedToken] = useState(null);
   const [responseText, setResponseText] = useState("");
@@ -199,35 +200,30 @@ export default function TokenApprovalPage() {
   const tokens = data?.results || [];
   const total = data?.count || 0;
 
-  const filteredTokens = useMemo(() => {
-    const currentCST = toCSTDate(currentDate);
+ // -------------------- Filtering --------------------
+const filteredTokens = useMemo(() => {
+  const selectedDay = currentDate;
 
-    return tokens.filter((token) => {
-      const tokenCST = toCSTDate(token.created_at);
-      if (!tokenCST) return false;
+  return tokens.filter((token) => {
+    const createdDay = token.created_at.split("T")[0];
 
-      if (viewMode === "day") {
-        return tokenCST.getTime() === currentCST.getTime();
-      }
+    if (viewMode === "day") return createdDay === selectedDay;
 
-      if (viewMode === "week") {
-        const startOfWeek = new Date(currentCST);
-        startOfWeek.setDate(currentCST.getDate() - currentCST.getDay());
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        return tokenCST >= startOfWeek && tokenCST <= endOfWeek;
-      }
+    if (viewMode === "week") {
+      const selected = new Date(selectedDay);
+      const created = new Date(createdDay);
+      const diff = (created - selected) / (1000 * 3600 * 24);
+      return diff >= -selected.getDay() && diff <= (6 - selected.getDay());
+    }
 
-      if (viewMode === "month") {
-        return (
-          tokenCST.getFullYear() === currentCST.getFullYear() &&
-          tokenCST.getMonth() === currentCST.getMonth()
-        );
-      }
+    if (viewMode === "month") {
+      return createdDay.slice(0, 7) === selectedDay.slice(0, 7);
+    }
 
-      return true;
-    });
-  }, [tokens, viewMode, currentDate]);
+    return true;
+  });
+}, [tokens, viewMode, currentDate]);
+
 
   // ----------------------------------------------------
   // 🔹 Render
@@ -244,35 +240,28 @@ export default function TokenApprovalPage() {
         gap={1}
       >
         <Typography variant="h5" fontWeight={600} color="primary">
-          Token Approvals
+          Respond to Complaints
         </Typography>
 
         <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
-          {["day", "week", "month"].map((mode) => (
-            <Button
-              key={mode}
-              variant={viewMode === mode ? "contained" : "outlined"}
-              onClick={() => setViewMode(mode)}
-            >
-              {mode.charAt(0).toUpperCase() + mode.slice(1)}
-            </Button>
-          ))}
-          <TextField
-            type="date"
-            size="small"
-            value={
-              currentDate instanceof Date && !isNaN(currentDate)
-                ? currentDate.toISOString().split("T")[0]
-                : ""
-            }
-            onChange={(e) => {
-              const value = e.target.value;
-              if (!value) return setCurrentDate(getCSTNow());
-              const selectedDate = new Date(`${value}T00:00:00`);
-              setCurrentDate(toCSTDate(selectedDate));
-            }}
-          />
-        </Box>
+  {["day", "week", "month"].map((mode) => (
+    <Button
+      key={mode}
+      variant={viewMode === mode ? "contained" : "outlined"}
+      onClick={() => setViewMode(mode)}
+    >
+      {mode.charAt(0).toUpperCase() + mode.slice(1)}
+    </Button>
+  ))}
+
+  <TextField
+    type="date"
+    size="small"
+    value={currentDate}
+    onChange={(e) => setCurrentDate(e.target.value || getToday())}
+  />
+</Box>
+
       </Box>
 
       {/* Table */}
