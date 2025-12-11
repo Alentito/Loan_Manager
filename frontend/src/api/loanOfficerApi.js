@@ -8,13 +8,21 @@ export const loanOfficerApi = createApi({
   tagTypes: ['LoanOfficer'],
   endpoints: (builder) => ({
     getLoanOfficers: builder.query({
-      query: (params) => ({
-        url: 'loan-officers/',
-        method: 'GET',
-        params,
-      }),
-      providesTags: ['LoanOfficer'],
-    }),
+  query: ({ page = 1, page_size = 10, search = '', ordering = '', archived = false }) =>
+    `loan-officers/?page=${page}&page_size=${page_size}&search=${search}&ordering=${ordering}&archived=${archived}`,
+  providesTags: (result) =>
+    result
+      ? [
+          ...result.results.map(({ id }) => ({ type: 'LoanOfficer', id })),
+          { type: 'LoanOfficer', id: 'LIST' },
+        ]
+      : [{ type: 'LoanOfficer', id: 'LIST' }],
+}),
+getAllLoanOfficers: builder.query({
+  query: () => `loan-officers/?all=true&archived=false`,
+}),
+
+
     getLoanOfficerById: builder.query({
       query: (id) => `loan-officers/${id}/`,
     }),
@@ -68,6 +76,7 @@ export const loanOfficerApi = createApi({
 // ✅ Export the auto-generated hooks from RTK Query
 export const {
   useGetLoanOfficersQuery,
+  useGetAllLoanOfficersQuery,
   useGetLoanOfficerByIdQuery,
   useCreateLoanOfficerMutation,
   useUpdateLoanOfficerMutation,
