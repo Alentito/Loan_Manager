@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from "react";
+import React, { useMemo, useCallback, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -35,46 +35,45 @@ export default function LoanFormDialog({
   const assignments = roleAssignments || {};
   const updateAssignments = setRoleAssignments || (() => {});
 
-  const currentMilestoneId =
-    newLoan.milestone_id ??
-    (typeof newLoan.milestone === "object" ? newLoan.milestone?.id : "") ??
-    "";
+  const safeArray = (v) => (Array.isArray(v) ? v : []);
 
-  // Roles
+  /* -------------------- Roles -------------------- */
   const { data: allRolesData = {} } = useGetGroupsQuery({ page_size: 200 });
-  const allRoles = allRolesData.results || [];
+  const allRoles = safeArray(allRolesData.results);
   const assignableRoles = allRoles.filter((r) => r.assignable_on_loan);
 
-  // Employees
+  /* -------------------- Employees -------------------- */
   const { data: employeesData = {} } = useGetAllEmployeesQuery();
-  const employees = employeesData.results || employeesData || [];
+  const employees = safeArray(employeesData.results || employeesData);
 
   useEffect(() => {
     updateAssignments((prev) => {
       if (!prev) return {};
       const next = {};
+
       Object.entries(prev).forEach(([roleId, arr]) => {
-        next[roleId] = (arr || [])
+        next[roleId] = safeArray(arr)
           .map((item) => {
             const id = typeof item === "object" ? item.id : item;
             return employees.find((e) => e.id === id) || null;
           })
           .filter(Boolean);
       });
+
       return next;
     });
-  }, [employees, updateAssignments]);
+  }, [employees]);
 
   const getEmployeesForRole = (roleId) =>
     employees.filter(
       (emp) =>
-        (Array.isArray(emp.groups) && emp.groups.includes(roleId)) ||
-        (Array.isArray(emp.roles) && emp.roles.includes(roleId))
+        safeArray(emp.groups).includes(roleId) ||
+        safeArray(emp.roles).includes(roleId)
     );
 
   const getSelectedEmployeesForRole = (roleId) => {
     const assigned = assignments[roleId];
-    return (assigned || [])
+    return safeArray(assigned)
       .map((emp) => {
         const id = typeof emp === "object" ? emp.id : emp;
         return employees.find((e) => e.id === id) || null;
@@ -82,24 +81,34 @@ export default function LoanFormDialog({
       .filter(Boolean);
   };
 
-  // Brokers
+  /* -------------------- Brokers -------------------- */
   const { data: brokersData = {}, isLoading: loadingBrokers } =
     useGetBrokersQuery({ page: 1, page_size: 1000 });
 
-  const brokers = brokersData.results || [];
+  const brokers = safeArray(brokersData.results);
 
-  // Milestones
+  /* -------------------- Milestones -------------------- */
   const { data: milestonesData = {}, isLoading: loadingMilestones } =
     useGetMilestonesQuery({ page: 1, page_size: 1000 });
 
-  const milestoneOptions = milestonesData.results || [];
+  const milestoneOptions = safeArray(milestonesData.results);
 
-  // Load ALL LOAN OFFICERS
-  const { data: allLoanOfficers = [], isLoading: loadingLoanOfficers } =
+  const currentMilestoneId =
+    newLoan.milestone_id ??
+    (typeof newLoan.milestone === "object" ? newLoan.milestone?.id : "") ??
+    "";
+
+  /* -------------------- Loan Officers -------------------- */
+  const { data: allLoanOfficersData = [], isLoading: loadingLoanOfficers } =
     useGetAllLoanOfficersQuery();
+
+  const allLoanOfficers = safeArray(
+    allLoanOfficersData.results || allLoanOfficersData
+  );
 
   const loanOfficersFiltered = useMemo(() => {
     if (!newLoan.broker_id) return [];
+
     const brokerId = String(newLoan.broker_id);
 
     return allLoanOfficers.filter((o) => {
@@ -123,20 +132,24 @@ export default function LoanFormDialog({
     ? "Loading loan officers..."
     : "No loan officers for selected broker";
 
-  // Load ALL LENDERS
-  const { data: allLenders = [], isLoading: loadingLenders } =
+  /* -------------------- Lenders -------------------- */
+  const { data: allLendersData = [], isLoading: loadingLenders } =
     useGetAllLendersQuery();
 
-  const lenderOptions = allLenders || [];
+  const lenderOptions = safeArray(
+    allLendersData.results || allLendersData
+  );
 
-  // Save
+  /* -------------------- Save Handler -------------------- */
   const handleSaveClick = useCallback(() => {
-    const lenderIds = (lenders || []).map((l) => l?.id).filter(Boolean);
+    const lenderIds = safeArray(lenders)
+      .map((l) => l?.id)
+      .filter(Boolean);
 
     const roleAssignmentsArray = Object.entries(assignments).map(
       ([roleId, emps]) => ({
         role_id: Number(roleId),
-        employee_ids: (emps || [])
+        employee_ids: safeArray(emps)
           .map((e) => (typeof e === "object" ? e.id : e))
           .filter(Boolean),
       })
@@ -148,15 +161,17 @@ export default function LoanFormDialog({
       lender_ids: lenderIds,
       role_assignments: roleAssignmentsArray,
     });
-  }, [onSave, newLoan, lenders, assignments, currentMilestoneId]);
+  }, [assignments, lenders, newLoan, currentMilestoneId]);
 
+  /* -------------------- UI -------------------- */
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>{newLoan?.id ? "Edit Loan" : "New Loan"}</DialogTitle>
+
       <DialogContent>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
-            {/* First + Last Name */}
+            {/* First Name */}
             <TextField
               label="First Name"
               fullWidth
@@ -167,6 +182,7 @@ export default function LoanFormDialog({
               }
             />
 
+            {/* Last Name */}
             <TextField
               label="Last Name"
               fullWidth
@@ -195,12 +211,12 @@ export default function LoanFormDialog({
                   })
                 }
                 renderInput={(params) => (
-                  <TextField {...params} label="Broker" variant="outlined" />
+                  <TextField {...params} label="Broker" />
                 )}
               />
             </FormControl>
 
-            {/* Loan Officers */}
+            {/* Loan Officer */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
                 options={loanOfficersFiltered}
@@ -211,13 +227,13 @@ export default function LoanFormDialog({
                     (o) => String(o.id) === String(newLoan.loan_officer_id)
                   ) || null
                 }
+                noOptionsText={loanOfficerNoOptionsText}
                 onChange={(_e, val) =>
                   setNewLoan({
                     ...newLoan,
                     loan_officer_id: val ? val.id : "",
                   })
                 }
-                noOptionsText={loanOfficerNoOptionsText}
                 renderInput={(params) => (
                   <TextField {...params} label="Loan Officer" />
                 )}
@@ -230,8 +246,8 @@ export default function LoanFormDialog({
                 multiple
                 options={lenderOptions}
                 loading={loadingLenders}
+                value={safeArray(lenders)}
                 filterSelectedOptions
-                value={lenders || []}
                 onChange={(_e, val) => setLenders(val || [])}
                 getOptionLabel={(o) =>
                   o?.lender_name ||
@@ -239,9 +255,7 @@ export default function LoanFormDialog({
                   o?.manager_email ||
                   ""
                 }
-                renderInput={(params) => (
-                  <TextField {...params} label="Lenders" />
-                )}
+                renderInput={(params) => <TextField {...params} label="Lenders" />}
               />
             </FormControl>
 
@@ -249,8 +263,8 @@ export default function LoanFormDialog({
             <FormControl fullWidth margin="normal">
               <InputLabel>Milestone</InputLabel>
               <Select
-                label="Milestone"
                 value={currentMilestoneId}
+                label="Milestone"
                 onChange={(e) =>
                   setNewLoan({ ...newLoan, milestone_id: e.target.value })
                 }
@@ -273,24 +287,28 @@ export default function LoanFormDialog({
               </Select>
             </FormControl>
 
-            {/* Other fields */}
+            {/* Compensation */}
             <TextField
-              label="Compensation"
               fullWidth
               margin="normal"
+              label="Compensation"
               value={newLoan.compensation || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, compensation: e.target.value })
               }
             />
 
+            {/* Lock Status */}
             <FormControl fullWidth margin="normal">
               <InputLabel>Lock Status</InputLabel>
               <Select
-                label="Lock Status"
                 value={newLoan.lock_status ?? ""}
+                label="Lock Status"
                 onChange={(e) =>
-                  setNewLoan({ ...newLoan, lock_status: e.target.value || null })
+                  setNewLoan({
+                    ...newLoan,
+                    lock_status: e.target.value || null,
+                  })
                 }
               >
                 <MenuItem value="">
@@ -301,11 +319,12 @@ export default function LoanFormDialog({
               </Select>
             </FormControl>
 
+            {/* Closing Date */}
             <TextField
-              label="Closing Date"
-              type="date"
               fullWidth
+              type="date"
               margin="normal"
+              label="Closing Date"
               InputLabelProps={{ shrink: true }}
               value={newLoan.closing_date || ""}
               onChange={(e) =>
@@ -313,32 +332,35 @@ export default function LoanFormDialog({
               }
             />
 
+            {/* Point File */}
             <TextField
-              label="Point File"
               fullWidth
               margin="normal"
+              label="Point File"
               value={newLoan.point_file || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, point_file: e.target.value })
               }
             />
 
+            {/* Subject Property */}
             <TextField
-              label="Subject Property"
               fullWidth
               margin="normal"
+              label="Subject Property"
               value={newLoan.subject_property || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, subject_property: e.target.value })
               }
             />
 
+            {/* Loan Comment */}
             <TextField
-              label="Loan Comment"
               fullWidth
+              margin="normal"
               multiline
               rows={3}
-              margin="normal"
+              label="Loan Comment"
               value={newLoan.loan_comment || ""}
               onChange={(e) =>
                 setNewLoan({ ...newLoan, loan_comment: e.target.value })
@@ -370,9 +392,7 @@ export default function LoanFormDialog({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose} color="secondary">
-          Cancel
-        </Button>
+        <Button onClick={onClose}>Cancel</Button>
         <Button variant="contained" onClick={handleSaveClick}>
           Save
         </Button>
