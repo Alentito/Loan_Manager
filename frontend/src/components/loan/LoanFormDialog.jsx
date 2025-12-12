@@ -13,11 +13,12 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
+
 import { useGetBrokersQuery } from "../../api/brokerApi";
-import { useGetLoanOfficersQuery } from "../../api/loanOfficerApi";
-import { useGetEmployeesQuery } from "../../api/employeeApi";
+import { useGetAllLoanOfficersQuery } from "../../api/loanOfficerApi";
+import { useGetAllEmployeesQuery } from "../../api/employeeApi";
 import { useGetMilestonesQuery } from "../../api/milestoneApi";
-import { useGetLendersQuery } from "../../api/lenderApiSlice";
+import { useGetAllLendersQuery } from "../../api/lenderApiSlice";
 import { useGetGroupsQuery } from "../../api/authApi";
 
 export default function LoanFormDialog({
@@ -31,39 +32,29 @@ export default function LoanFormDialog({
   roleAssignments,
   setRoleAssignments,
 }) {
-  // Safe fallbacks
   const assignments = roleAssignments || {};
-  const updateAssignments =
-    setRoleAssignments ||
-    (() => {
-      /* no-op */
-    });
+  const updateAssignments = setRoleAssignments || (() => {});
 
-    const currentMilestoneId =
+  const currentMilestoneId =
     newLoan.milestone_id ??
     (typeof newLoan.milestone === "object" ? newLoan.milestone?.id : "") ??
     "";
-    
-  // Fetch assignable roles
+
+  // Roles
   const { data: allRolesData = {} } = useGetGroupsQuery({ page_size: 200 });
   const allRoles = allRolesData.results || [];
   const assignableRoles = allRoles.filter((r) => r.assignable_on_loan);
 
   // Employees
-  const { data: employeesData = {} } = useGetAllEmployeesQuery({ page_size: 2000 });
-  const employees = employeesData.results || [];
+  const { data: employeesData = {} } = useGetAllEmployeesQuery();
+  const employees = employeesData.results || employeesData || [];
 
-  // Normalize any stored primitive IDs into full employee objects after employees load
   useEffect(() => {
     updateAssignments((prev) => {
       if (!prev) return {};
       const next = {};
       Object.entries(prev).forEach(([roleId, arr]) => {
-        if (!Array.isArray(arr)) {
-          next[roleId] = [];
-          return;
-        }
-        next[roleId] = arr
+        next[roleId] = (arr || [])
           .map((item) => {
             const id = typeof item === "object" ? item.id : item;
             return employees.find((e) => e.id === id) || null;
@@ -74,7 +65,6 @@ export default function LoanFormDialog({
     });
   }, [employees, updateAssignments]);
 
-  // Filter employees belonging to a role (supports emp.groups or emp.roles)
   const getEmployeesForRole = (roleId) =>
     employees.filter(
       (emp) =>
@@ -82,11 +72,9 @@ export default function LoanFormDialog({
         (Array.isArray(emp.roles) && emp.roles.includes(roleId))
     );
 
-  // Selected employees for a role (match by ID)
   const getSelectedEmployeesForRole = (roleId) => {
     const assigned = assignments[roleId];
-    if (!Array.isArray(assigned)) return [];
-    return assigned
+    return (assigned || [])
       .map((emp) => {
         const id = typeof emp === "object" ? emp.id : emp;
         return employees.find((e) => e.id === id) || null;
@@ -95,29 +83,26 @@ export default function LoanFormDialog({
   };
 
   // Brokers
-  const { data: brokersData = {}, isLoading: loadingBrokers } = useGetBrokersQuery({
-    page: 1,
-    page_size: 1000,
-  });
+  const { data: brokersData = {}, isLoading: loadingBrokers } =
+    useGetBrokersQuery({ page: 1, page_size: 1000 });
+
   const brokers = brokersData.results || [];
 
   // Milestones
   const { data: milestonesData = {}, isLoading: loadingMilestones } =
     useGetMilestonesQuery({ page: 1, page_size: 1000 });
+
   const milestoneOptions = milestonesData.results || [];
 
-  // Loan Officers (dependent on broker)
-  const { data: loanOfficersData = {}, isLoading: loadingLoanOfficers } =
-    useGetLoanOfficersQuery(
-      newLoan.broker_id ? { brokerId: newLoan.broker_id } : {},
-      { skip: !newLoan.broker_id }
-    );
-  const loanOfficers = loanOfficersData.results || [];
+  // Load ALL LOAN OFFICERS
+  const { data: allLoanOfficers = [], isLoading: loadingLoanOfficers } =
+    useGetAllLoanOfficersQuery();
 
   const loanOfficersFiltered = useMemo(() => {
     if (!newLoan.broker_id) return [];
     const brokerId = String(newLoan.broker_id);
-    return loanOfficers.filter((o) => {
+
+    return allLoanOfficers.filter((o) => {
       const ids = [
         o.broker_id,
         o.broker_company,
@@ -125,46 +110,45 @@ export default function LoanFormDialog({
         o.company_id,
         o.company?.id,
       ]
-        .filter((v) => v != null)
+        .filter(Boolean)
         .map(String);
+
       return ids.includes(brokerId);
     });
-  }, [loanOfficers, newLoan.broker_id]);
+  }, [allLoanOfficers, newLoan.broker_id]);
 
-  const loanOfficerNoOptionsText = useMemo(() => {
-    if (!newLoan.broker_id) return "Select a broker first";
-    if (loadingLoanOfficers) return "Loading loan officers...";
-    return "No loan officers for selected broker";
-  }, [newLoan.broker_id, loadingLoanOfficers]);
+  const loanOfficerNoOptionsText = !newLoan.broker_id
+    ? "Select a broker first"
+    : loadingLoanOfficers
+    ? "Loading loan officers..."
+    : "No loan officers for selected broker";
 
-  // Lenders (search)
-  const [lenderSearch, setLenderSearch] = useState("");
-  const { data: lendersData = {}, isLoading: loadingLenders } = useGetLendersQuery({
-    page: 1,
-    page_size: 15,
-    search: lenderSearch,
-  });
-  const lenderOptions = lendersData.results || [];
+  // Load ALL LENDERS
+  const { data: allLenders = [], isLoading: loadingLenders } =
+    useGetAllLendersQuery();
 
-  // Save handler
-const handleSaveClick = useCallback(() => {
-  const lenderIds = (lenders || []).map((l) => l?.id).filter(Boolean);
-  const roleAssignmentsArray = Object.entries(assignments).map(
-    ([roleId, emps]) => ({
-      role_id: Number(roleId),
-      employee_ids: (emps || [])
-        .map((e) => (typeof e === "object" ? e.id : e))
-        .filter(Boolean),
-    })
-  );
-  onSave({
-    ...newLoan,
-    milestone_id: currentMilestoneId || null,   // ensure FK goes up
-    lender_ids: lenderIds,
-    role_assignments: roleAssignmentsArray,
-  });
-}, [onSave, newLoan, lenders, assignments, currentMilestoneId]);
+  const lenderOptions = allLenders || [];
 
+  // Save
+  const handleSaveClick = useCallback(() => {
+    const lenderIds = (lenders || []).map((l) => l?.id).filter(Boolean);
+
+    const roleAssignmentsArray = Object.entries(assignments).map(
+      ([roleId, emps]) => ({
+        role_id: Number(roleId),
+        employee_ids: (emps || [])
+          .map((e) => (typeof e === "object" ? e.id : e))
+          .filter(Boolean),
+      })
+    );
+
+    onSave({
+      ...newLoan,
+      milestone_id: currentMilestoneId || null,
+      lender_ids: lenderIds,
+      role_assignments: roleAssignmentsArray,
+    });
+  }, [onSave, newLoan, lenders, assignments, currentMilestoneId]);
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
@@ -172,6 +156,7 @@ const handleSaveClick = useCallback(() => {
       <DialogContent>
         <Grid container spacing={2}>
           <Grid item xs={12} md={6}>
+            {/* First + Last Name */}
             <TextField
               label="First Name"
               fullWidth
@@ -181,6 +166,7 @@ const handleSaveClick = useCallback(() => {
                 setNewLoan({ ...newLoan, first_name: e.target.value })
               }
             />
+
             <TextField
               label="Last Name"
               fullWidth
@@ -191,6 +177,7 @@ const handleSaveClick = useCallback(() => {
               }
             />
 
+            {/* Broker */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
                 options={brokers}
@@ -210,14 +197,14 @@ const handleSaveClick = useCallback(() => {
                 renderInput={(params) => (
                   <TextField {...params} label="Broker" variant="outlined" />
                 )}
-                isOptionEqualToValue={(o, v) => String(o?.id) === String(v?.id)}
               />
             </FormControl>
 
+            {/* Loan Officers */}
             <FormControl fullWidth margin="normal">
               <Autocomplete
-                options={newLoan.broker_id ? loanOfficersFiltered : []}
-                loading={loadingLoanOfficers && !!newLoan.broker_id}
+                options={loanOfficersFiltered}
+                loading={loadingLoanOfficers}
                 getOptionLabel={(o) => o?.name ?? ""}
                 value={
                   loanOfficersFiltered.find(
@@ -232,40 +219,61 @@ const handleSaveClick = useCallback(() => {
                 }
                 noOptionsText={loanOfficerNoOptionsText}
                 renderInput={(params) => (
-                  <TextField {...params} label="Loan Officer" variant="outlined" />
+                  <TextField {...params} label="Loan Officer" />
                 )}
-                isOptionEqualToValue={(o, v) => String(o?.id) === String(v?.id)}
               />
             </FormControl>
 
+            {/* Lenders */}
             <FormControl fullWidth margin="normal">
-  <InputLabel>Milestone</InputLabel>
-  <Select
-    label="Milestone"
-    // ...existing code...
-    value={currentMilestoneId}
-    onChange={(e) =>
-      setNewLoan({ ...newLoan, milestone_id: e.target.value })
-    }
-  >
-    {loadingMilestones ? (
-      <MenuItem value="">
-        <em>Loading milestones...</em>
-      </MenuItem>
-    ) : milestoneOptions.length ? (
-      milestoneOptions.map((m) => (
-        <MenuItem key={m.id} value={m.id}>
-          {m.name}
-        </MenuItem>
-      ))
-    ) : (
-      <MenuItem value="">
-        <em>No milestones</em>
-      </MenuItem>
-    )}
-  </Select>
-</FormControl>
+              <Autocomplete
+                multiple
+                options={lenderOptions}
+                loading={loadingLenders}
+                filterSelectedOptions
+                value={lenders || []}
+                onChange={(_e, val) => setLenders(val || [])}
+                getOptionLabel={(o) =>
+                  o?.lender_name ||
+                  o?.executive_email ||
+                  o?.manager_email ||
+                  ""
+                }
+                renderInput={(params) => (
+                  <TextField {...params} label="Lenders" />
+                )}
+              />
+            </FormControl>
 
+            {/* Milestone */}
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Milestone</InputLabel>
+              <Select
+                label="Milestone"
+                value={currentMilestoneId}
+                onChange={(e) =>
+                  setNewLoan({ ...newLoan, milestone_id: e.target.value })
+                }
+              >
+                {loadingMilestones ? (
+                  <MenuItem value="">
+                    <em>Loading...</em>
+                  </MenuItem>
+                ) : milestoneOptions.length ? (
+                  milestoneOptions.map((m) => (
+                    <MenuItem key={m.id} value={m.id}>
+                      {m.name}
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem value="">
+                    <em>No milestones</em>
+                  </MenuItem>
+                )}
+              </Select>
+            </FormControl>
+
+            {/* Other fields */}
             <TextField
               label="Compensation"
               fullWidth
@@ -275,10 +283,10 @@ const handleSaveClick = useCallback(() => {
                 setNewLoan({ ...newLoan, compensation: e.target.value })
               }
             />
+
             <FormControl fullWidth margin="normal">
-              <InputLabel id="lock-status-label">Lock Status</InputLabel>
+              <InputLabel>Lock Status</InputLabel>
               <Select
-                labelId="lock-status-label"
                 label="Lock Status"
                 value={newLoan.lock_status ?? ""}
                 onChange={(e) =>
@@ -290,9 +298,9 @@ const handleSaveClick = useCallback(() => {
                 </MenuItem>
                 <MenuItem value="lock">Lock</MenuItem>
                 <MenuItem value="float">Float</MenuItem>
-                {/* <MenuItem value="merge">Merge</MenuItem> */}
               </Select>
             </FormControl>
+
             <TextField
               label="Closing Date"
               type="date"
@@ -304,6 +312,7 @@ const handleSaveClick = useCallback(() => {
                 setNewLoan({ ...newLoan, closing_date: e.target.value })
               }
             />
+
             <TextField
               label="Point File"
               fullWidth
@@ -313,6 +322,7 @@ const handleSaveClick = useCallback(() => {
                 setNewLoan({ ...newLoan, point_file: e.target.value })
               }
             />
+
             <TextField
               label="Subject Property"
               fullWidth
@@ -322,6 +332,7 @@ const handleSaveClick = useCallback(() => {
                 setNewLoan({ ...newLoan, subject_property: e.target.value })
               }
             />
+
             <TextField
               label="Loan Comment"
               fullWidth
@@ -334,34 +345,7 @@ const handleSaveClick = useCallback(() => {
               }
             />
 
-            <FormControl fullWidth margin="normal">
-              <Autocomplete
-                multiple
-                options={lenderOptions}
-                loading={loadingLenders}
-                filterSelectedOptions
-                value={lenders || []}
-                onChange={(_e, val) => setLenders(val || [])}
-                onInputChange={(_e, value, reason) => {
-                  if (reason === "input") setLenderSearch(value);
-                }}
-                getOptionLabel={(o) =>
-                  o?.lender_name ||
-                  o?.executive_email ||
-                  o?.manager_email ||
-                  ""
-                }
-                isOptionEqualToValue={(o, v) => String(o?.id) === String(v?.id)}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Lenders"
-                    placeholder="Search lenders…"
-                  />
-                )}
-              />
-            </FormControl>
-
+            {/* Assignable Roles */}
             {assignableRoles.map((role) => (
               <FormControl fullWidth margin="normal" key={role.id}>
                 <Autocomplete
@@ -370,14 +354,13 @@ const handleSaveClick = useCallback(() => {
                   value={getSelectedEmployeesForRole(role.id)}
                   onChange={(_e, val) =>
                     updateAssignments((prev) => ({
-                      ...(prev || {}),
+                      ...prev,
                       [role.id]: val,
                     }))
                   }
                   getOptionLabel={(o) => o?.name ?? ""}
-                  isOptionEqualToValue={(o, v) => String(o?.id) === String(v?.id)}
                   renderInput={(params) => (
-                    <TextField {...params} label={role.name} variant="outlined" />
+                    <TextField {...params} label={role.name} />
                   )}
                 />
               </FormControl>
@@ -385,6 +368,7 @@ const handleSaveClick = useCallback(() => {
           </Grid>
         </Grid>
       </DialogContent>
+
       <DialogActions>
         <Button onClick={onClose} color="secondary">
           Cancel
