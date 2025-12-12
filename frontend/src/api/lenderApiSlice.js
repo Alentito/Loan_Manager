@@ -3,20 +3,24 @@ import baseQueryWithReauth from "./baseApi";
 
 export const lenderApi = createApi({
   reducerPath: "lenderApi",
-  baseQuery: baseQueryWithReauth, // ✅ handles token refresh
+  baseQuery: baseQueryWithReauth,
   tagTypes: ["Lender"],
 
   endpoints: (builder) => ({
-    // 📌 Fetch lenders with pagination, search, ordering, and archived filter
+
+    // ---------------------------------------------------------------------
+    // 📌 Get lenders (pagination + search + ordering + archived filter)
+    // ---------------------------------------------------------------------
     getLenders: builder.query({
       query: ({ page = 1, pageSize = 10, search, ordering, archived } = {}) => {
         const params = new URLSearchParams({
           page,
           page_size: pageSize,
         });
+
         if (search) params.set("search", search);
         if (ordering) params.set("ordering", ordering);
-        if (archived !== undefined) params.set("archived", archived); // 'true' or 'false'
+        if (archived !== undefined) params.set("archived", archived);
 
         return `lenders/?${params.toString()}`;
       },
@@ -29,23 +33,46 @@ export const lenderApi = createApi({
           : [{ type: "Lender", id: "LIST" }],
     }),
 
-    // 📌 Fetch lender by ID
+    // ---------------------------------------------------------------------
+    // 📌 Get ALL lenders (no pagination, useful for dropdowns)
+    // ---------------------------------------------------------------------
+    getAllLenders: builder.query({
+      query: () => `lenders/?all=true&archived=false`,
+      providesTags: (result) =>
+        result?.results
+          ? [
+              ...result.results.map(({ id }) => ({ type: "Lender", id })),
+              { type: "Lender", id: "ALL" },
+            ]
+          : [{ type: "Lender", id: "ALL" }],
+    }),
+
+    // ---------------------------------------------------------------------
+    // 📌 Get lender by ID
+    // ---------------------------------------------------------------------
     getLenderById: builder.query({
       query: (id) => `lenders/${id}/`,
       providesTags: (_, __, id) => [{ type: "Lender", id }],
     }),
 
+    // ---------------------------------------------------------------------
     // 📌 Add new lender
+    // ---------------------------------------------------------------------
     addLender: builder.mutation({
       query: (data) => ({
         url: "lenders/",
         method: "POST",
         body: data,
       }),
-      invalidatesTags: [{ type: "Lender", id: "LIST" }],
+      invalidatesTags: [
+        { type: "Lender", id: "LIST" },
+        { type: "Lender", id: "ALL" },
+      ],
     }),
 
+    // ---------------------------------------------------------------------
     // 📌 Update lender
+    // ---------------------------------------------------------------------
     updateLender: builder.mutation({
       query: ({ id, ...data }) => ({
         url: `lenders/${id}/`,
@@ -55,10 +82,13 @@ export const lenderApi = createApi({
       invalidatesTags: (_, __, { id }) => [
         { type: "Lender", id },
         { type: "Lender", id: "LIST" },
+        { type: "Lender", id: "ALL" },
       ],
     }),
 
+    // ---------------------------------------------------------------------
     // 📌 Delete lender
+    // ---------------------------------------------------------------------
     deleteLender: builder.mutation({
       query: (id) => ({
         url: `lenders/${id}/`,
@@ -67,10 +97,13 @@ export const lenderApi = createApi({
       invalidatesTags: (_, __, id) => [
         { type: "Lender", id },
         { type: "Lender", id: "LIST" },
+        { type: "Lender", id: "ALL" },
       ],
     }),
 
-    // 📌 Validate unique fields
+    // ---------------------------------------------------------------------
+    // 📌 Validate unique fields (name, NMLS, email)
+    // ---------------------------------------------------------------------
     validateLenderField: builder.mutation({
       query: (payload) => ({
         url: "lenders/validate/",
@@ -79,29 +112,40 @@ export const lenderApi = createApi({
       }),
     }),
 
+    // ---------------------------------------------------------------------
     // 📌 Archive lender
+    // ---------------------------------------------------------------------
     archiveLender: builder.mutation({
       query: (id) => ({
         url: `lenders/${id}/archive/`,
         method: "POST",
       }),
-      invalidatesTags: [{ type: "Lender", id: "LIST" }],
+      invalidatesTags: [
+        { type: "Lender", id: "LIST" },
+        { type: "Lender", id: "ALL" },
+      ],
     }),
 
+    // ---------------------------------------------------------------------
     // 📌 Unarchive lender
+    // ---------------------------------------------------------------------
     unarchiveLender: builder.mutation({
       query: (id) => ({
         url: `lenders/${id}/unarchive/`,
         method: "POST",
       }),
-      invalidatesTags: [{ type: "Lender", id: "LIST" }],
+      invalidatesTags: [
+        { type: "Lender", id: "LIST" },
+        { type: "Lender", id: "ALL" },
+      ],
     }),
+
   }),
 });
 
-// ✅ Auto-generated hooks
 export const {
   useGetLendersQuery,
+  useGetAllLendersQuery,
   useGetLenderByIdQuery,
   useAddLenderMutation,
   useUpdateLenderMutation,
