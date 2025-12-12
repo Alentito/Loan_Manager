@@ -1,279 +1,398 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
-  Box, Typography, Button, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Paper,
-  IconButton, Avatar, TextField, FormControl, InputLabel, Select, MenuItem, CircularProgress,
-  Tooltip, Pagination, Grow, Dialog, DialogActions, DialogTitle, DialogContent, Snackbar, Alert
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Grid,
+  Autocomplete,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Visibility as VisibilityIcon } from "@mui/icons-material";
-import { useGetLendersQuery, useDeleteLenderMutation } from "../api/lenderApiSlice";
-import LenderFormDialog from "./LenderFormDialog";
+import { useGetBrokersQuery } from "../../api/brokerApi";
+import { useGetLoanOfficersQuery } from "../../api/loanOfficerApi";
+import { useGetAllEmployeesQuery } from "../../api/employeeApi";
+import { useGetMilestonesQuery } from "../../api/milestoneApi";
+import { useGetLendersQuery } from "../../api/lenderApiSlice";
+import { useGetGroupsQuery } from "../../api/authApi";
 
-const pageSize = 10;
+export default function LoanFormDialog({
+  open,
+  onClose,
+  onSave,
+  newLoan,
+  setNewLoan,
+  lenders,
+  setLenders,
+  roleAssignments,
+  setRoleAssignments,
+}) {
+  // Safe fallbacks
+  const assignments = roleAssignments || {};
+  const updateAssignments =
+    setRoleAssignments ||
+    (() => {
+      /* no-op */
+    });
 
-const LenderList = () => {
-  const debounceRef = useRef(null);
+    const currentMilestoneId =
+    newLoan.milestone_id ??
+    (typeof newLoan.milestone === "object" ? newLoan.milestone?.id : "") ??
+    "";
+    
+  // Fetch assignable roles
+  const { data: allRolesData = {} } = useGetGroupsQuery({ page_size: 200 });
+  const allRoles = allRolesData.results || [];
+  const assignableRoles = allRoles.filter((r) => r.assignable_on_loan);
 
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [orderingField, setOrderingField] = useState("created_at");
-  const [orderingDirection, setOrderingDirection] = useState("desc");
+  // Employees
+  const { data: employeesData = {} } = useGetAllEmployeesQuery({ page_size: 2000 });
+  const employees = employeesData.results || [];
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingLender, setEditingLender] = useState(null);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [viewingLender, setViewingLender] = useState(null);
-
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [toDeleteId, setToDeleteId] = useState(null);
-
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState("");
-  const [snackbarSeverity, setSnackbarSeverity] = useState("success");
-
-  const { data, error, isLoading, refetch } = useGetLendersQuery({
-    page,
-    page_size: pageSize,
-    search: debouncedSearch,
-    ordering: orderingDirection === "desc" ? `-${orderingField}` : orderingField,
-  });
-
-  const [deleteLender, { isLoading: deleting }] = useDeleteLenderMutation();
-  const lenders = data?.results || [];
-  const total = data?.count || 0;
-  const emptyRows = pageSize - lenders.length;
-
-  // Debounce search
+  // Normalize any stored primitive IDs into full employee objects after employees load
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(debounceRef.current);
-  }, [search]);
+    updateAssignments((prev) => {
+      if (!prev) return {};
+      const next = {};
+      Object.entries(prev).forEach(([roleId, arr]) => {
+        if (!Array.isArray(arr)) {
+          next[roleId] = [];
+          return;
+        }
+        next[roleId] = arr
+          .map((item) => {
+            const id = typeof item === "object" ? item.id : item;
+            return employees.find((e) => e.id === id) || null;
+          })
+          .filter(Boolean);
+      });
+      return next;
+    });
+  }, [employees, updateAssignments]);
 
-  const handleSortChange = (e) => {
-    const [field, direction] = e.target.value.split("|");
-    setOrderingField(field);
-    setOrderingDirection(direction);
-    setPage(1);
+  // Filter employees belonging to a role (supports emp.groups or emp.roles)
+  const getEmployeesForRole = (roleId) =>
+    employees.filter(
+      (emp) =>
+        (Array.isArray(emp.groups) && emp.groups.includes(roleId)) ||
+        (Array.isArray(emp.roles) && emp.roles.includes(roleId))
+    );
+
+  // Selected employees for a role (match by ID)
+  const getSelectedEmployeesForRole = (roleId) => {
+    const assigned = assignments[roleId];
+    if (!Array.isArray(assigned)) return [];
+    return assigned
+      .map((emp) => {
+        const id = typeof emp === "object" ? emp.id : emp;
+        return employees.find((e) => e.id === id) || null;
+      })
+      .filter(Boolean);
   };
 
-  const handleDeleteClick = (id) => {
-    setToDeleteId(id);
-    setDeleteDialogOpen(true);
-  };
+  // Brokers
+  const { data: brokersData = {}, isLoading: loadingBrokers } = useGetBrokersQuery({
+    page: 1,
+    page_size: 1000,
+  });
+  const brokers = brokersData.results || [];
 
-  const confirmDelete = async () => {
-    try {
-      await deleteLender(toDeleteId).unwrap();
-      setSnackbarMessage("Lender deleted successfully");
-      setSnackbarSeverity("success");
-      setSnackbarOpen(true);
-      refetch();
-    } catch {
-      setSnackbarMessage("Failed to delete lender");
-      setSnackbarSeverity("error");
-      setSnackbarOpen(true);
-    } finally {
-      setDeleteDialogOpen(false);
-      setToDeleteId(null);
-    }
-  };
+  // Milestones
+  const { data: milestonesData = {}, isLoading: loadingMilestones } =
+    useGetMilestonesQuery({ page: 1, page_size: 1000 });
+  const milestoneOptions = milestonesData.results || [];
 
-  const handleExport = (format) => {
-  const map = {
-    excel: 'export/lenders/excel/',
-    pdf: 'export/lenders/pdf/',
-  };
-  if (format && map[format]) {
-    window.open(`https://backend-l3f9.onrender.com/api/${map[format]}`, '_blank');
-  }
-};
+  // Loan Officers (dependent on broker)
+  const { data: loanOfficersData = {}, isLoading: loadingLoanOfficers } =
+    useGetLoanOfficersQuery(
+      newLoan.broker_id ? { brokerId: newLoan.broker_id } : {},
+      { skip: !newLoan.broker_id }
+    );
+  const loanOfficers = loanOfficersData.results || [];
+
+  const loanOfficersFiltered = useMemo(() => {
+    if (!newLoan.broker_id) return [];
+    const brokerId = String(newLoan.broker_id);
+    return loanOfficers.filter((o) => {
+      const ids = [
+        o.broker_id,
+        o.broker_company,
+        o.broker?.id,
+        o.company_id,
+        o.company?.id,
+      ]
+        .filter((v) => v != null)
+        .map(String);
+      return ids.includes(brokerId);
+    });
+  }, [loanOfficers, newLoan.broker_id]);
+
+  const loanOfficerNoOptionsText = useMemo(() => {
+    if (!newLoan.broker_id) return "Select a broker first";
+    if (loadingLoanOfficers) return "Loading loan officers...";
+    return "No loan officers for selected broker";
+  }, [newLoan.broker_id, loadingLoanOfficers]);
+
+  // Lenders (search)
+  const [lenderSearch, setLenderSearch] = useState("");
+  const { data: lendersData = {}, isLoading: loadingLenders } = useGetLendersQuery({
+    page: 1,
+    page_size: 15,
+    search: lenderSearch,
+  });
+  const lenderOptions = lendersData.results || [];
+
+  // Save handler
+const handleSaveClick = useCallback(() => {
+  const lenderIds = (lenders || []).map((l) => l?.id).filter(Boolean);
+  const roleAssignmentsArray = Object.entries(assignments).map(
+    ([roleId, emps]) => ({
+      role_id: Number(roleId),
+      employee_ids: (emps || [])
+        .map((e) => (typeof e === "object" ? e.id : e))
+        .filter(Boolean),
+    })
+  );
+  onSave({
+    ...newLoan,
+    milestone_id: currentMilestoneId || null,   // ensure FK goes up
+    lender_ids: lenderIds,
+    role_assignments: roleAssignmentsArray,
+  });
+}, [onSave, newLoan, lenders, assignments, currentMilestoneId]);
 
 
   return (
-    <Box p={3}>
-      {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
-        <Typography variant="h5" color="primary" fontWeight="bold">Lender Management</Typography>
-        <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Sort</InputLabel>
-            <Select
-              value={`${orderingField}|${orderingDirection}`}
-              label="Sort"
-              onChange={handleSortChange}
-            >
-              <MenuItem value="created_at|desc">Latest Added</MenuItem>
-              <MenuItem value="lender_name|asc">Name (A-Z)</MenuItem>
-              <MenuItem value="lender_name|desc">Name (Z-A)</MenuItem>
-            </Select>
-          </FormControl>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+      <DialogTitle>{newLoan?.id ? "Edit Loan" : "New Loan"}</DialogTitle>
+      <DialogContent>
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <TextField
+              label="First Name"
+              fullWidth
+              margin="normal"
+              value={newLoan.first_name || ""}
+              onChange={(e) =>
+                setNewLoan({ ...newLoan, first_name: e.target.value })
+              }
+            />
+            <TextField
+              label="Last Name"
+              fullWidth
+              margin="normal"
+              value={newLoan.last_name || ""}
+              onChange={(e) =>
+                setNewLoan({ ...newLoan, last_name: e.target.value })
+              }
+            />
 
-          <TextField size="small" label="Search" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <Button variant="outlined" onClick={() => setSearch("")}>Clear</Button>
+            <FormControl fullWidth margin="normal">
+              <Autocomplete
+                options={brokers}
+                loading={loadingBrokers}
+                getOptionLabel={(o) => o?.name ?? ""}
+                value={
+                  brokers.find((b) => String(b.id) === String(newLoan.broker_id)) ||
+                  null
+                }
+                onChange={(_e, val) =>
+                  setNewLoan({
+                    ...newLoan,
+                    broker_id: val ? val.id : "",
+                    loan_officer_id: "",
+                  })
+                }
+                renderInput={(params) => (
+                  <TextField {...params} label="Broker" variant="outlined" />
+                )}
+                isOptionEqualToValue={(o, v) => String(o?.id) === String(v?.id)}
+              />
+            </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-  <InputLabel>Export</InputLabel>
-  <Select defaultValue="" label="Export" onChange={(e) => handleExport(e.target.value)}>
-    <MenuItem value="" disabled>Export</MenuItem>
-<MenuItem value="excel">Excel</MenuItem>
-<MenuItem value="pdf">PDF</MenuItem>
+            <FormControl fullWidth margin="normal">
+              <Autocomplete
+                options={newLoan.broker_id ? loanOfficersFiltered : []}
+                loading={loadingLoanOfficers && !!newLoan.broker_id}
+                getOptionLabel={(o) => o?.name ?? ""}
+                value={
+                  loanOfficersFiltered.find(
+                    (o) => String(o.id) === String(newLoan.loan_officer_id)
+                  ) || null
+                }
+                onChange={(_e, val) =>
+                  setNewLoan({
+                    ...newLoan,
+                    loan_officer_id: val ? val.id : "",
+                  })
+                }
+                noOptionsText={loanOfficerNoOptionsText}
+                renderInput={(params) => (
+                  <TextField {...params} label="Loan Officer" variant="outlined" />
+                )}
+                isOptionEqualToValue={(o, v) => String(o?.id) === String(v?.id)}
+              />
+            </FormControl>
+
+            <FormControl fullWidth margin="normal">
+  <InputLabel>Milestone</InputLabel>
+  <Select
+    label="Milestone"
+    // ...existing code...
+    value={currentMilestoneId}
+    onChange={(e) =>
+      setNewLoan({ ...newLoan, milestone_id: e.target.value })
+    }
+  >
+    {loadingMilestones ? (
+      <MenuItem value="">
+        <em>Loading milestones...</em>
+      </MenuItem>
+    ) : milestoneOptions.length ? (
+      milestoneOptions.map((m) => (
+        <MenuItem key={m.id} value={m.id}>
+          {m.name}
+        </MenuItem>
+      ))
+    ) : (
+      <MenuItem value="">
+        <em>No milestones</em>
+      </MenuItem>
+    )}
   </Select>
 </FormControl>
 
+            <TextField
+              label="Compensation"
+              fullWidth
+              margin="normal"
+              value={newLoan.compensation || ""}
+              onChange={(e) =>
+                setNewLoan({ ...newLoan, compensation: e.target.value })
+              }
+            />
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="lock-status-label">Lock Status</InputLabel>
+              <Select
+                labelId="lock-status-label"
+                label="Lock Status"
+                value={newLoan.lock_status ?? ""}
+                onChange={(e) =>
+                  setNewLoan({ ...newLoan, lock_status: e.target.value || null })
+                }
+              >
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                <MenuItem value="lock">Lock</MenuItem>
+                <MenuItem value="float">Float</MenuItem>
+                {/* <MenuItem value="merge">Merge</MenuItem> */}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Closing Date"
+              type="date"
+              fullWidth
+              margin="normal"
+              InputLabelProps={{ shrink: true }}
+              value={newLoan.closing_date || ""}
+              onChange={(e) =>
+                setNewLoan({ ...newLoan, closing_date: e.target.value })
+              }
+            />
+            <TextField
+              label="Point File"
+              fullWidth
+              margin="normal"
+              value={newLoan.point_file || ""}
+              onChange={(e) =>
+                setNewLoan({ ...newLoan, point_file: e.target.value })
+              }
+            />
+            <TextField
+              label="Subject Property"
+              fullWidth
+              margin="normal"
+              value={newLoan.subject_property || ""}
+              onChange={(e) =>
+                setNewLoan({ ...newLoan, subject_property: e.target.value })
+              }
+            />
+            <TextField
+              label="Loan Comment"
+              fullWidth
+              multiline
+              rows={3}
+              margin="normal"
+              value={newLoan.loan_comment || ""}
+              onChange={(e) =>
+                setNewLoan({ ...newLoan, loan_comment: e.target.value })
+              }
+            />
 
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setDialogOpen(true); setEditingLender(null); }}>
-            Add Lender
-          </Button>
-        </Box>
-      </Box>
+            <FormControl fullWidth margin="normal">
+              <Autocomplete
+                multiple
+                options={lenderOptions}
+                loading={loadingLenders}
+                filterSelectedOptions
+                value={lenders || []}
+                onChange={(_e, val) => setLenders(val || [])}
+                onInputChange={(_e, value, reason) => {
+                  if (reason === "input") setLenderSearch(value);
+                }}
+                getOptionLabel={(o) =>
+                  o?.lender_name ||
+                  o?.executive_email ||
+                  o?.manager_email ||
+                  ""
+                }
+                isOptionEqualToValue={(o, v) => String(o?.id) === String(v?.id)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Lenders"
+                    placeholder="Search lenders…"
+                  />
+                )}
+              />
+            </FormControl>
 
-      {/* Table */}
-      {isLoading ? (
-        <Box display="flex" justifyContent="center" mt={5}><CircularProgress /></Box>
-      ) : error ? (
-        <Box color="error.main" textAlign="center" mt={5}>Error loading lenders. Please try again.</Box>
-      ) : (
-        <TableContainer component={Paper} sx={{ minWidth: 900 }}>
-          <Table stickyHeader size="small">
-            <TableHead>
-              <TableRow>
-                {["Avatar", "Lender Name", "AE Name", "Executive Email", "Manager Name", "Manager Email", "Actions"].map((label, idx) => (
-                  <TableCell key={idx}><strong>{label}</strong></TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {lenders.length > 0 ? lenders.map((lender) => (
-                <Grow in key={lender.id} timeout={300}>
-                  <TableRow hover>
-                    <TableCell>
-                      <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: '#fff' }}>
-                        {lender.lender_name ? lender.lender_name[0].toUpperCase() : '?'}
-                      </Avatar>
-                    </TableCell>
-                    <TableCell>{lender.lender_name}</TableCell>
-                    <TableCell>{lender.account_executive_name || '-'}</TableCell>
-                    <TableCell>{lender.executive_email}</TableCell>
-                    <TableCell>{lender.account_manager_name || '-'}</TableCell>
-                    <TableCell>{lender.manager_email}</TableCell>
-                    <TableCell>
-                      <Tooltip title="View">
-                        <IconButton onClick={() => { setViewingLender(lender); setViewDialogOpen(true); }}>
-                          <VisibilityIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Edit">
-                        <IconButton onClick={() => { setEditingLender(lender); setDialogOpen(true); }}>
-                          <EditIcon color="primary" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton onClick={() => handleDeleteClick(lender.id)}>
-                          <DeleteIcon color="error" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                </Grow>
-              )) : (
-                <TableRow>
-                  <TableCell colSpan={7} align="center">No lenders found.</TableCell>
-                </TableRow>
-              )}
-              {emptyRows > 0 && lenders.length > 0 && Array.from(Array(emptyRows)).map((_, idx) => (
-                <TableRow key={`empty-${idx}`} style={{ height: 53 }}>
-                  <TableCell colSpan={7} />
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-
-      {/* Pagination */}
-      <Box mt={2} display="flex" justifyContent="flex-end">
-        <Pagination
-          count={Math.ceil(total / pageSize)}
-          page={page}
-          onChange={(_, newPage) => setPage(newPage)}
-          color="primary"
-          shape="rounded"
-          showFirstButton
-          showLastButton
-          disabled={isLoading}
-        />
-      </Box>
-
-      {/* Add/Edit Dialog */}
-      <LenderFormDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        editingLender={editingLender}
-        onSuccess={() => refetch()}
-      />
-
-      {/* View Dialog */}
-      <Dialog open={viewDialogOpen} onClose={() => setViewDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: "primary.main", color: "#fff" }}>Lender Details</DialogTitle>
-        <DialogContent dividers>
-          {viewingLender && (
-            <Box display="flex" flexDirection="column" gap={1}>
-              {[
-                ['Lender Name', viewingLender.lender_name],
-                ['Account Executive Name', viewingLender.account_executive_name],
-                ['Executive Email', viewingLender.executive_email],
-                ['Executive Phone', viewingLender.executive_phone],
-                ['Executive Address', viewingLender.executive_address],
-                ['Account Manager Name', viewingLender.account_manager_name],
-                ['Manager Email', viewingLender.manager_email],
-                ['Manager Contact', viewingLender.manager_contact],
-                ['Manager Address', viewingLender.manager_address],
-                ['Mortgage Clause', viewingLender.mortgage_clause],
-                ['Created At', viewingLender.created_at ? new Date(viewingLender.created_at).toLocaleString() : '-'],
-              ].map(([label, value]) => (
-                <Typography key={label} sx={{ wordBreak: 'break-word' }}>
-                  <strong>{label}:</strong> {value || '-'}
-                </Typography>
-              ))}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setViewDialogOpen(false)} variant="contained" color="primary">Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Delete Confirmation */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Lender</DialogTitle>
-        <DialogContent>Are you sure you want to delete this lender?</DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button color="error" onClick={confirmDelete} disabled={deleting}>Delete</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        <Alert
-          onClose={() => setSnackbarOpen(false)}
-          severity={snackbarSeverity}
-          sx={{ width: '100%' }}
-        >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
-    </Box>
+            {assignableRoles.map((role) => (
+              <FormControl fullWidth margin="normal" key={role.id}>
+                <Autocomplete
+                  multiple
+                  options={getEmployeesForRole(role.id)}
+                  value={getSelectedEmployeesForRole(role.id)}
+                  onChange={(_e, val) =>
+                    updateAssignments((prev) => ({
+                      ...(prev || {}),
+                      [role.id]: val,
+                    }))
+                  }
+                  getOptionLabel={(o) => o?.name ?? ""}
+                  isOptionEqualToValue={(o, v) => String(o?.id) === String(v?.id)}
+                  renderInput={(params) => (
+                    <TextField {...params} label={role.name} variant="outlined" />
+                  )}
+                />
+              </FormControl>
+            ))}
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} color="secondary">
+          Cancel
+        </Button>
+        <Button variant="contained" onClick={handleSaveClick}>
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
-};
-
-export default LenderList;
+}
