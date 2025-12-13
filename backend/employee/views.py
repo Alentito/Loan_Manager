@@ -1525,6 +1525,12 @@ class LenderViewSet(viewsets.ModelViewSet):
         elif archived == "false":
             return qs.filter(is_archived=False)
         return qs
+        
+    def list(self, request, *args, **kwargs):
+        if request.query_params.get('all') == 'true':
+            self.pagination_class = None
+        return super().list(request, *args, **kwargs)
+
 
     @action(detail=True, methods=["POST"])
     def archive(self, request, pk=None):
@@ -1873,4 +1879,5 @@ class EmployeeBreakViewSet(viewsets.ModelViewSet):
             })
 
         return Response({"has_active_break": False})
+
 
