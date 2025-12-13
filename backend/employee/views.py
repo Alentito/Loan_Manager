@@ -400,11 +400,13 @@ class LoanOfficerViewSet(viewsets.ModelViewSet):
         if broker:
             queryset = queryset.filter(broker_company__name__icontains=broker)
 
-        # support all results without pagination
-        if self.request.query_params.get('all') == 'true':
-            return queryset
-
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        if request.query_params.get('all') == 'true':
+            self.pagination_class = None
+        return super().list(request, *args, **kwargs)
+        
 
     def destroy(self, request, *args, **kwargs):
         officer = self.get_object()
@@ -1871,3 +1873,4 @@ class EmployeeBreakViewSet(viewsets.ModelViewSet):
             })
 
         return Response({"has_active_break": False})
+
