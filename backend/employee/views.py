@@ -1474,7 +1474,9 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(
             queryset, many=True, context={"leave_summary": leave_summary}
         )
-        return Response(serializer.data)@action(detail=False, methods=["get"], url_path="monthly-worked-hours")
+        return Response(serializer.data)
+        
+    @action(detail=False, methods=["get"], url_path="monthly-worked-hours")
     def monthly_worked_hours(self, request):
         employee_id = request.query_params.get("employeeId")
         month = int(request.query_params.get("month", 0))
