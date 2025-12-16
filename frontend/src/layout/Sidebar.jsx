@@ -37,7 +37,7 @@ export function SidebarContent() {
   const isActive = (path) => location.pathname === path;
 
   const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "loan.view_loan" },
+    //{ path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "loan.view_loan" },
     { path: "/loan-management", label: "Loan Management", icon: Wallet, permission: "loan.view_loan" },
     { path: "/milestones", label: "Milestones", icon: Flag, permission: "loan.view_milestone" },
     { path: "/tasks", label: "Tasks", icon: ListChecks, permission: "loan.view_task" },
@@ -59,8 +59,8 @@ export function SidebarContent() {
     { path: "/attendance/summary", label: "Monthly Summary", icon: ClipboardList, permission: "employee.view_attendancesummary" },
     { path: "/attendance/late-logins", label: "Late Logins", icon: Clock, permission: "employee.view_latelogins" },
     //{ path: "/tokens/my-tokens", label: "My Tokens", icon: ClipboardList, permission: "employee.view_tokens" },
-    { path: "/token/new", label: "Request Token", icon: ClipboardList, permission: "employee.add_employeetoken" },
-    { path: "/admin/token-approvals", label: "Token Approvals", icon: ClipboardList, permission: "employee.approve_tokens" },
+    { path: "/token/new", label: "Complaint", icon: ClipboardList, permission: "employee.add_employeetoken" },
+    { path: "/admin/token-approvals", label: "Respond", icon: ClipboardList, permission: "employee.approve_tokens" },
     { path: "/reports/funded-loans", label: "Report", icon: FileText, permission: "loan.View_reports" },
     { path: "/breaks", label: "Breaks", icon: Clock, permission: null },
   ];

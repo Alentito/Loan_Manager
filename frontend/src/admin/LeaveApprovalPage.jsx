@@ -40,11 +40,6 @@ const formatToCSTDate = (input) => {
   return date.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 };
 
-const mapToSimpleLeaveType = (type) => {
-  if (type === "Paid Leave") return "Paid Leave";
-  if (type === "Unpaid Leave") return "Unpaid Leave";
-  return type || "—";
-};
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value);
@@ -71,6 +66,7 @@ const toCSTDate = (date) => {
   return cstDate;
 };
 
+const getTodayRaw = () => new Date().toISOString().split("T")[0];
 
 // ------------------ Main Component ------------------
 export default function LeaveApprovalPage() {
@@ -95,7 +91,7 @@ export default function LeaveApprovalPage() {
   const [page, setPage] = useState(1);
   const [rowsPerPage] = useState(pageSizeDefault);
   const [viewMode, setViewMode] = useState("month"); // day/week/month
-  const [currentDate, setCurrentDate] = useState(getCSTNow);
+  const [currentDate, setCurrentDate] = useState(getTodayRaw);
   const [approvalTypes, setApprovalTypes] = useState({});
 
   const { data, isLoading, refetch } = useGetAllLeaveRequestsQuery({
@@ -116,30 +112,32 @@ export default function LeaveApprovalPage() {
 
   // ------------------ Filter leaves by CST date ------------------
   const filteredLeaves = useMemo(() => {
-    const currentCST = toCSTDate(currentDate);
     return leaves.filter((req) => {
-      const startCST = toCSTDate(new Date(req.start_date));
-      const endCST = toCSTDate(new Date(req.end_date));
+      const start = req.start_date.split("T")[0];
+      const end = req.end_date.split("T")[0];
+      const cur = currentDate;
 
-      if (!startCST || !endCST || !currentCST) return false;
+      if (!start || !end || !cur) return false;
 
-      if (viewMode === "day") return currentCST >= startCST && currentCST <= endCST;
+      if (viewMode === "day") return cur >= start && cur <= end;
 
       if (viewMode === "week") {
-        const startOfWeek = new Date(currentCST);
-        startOfWeek.setDate(currentCST.getDate() - currentCST.getDay());
+        const dateObj = new Date(cur);
+        const startOfWeek = new Date(dateObj.setDate(dateObj.getDate() - dateObj.getDay()));
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
-        return startCST <= endOfWeek && endCST >= startOfWeek;
+
+        const s = new Date(start);
+        const e = new Date(end);
+
+        return s <= endOfWeek && e >= startOfWeek;
       }
 
       if (viewMode === "month") {
-        const sameMonth =
-          (startCST.getFullYear() === currentCST.getFullYear() &&
-            startCST.getMonth() === currentCST.getMonth()) ||
-          (endCST.getFullYear() === currentCST.getFullYear() &&
-            endCST.getMonth() === currentCST.getMonth());
-        return sameMonth;
+        return (
+          start.slice(0, 7) === cur.slice(0, 7) ||
+          end.slice(0, 7) === cur.slice(0, 7)
+        );
       }
 
       return true;
@@ -218,44 +216,20 @@ export default function LeaveApprovalPage() {
           Employee Leave Approval
         </Typography>
 
-        {/* Day/Week/Month + Date picker + Search + Status */}
-        <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-          <Button
-            variant={viewMode === "day" ? "contained" : "outlined"}
-            onClick={() => setViewMode("day")}
-          >
-            Day
-          </Button>
-          <Button
-            variant={viewMode === "week" ? "contained" : "outlined"}
-            onClick={() => setViewMode("week")}
-          >
-            Week
-          </Button>
-          <Button
-            variant={viewMode === "month" ? "contained" : "outlined"}
-            onClick={() => setViewMode("month")}
-          >
-            Month
-          </Button>
+        <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+          {["day", "week", "month"].map((m) => (
+            <Button key={m} variant={viewMode === m ? "contained" : "outlined"} onClick={() => setViewMode(m)}>
+              {m[0].toUpperCase() + m.slice(1)}
+            </Button>
+          ))}
 
+          {/* 🎯 Updated Date Picker */}
           <TextField
-  type="date"
-  value={currentDate instanceof Date && !isNaN(currentDate) ? currentDate.toISOString().split("T")[0] : ""}
-  onChange={(e) => {
-  const value = e.target.value;
-  if (!value) {
-    // Clear button pressed → reset to CST today
-    setCurrentDate(getCSTNow());
-  } else {
-    // Parse input date safely in CST context
-    const selectedDate = new Date(`${value}T00:00:00`);
-    setCurrentDate(toCSTDate(selectedDate));
-  }
-}}
-  size="small"
-/>
-
+            type="date"
+            size="small"
+            value={currentDate}
+            onChange={(e) => setCurrentDate(e.target.value || getTodayRaw())}
+          />
 
           <TextField
             size="small"
@@ -274,12 +248,7 @@ export default function LeaveApprovalPage() {
             }}
           />
 
-          <Select
-            size="small"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            sx={{ minWidth: 120 }}
-          >
+          <Select size="small" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} sx={{ minWidth: 120 }}>
             <MenuItem value="all">All</MenuItem>
             <MenuItem value="pending">Pending</MenuItem>
             <MenuItem value="approved">Approved</MenuItem>
