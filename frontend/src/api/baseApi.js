@@ -1,4 +1,4 @@
-// src/api/baseApi.js
+// src/services/baseApi.js
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { logoutAction } from './authSlice'; // adjust path if needed
 
@@ -19,7 +19,7 @@ function getCookie(name) {
 }
 
 const baseQuery = fetchBaseQuery({
-  baseUrl: 'http://localhost:8000/api/',
+  baseUrl: 'https://backend-l3f9.onrender.com/api/',
   credentials: 'include',
   prepareHeaders: (headers) => {
     headers.set('X-CSRFToken', getCookie('csrftoken') || '');
