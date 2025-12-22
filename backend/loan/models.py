@@ -87,7 +87,20 @@ class Milestone(models.Model):
         blank=True,
         related_name='updated_milestones'
     )
-    
+    notify_on_reach = models.BooleanField(
+        default=False,
+        help_text="Send an email when a loan moves into this milestone",
+    )
+
+    include_in_reports = models.BooleanField(
+        default=False,
+        help_text="Flag this milestone for reporting dashboards",
+    )
+    include_in_payroll = models.BooleanField(
+        default=False,
+        help_text="Expose this milestone in payroll calculations",
+    )
+
     class Meta:
         ordering = ['sort_order', 'name']
         # Remove the custom permissions - Django auto-creates these:
@@ -243,32 +256,46 @@ class LoanChecklistAnswer(models.Model):
 # Create your models here.
 
 
-
+class LoanRoleAssignment(models.Model):
+    loan = models.ForeignKey('Loan', on_delete=models.CASCADE, related_name='role_assignments')
+    role = models.ForeignKey('auth.Group', on_delete=models.CASCADE)
+    employees = models.ManyToManyField('employee.Employee', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Optionally: single employee per role? Use ForeignKey instead of ManyToManyField
+    class Meta:
+        unique_together = ('loan', 'role')
+        verbose_name = 'Loan Role Assignment'
+        verbose_name_plural = 'Loan Role Assignments'
 
 
 class Loan(models.Model):
+    LOCK_STATUS_CHOICES = [
+        ('lock', 'Lock'),
+        ('float', 'Float'),
+    ]
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100,default="Unknown")
 
     broker = models.ForeignKey(Broker, on_delete=models.SET_NULL, null=True)
     loan_officer = models.ForeignKey(LoanOfficer, on_delete=models.SET_NULL, null=True, related_name='loans_officer')
-    milestone = models.CharField(max_length=100,null=True)
+
+    milestone = models.ForeignKey(Milestone, null=True, blank=True, on_delete=models.SET_NULL)
 
     compensation = models.CharField(max_length=100, blank=True, null=True)
-    lock_status = models.CharField(max_length=100, blank=True, null=True)
+    lock_status = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        choices=LOCK_STATUS_CHOICES,
+        default=None,
+    )
     closing_date = models.DateField(blank=True, null=True)
     point_file = models.CharField(max_length=255, blank=True, null=True)
     subject_property = models.CharField(max_length=255, blank=True, null=True)
     loan_comment = models.TextField(blank=True, null=True)
-
     lenders = models.ManyToManyField('employee.Lender', related_name='loans', blank=True)
-
-    team_leader = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_leader')
-    team_manager = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_manager')
-    processor = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_processor')
-    support = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_support')
-
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     external_id = models.CharField(
     "Import ID", max_length=40,
     unique=True, null=True, blank=True,

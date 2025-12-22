@@ -14,18 +14,33 @@ from employee.models import Broker, LoanOfficer, Employee,Lender
 from .models import Notification
 
 from rest_framework import serializers
-from .models import Milestone
+from .models import Milestone,LoanRoleAssignment
 # ...existing imports...
 
 
 from rest_framework import serializers
 from .models import IncomeAssetNote
+from django.contrib.auth.models import Group
 
 class IncomeAssetNoteSerializer(serializers.ModelSerializer):
     class Meta:
         model = IncomeAssetNote
         fields = ["id", "loan", "editor_state", "plain_text", "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at", "loan"]
+
+
+class LoanRoleAssignmentSerializer(serializers.ModelSerializer):
+    # write
+    role_id = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all(), source='role')
+    employee_ids = serializers.PrimaryKeyRelatedField(queryset=Employee.objects.all(), source='employees', many=True, write_only=True)
+    # read
+    role_name = serializers.CharField(source='role.name', read_only=True)
+    employees = EmployeeSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = LoanRoleAssignment
+        fields = ['role_id', 'role_name', 'employee_ids', 'employees']
+
 
         
 
@@ -47,6 +62,9 @@ class MilestoneSerializer(serializers.ModelSerializer):
             'updated_at',
             'created_by',
             'updated_by',
+            'notify_on_reach',
+            "include_in_reports",
+            "include_in_payroll",
             'created_by_name',
             'updated_by_name',
             'is_active',
@@ -117,6 +135,9 @@ class MilestoneListSerializer(serializers.ModelSerializer):
             'background_color',
             'status',
             'sort_order',
+            'notify_on_reach',
+            "include_in_reports",
+            "include_in_payroll",
         ]
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -202,20 +223,21 @@ class ChecklistQuestionSerializer(serializers.ModelSerializer):
         fields = ['id', 'text', 'order']
 
 class LoanSerializer(serializers.ModelSerializer):
-    # read-side: nested serializers
+
+    milestone = MilestoneListSerializer(read_only=True)
+    # write via milestone_id
+    milestone_id = serializers.PrimaryKeyRelatedField(
+        queryset=Milestone.objects.all(), source="milestone",
+        write_only=True, required=False, allow_null=True
+    )
+
+    role_assignments = LoanRoleAssignmentSerializer(many=True, required=False)
+
     broker = BrokerSerializer(read_only=True)
     loan_officer = LoanOfficerSerializer(read_only=True)
 
-    team_leader = EmployeeSerializer(read_only=True)
-    team_manager = EmployeeSerializer(read_only=True)
-    processor = EmployeeSerializer(read_only=True)
-    support = EmployeeSerializer(read_only=True)
-
     lenders = LenderSerializer(read_only=True, many=True)
-
-    #lenders = LenderSerializer(read_only=True, many=True)
-
-    # write-only PK fields (frontend should send these on create/update)
+    
     broker_id = serializers.PrimaryKeyRelatedField(
         queryset=Broker.objects.all(), source='broker', write_only=True, required=False, allow_null=True
     )
@@ -223,18 +245,7 @@ class LoanSerializer(serializers.ModelSerializer):
         queryset=LoanOfficer.objects.all(), source='loan_officer', write_only=True, required=False, allow_null=True
     )
 
-    team_leader_id = serializers.PrimaryKeyRelatedField(
-        queryset=Employee.objects.all(), source='team_leader', write_only=True, required=False, allow_null=True
-    )
-    team_manager_id = serializers.PrimaryKeyRelatedField(
-        queryset=Employee.objects.all(), source='team_manager', write_only=True, required=False, allow_null=True
-    )
-    processor_id = serializers.PrimaryKeyRelatedField(
-        queryset=Employee.objects.all(), source='processor', write_only=True, required=False, allow_null=True
-    )
-    support_id = serializers.PrimaryKeyRelatedField(
-        queryset=Employee.objects.all(), source='support', write_only=True, required=False, allow_null=True
-    )
+
     lender_ids = serializers.PrimaryKeyRelatedField(
         queryset=Lender.objects.all(), source='lenders', write_only=True, many=True, required=False
     )
@@ -245,5 +256,22 @@ class LoanSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('id', 'created_at', 'updated_at')
 
+    def create(self, validated_data):
+        ras = validated_data.pop('role_assignments', [])
+        loan = super().create(validated_data)
+        for item in ras:
+            employees = item.pop('employees', [])
+            ra = LoanRoleAssignment.objects.create(loan=loan, **item)
+            ra.employees.set(employees)
+        return loan
 
-
+    def update(self, instance, validated_data):
+        ras = validated_data.pop('role_assignments', None)
+        loan = super().update(instance, validated_data)
+        if ras is not None:
+            LoanRoleAssignment.objects.filter(loan=loan).delete()
+            for item in ras:
+                employees = item.pop('employees', [])
+                ra = LoanRoleAssignment.objects.create(loan=loan, **item)
+                ra.employees.set(employees)
+        return loan

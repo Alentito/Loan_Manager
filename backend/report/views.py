@@ -1,12 +1,12 @@
+# backend/report/views.py
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import Count, Q, Exists, OuterRef
-from loan.models import Loan, Task
+from django.db.models import Count, Q, Exists, OuterRef, Prefetch 
+from loan.models import Loan, LoanRoleAssignment, Task
 from employee.models import Employee
-from .serializers import LoanReportSerializer
 from employee.utils import to_cst
 import logging
 
@@ -19,25 +19,21 @@ logger = logging.getLogger(__name__)
 class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = "page_size"
-    max_page_size = 100
+    max_page_size = 10000
 
 
 # -----------------------------
 # FUNDING / MILESTONE REPORT
 # -----------------------------
 class FundedLoanReportAPIView(ListAPIView):
-    serializer_class = LoanReportSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class = StandardResultsSetPagination
+    pagination_class = None
 
     def get_queryset(self):
-        request = self.request
-        user = request.user
+        user = self.request.user
+        qs = Loan.objects.all().select_related("broker", "loan_officer", "milestone")
 
-        # Start with all loans, but filter based on role & permissions
-        qs = Loan.objects.all()
-
-        # 🔐 Apply same visibility logic as LoanViewSet
+        # Visibility for non-admin users
         if not user.is_superuser and not user.has_perm("loan.view_all_loans"):
             try:
                 employee = Employee.objects.get(user=user)
@@ -46,12 +42,7 @@ class FundedLoanReportAPIView(ListAPIView):
 
             visibility_q = Q()
             if employee:
-                visibility_q |= Q(team_manager=employee)
-                visibility_q |= Q(team_leader=employee)
-                visibility_q |= Q(processor=employee)
-                visibility_q |= Q(support=employee)
-
-            # Optional: creator visibility if applicable
+                visibility_q |= Q(role_assignments__employees=employee)
             if hasattr(Loan, "created_by"):
                 visibility_q |= Q(created_by=user)
 
@@ -60,50 +51,60 @@ class FundedLoanReportAPIView(ListAPIView):
 
             qs = qs.annotate(
                 is_assigner=Exists(assigner_exists),
-                is_assignee=Exists(assignee_exists),
+                is_assignee=Exists(assignee_exists)
             ).filter(
                 visibility_q | Q(is_assigner=True) | Q(is_assignee=True)
             )
 
-        # Exclude archived unless requested
-        include_archived = request.query_params.get("include_archived", "").lower()
-        if include_archived != "true":
+        # Exclude archived
+        if self.request.query_params.get("include_archived", "").lower() != "true":
             qs = qs.filter(is_archived=False)
 
-        # Optimize FKs
-        select_related_fields = ["broker", "loan_officer", "team_leader", "team_manager", "processor", "support"]
-        qs = qs.select_related(*[f for f in select_related_fields if hasattr(Loan, f)])
-
-        # --- Apply filters ---
-        broker_id = request.query_params.get("broker")
-        officer_id = request.query_params.get("loan_officer")
-        lead_id = request.query_params.get("team_leader")
-        processor_id = request.query_params.get("processor")
-        milestone = request.query_params.get("milestone") 
-        start_date = request.query_params.get("start_date")
-        end_date = request.query_params.get("end_date")
+        # Filters
+        broker_id = self.request.query_params.get("broker")
+        officer_id = self.request.query_params.get("loan_officer")
+        lead_id = self.request.query_params.get("team_leader")
+        processor_id = self.request.query_params.get("processor")
+        milestone_id = self.request.query_params.get("milestone")
+        start_date = self.request.query_params.get("start_date")
+        end_date = self.request.query_params.get("end_date")
 
         if broker_id:
             qs = qs.filter(broker_id=broker_id)
         if officer_id:
             qs = qs.filter(loan_officer_id=officer_id)
         if lead_id:
-            qs = qs.filter(team_leader_id=lead_id)
-        if processor_id:
-            qs = qs.filter(processor_id=processor_id)
-        if milestone:  # ✅ filter by milestone (e.g. "Funded")
-            qs = qs.filter(milestone=milestone)
-            
-        # 🗓 Filter by date range (loan creation)
-        if start_date and end_date:
-            try:
-                start_cst = to_cst(start_date)
-                end_cst = to_cst(end_date)
-                qs = qs.filter(created_at__range=(start_cst, end_cst))
-            except Exception as e:
-                logger.warning(f"⚠️ Invalid date range: {e}")
+            qs = qs.filter(
+                role_assignments__role__name__iexact='lead',
+                role_assignments__employees__id=lead_id
+            )
 
-        return qs
+        if processor_id:
+            qs = qs.filter(
+                role_assignments__role__name__iexact='processor',
+                role_assignments__employees__id=processor_id
+            )
+
+        if milestone_id:
+            qs = qs.filter(milestone_id=milestone_id)
+        if start_date:
+            qs = qs.filter(created_at__date__gte=start_date)
+
+        if end_date:
+            qs = qs.filter(created_at__date__lte=end_date)
+            
+        # Prefetch role assignments for efficient access
+        qs = qs.prefetch_related(
+            Prefetch(
+                'role_assignments',
+                queryset=LoanRoleAssignment.objects.select_related('role').prefetch_related('employees')
+            )
+        )
+
+        return qs.distinct()
+ # avoid duplicates from multiple role_assignments
+
+
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -114,23 +115,39 @@ class FundedLoanReportAPIView(ListAPIView):
                 "message": "No data found for selected filters."
             }, status=200)
 
-        # Group by milestone
         milestone_counts = (
-            queryset.values("milestone")
+            queryset
+            .filter(
+                milestone__isnull=False,
+                milestone__include_in_reports=True,   # ✅ USE EXISTING FIELD
+                milestone__status="active",           # ✅ OPTIONAL but recommended
+            )
+            .values(
+                "milestone__id",
+                "milestone__name",
+                "milestone__sort_order",
+                "milestone__color",
+                "milestone__background_color",
+            )
             .annotate(count=Count("id"))
-            .order_by("milestone")
+            .order_by("milestone__sort_order")
         )
 
         results = [
-            {"milestone": item["milestone"] or "Unknown", "count": item["count"]}
-            for item in milestone_counts
+            {
+                "milestone_id": row["milestone__id"],
+                "milestone": row["milestone__name"],
+                "count": row["count"],
+            }
+            for row in milestone_counts
         ]
-        total_loans = sum(item["count"] for item in results)
+
+        total_loans = sum(row["count"] for row in results)
 
         return Response({
             "results": results,
-            "default_milestone": "Funded",
-            "total_loans": total_loans
+            
+            "total_loans": total_loans,
         })
 
 
@@ -138,36 +155,46 @@ class FundedLoanReportAPIView(ListAPIView):
 # LINKED EMPLOYEES BY BROKER
 # -----------------------------
 class BrokerLinkedEmployeesAPIView(APIView):
-    permission_classes = [IsAuthenticated]  # Simple auth
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         broker_id = request.query_params.get("broker")
         if not broker_id:
-            return Response({"loan_officers": [], "team_leaders": [], "processors": []})
+            return Response({
+                "loan_officers": [],
+                "team_leaders": [],
+                "processors": []
+            })
 
-        loans = Loan.objects.filter(broker_id=broker_id).select_related(
-            "loan_officer", "team_leader", "processor"
+        loans = Loan.objects.filter(broker_id=broker_id).prefetch_related(
+            Prefetch(
+                "role_assignments",
+                queryset=LoanRoleAssignment.objects.select_related("role").prefetch_related("employees")
+            ),
+            "loan_officer"
         )
 
         officers = {}
-        leads = {}
+        team_leaders = {}
         processors = {}
 
         for loan in loans:
             if loan.loan_officer:
                 officers[loan.loan_officer.id] = loan.loan_officer.name
-            if loan.team_leader:
-                leads[loan.team_leader.id] = loan.team_leader.name
-            if loan.processor:
-                processors[loan.processor.id] = {
-                    "name": loan.processor.name,
-                    "team_leader_id": loan.team_leader.id if loan.team_leader else None,
-                }
+
+            for ra in loan.role_assignments.all():
+                if ra.role.name.lower() == "lead":
+                    for emp in ra.employees.all():
+                        team_leaders[emp.id] = emp.name
+
+                if ra.role.name.lower() == "processor":
+                    for emp in ra.employees.all():
+                        processors[emp.id] = emp.name
 
         return Response({
             "loan_officers": [{"id": k, "name": v} for k, v in officers.items()],
-            "team_leaders": [{"id": k, "name": v} for k, v in leads.items()],
-            "processors": [{"id": k, "name": v["name"], "team_leader_id": v["team_leader_id"]} for k, v in processors.items()],
+            "team_leaders": [{"id": k, "name": v} for k, v in team_leaders.items()],
+            "processors": [{"id": k, "name": v} for k, v in processors.items()],
         })
 
 
@@ -175,16 +202,30 @@ class BrokerLinkedEmployeesAPIView(APIView):
 # LINKED PROCESSORS BY TEAM LEAD
 # -----------------------------
 class TeamLeadProcessorsAPIView(APIView):
-    permission_classes = [IsAuthenticated]  # Simple auth
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         team_lead_id = request.query_params.get("team_leader")
         if not team_lead_id:
             return Response({"processors": []})
 
-        loans = Loan.objects.filter(team_leader_id=team_lead_id).select_related("processor")
+        loans = Loan.objects.filter(
+            role_assignments__role__name__icontains="lead",
+            role_assignments__employees__id=team_lead_id
+        ).prefetch_related(
+            Prefetch(
+                "role_assignments",
+                queryset=LoanRoleAssignment.objects.select_related("role").prefetch_related("employees")
+            )
+        ).distinct()
 
-        processors = {l.processor.id: l.processor.name for l in loans if l.processor}
+        processors = {}
+
+        for loan in loans:
+            for ra in loan.role_assignments.all():
+                if ra.role.name.lower() == "processor":
+                    for emp in ra.employees.all():
+                        processors[emp.id] = emp.name
 
         return Response({
             "processors": [{"id": k, "name": v} for k, v in processors.items()]

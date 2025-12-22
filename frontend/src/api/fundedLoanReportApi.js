@@ -8,10 +8,8 @@ export const fundedLoanReportApi = createApi({
 
   endpoints: (builder) => ({
     // 🔹 Fetch Funded Loan Report
-    getFundedLoanReport: builder.query({
+  getFundedLoanReport: builder.query({
   query: ({
-    page = 1,
-    pageSize = 10,
     broker,
     loan_officer,
     team_leader,
@@ -20,8 +18,6 @@ export const fundedLoanReportApi = createApi({
     end_date,
   }) => {
     const params = new URLSearchParams();
-    params.append("page", page);
-    params.append("page_size", pageSize);
 
     if (broker) params.append("broker", broker);
     if (loan_officer) params.append("loan_officer", loan_officer);
@@ -37,12 +33,15 @@ export const fundedLoanReportApi = createApi({
 
 
       // ✅ Transform backend response
-      transformResponse: (response) => ({
-        milestones: response?.results || [],
-        default_milestone: response?.default_milestone || "Funded",
-        total_loans: response?.total_loans || 0,
-        message: response?.message || "",
-      }),
+      transformResponse: (response) => {
+  console.log("📦 backend response:", response);
+
+  return {
+    milestones: Array.isArray(response?.results) ? response.results : [],
+    total_loans: Number(response?.total_loans || 0),
+  };
+},
+
 
       providesTags: (result) =>
   result?.milestones?.length

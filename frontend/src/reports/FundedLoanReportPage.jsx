@@ -74,7 +74,7 @@ export default function FundedLoanReportPage() {
     end_date: filters.end_date,
     page: filters.page,
   });
-
+  console.log("📊 funded report raw data:", data);
   // ======================================================
   // 🔸 Derived dropdown options
   // ======================================================
@@ -113,11 +113,12 @@ const processors = useMemo(() => {
 }, [filters.team_leader, filters.broker, leadProcessors, linkedData, allEmployees]);
 
 
-  const handleMilestoneClick = (milestone) => {
-  if (milestone) {
-    navigate(`/loans?milestone=${encodeURIComponent(milestone)}`);
+  const handleMilestoneClick = (milestoneId) => {
+  if (milestoneId) {
+    navigate(`/loans?milestone=${milestoneId}`);
   }
 };
+
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
@@ -278,12 +279,14 @@ const processors = useMemo(() => {
               {data?.milestones?.length ? (
                 <>
                 {data.milestones.map((row, i) => (
-  <TableRow
-    key={i}
-    hover
-    sx={{ cursor: "pointer" }}
-    onClick={() => handleMilestoneClick(row.milestone)}
-  >
+                  
+<TableRow
+  key={i}
+  hover
+  sx={{ cursor: "pointer" }}
+  onClick={() => handleMilestoneClick(row.milestone_id)}
+>
+
     <TableCell>{row.milestone || "Unknown"}</TableCell>
     <TableCell align="right">{row.count || 0}</TableCell>
   </TableRow>
@@ -311,3 +314,9 @@ const processors = useMemo(() => {
     </Box>
   );
 }
+
+
+
+
+
+

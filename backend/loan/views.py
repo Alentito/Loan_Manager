@@ -7,6 +7,12 @@ from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from .pagination import CustomPageNumberPagination
 
+
+# ...existing imports...
+from django.db.models import Prefetch
+from .models import LoanRoleAssignment
+
+
 from rest_framework.permissions import IsAuthenticated
 from .models import IncomeAssetNote
 from .serializers import IncomeAssetNoteSerializer
@@ -62,6 +68,9 @@ from django.utils import timezone
 from django.core.exceptions import FieldDoesNotExist
 import logging
 from django.db.models import Q
+
+from django.conf import settings
+from django.core.mail import send_mail
 
 logger = logging.getLogger(__name__)
 
@@ -571,55 +580,54 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
     filterset_fields = [ 'first_name', 'milestone', 'created_at', 'closing_date', 'broker' ,'is_archived']
 
     
-    search_fields = ['first_name', 'last_name', 'broker__name']
+    search_fields = ['first_name', 'last_name', 'broker__name','milestone']
 
     ordering_fields = ['created_at', 'amount', 'milestone', 'first_name']  # allowed sort fields
-    ordering = ['-created_at']  # default sort
+    ordering = ['created_at']  # default sort
+
+    # ...existing class attrs...
+
+    def _with_role_prefetch(self, base_qs):
+        return base_qs.prefetch_related(
+            Prefetch(
+                'role_assignments',
+                queryset=LoanRoleAssignment.objects
+                    .select_related('role')
+                    .prefetch_related('employees')
+            )
+        ).select_related('broker', 'loan_officer')  # add others if they still exist
+
 
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
             return Loan.objects.none()
 
-        qs = Loan.objects.all()
+        # Start with base queryset INCLUDING prefetch of role assignments
+        qs = self._with_role_prefetch(Loan.objects.all())
 
-        # Superusers or users with explicit permission see all loans
         if user.is_superuser or user.has_perm("loan.view_all_loans"):
             include_archived = self.request.query_params.get("include_archived", "").lower()
             if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
                 qs = qs.filter(is_archived=False)
-            # Prefetch common FKs if present
-            select_candidates = [f for f in ("broker","loan_officer","team_leader","team_manager","processor","support") if _has_field(Loan, f)]
-            if select_candidates:
-                try:
-                    qs = qs.select_related(*select_candidates)
-                except Exception:
-                    logger.exception("select_related failed")
             return qs.order_by("-created_at")
 
-        # Non-privileged: restrict to loans where user is involved
+        # Non-privileged visibility logic
+        from employee.models import Employee as EmpModel
         try:
-            employee = Employee.objects.get(user=user)
-        except Employee.DoesNotExist:
+            employee = EmpModel.objects.get(user=user)
+        except EmpModel.DoesNotExist:
             employee = None
 
-        # Team membership on the loan (Employee FK fields)
         visibility_q = Q()
-        if employee:
-            if _has_field(Loan, "team_manager"):
-                visibility_q |= Q(team_manager=employee)
-            if _has_field(Loan, "team_leader"):
-                visibility_q |= Q(team_leader=employee)
-            if _has_field(Loan, "processor"):
-                visibility_q |= Q(processor=employee)
-            if _has_field(Loan, "support"):
-                visibility_q |= Q(support=employee)
+        # If legacy FK fields were removed, _has_field guards them.
+        for f in ("team_manager","team_leader","processor","support"):
+            if employee and _has_field(Loan, f):
+                visibility_q |= Q(**{f: employee})
 
-        # Optional: creator (if your Loan model has created_by)
         if _has_field(Loan, "created_by"):
             visibility_q |= Q(created_by=user)
 
-        # Tasks: assigner (User) or assignee (Employee)
         assigner_exists = Task.objects.filter(loan_id=OuterRef("pk"), assigner_id=user.id)
         if employee:
             assignee_exists = Task.objects.filter(loan_id=OuterRef("pk"), assignee_id=employee.id)
@@ -633,18 +641,9 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
             visibility_q | Q(is_assigner=True) | Q(is_assignee=True)
         )
 
-        # Exclude archived unless explicitly requested (and not in archive/unarchive actions)
         include_archived = self.request.query_params.get("include_archived", "").lower()
         if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
             qs = qs.filter(is_archived=False)
-
-        # Optimize FKs
-        select_candidates = [f for f in ("broker","loan_officer","team_leader","team_manager","processor","support") if _has_field(Loan, f)]
-        if select_candidates:
-            try:
-                qs = qs.select_related(*select_candidates)
-            except Exception:
-                logger.exception("select_related failed")
 
         return qs.distinct().order_by("-created_at")
         
@@ -691,58 +690,69 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
 
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        previous_milestone = instance.milestone
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
 
-    @action(detail=True, methods=['get'], url_path='checklist-answers')
-    def get_checklist_answers(self, request, pk=None):
-        loan = self.get_object()
-        answers = LoanChecklistAnswer.objects.filter(loan=loan)
-        data = {str(a.question_id): a.answer for a in answers}
-        return Response(data)
-
-    @action(detail=True, methods=['patch'], url_path='checklist')
-    def update_checklist(self, request, pk=None):
-        from audit.services import persist_event  # Import here or top
-        loan = self.get_object()
-        answers = request.data.get("answers", {})
-        comments = request.data.get("comments", {})
-
-        question_ids = [int(qid) for qid in answers.keys()]
-        valid_ids = set(ChecklistQuestion.objects.filter(id__in=question_ids).values_list('id', flat=True))
-        invalid_ids = set(question_ids) - valid_ids
-
-        if invalid_ids:
-            return Response({"error": f"Invalid question IDs: {invalid_ids}"}, status=400)
-
-        diffs = {}
         with transaction.atomic():
-            for qid, answer in answers.items():
-                question = ChecklistQuestion.objects.get(pk=qid)
-                obj, created = LoanChecklistAnswer.objects.update_or_create(
-                    loan=loan,
-                    question=question,
-                    defaults={
-                        "answer": str(answer).lower() in ["true", "1", "yes"],
-                        "comment": comments.get(str(qid), "")
-                    }
-                )
+            self.perform_update(serializer)
 
-                old_answer = not created and obj.answer
-                new_answer = str(answer).lower() in ["true", "1", "yes"]
-                if old_answer != new_answer:
-                    diffs[f"checklist_question_{qid}"] = {
-                        "old": old_answer,
-                        "new": new_answer
-                    }
+        instance.refresh_from_db()
+        new_milestone = instance.milestone
 
-        # Record a grouped audit event for checklist updates
-        if diffs:
-            persist_event(
-                instance=loan,
-                diff=diffs,
-                op="UPDATE"
-            )
+        if (
+            new_milestone
+            and new_milestone != previous_milestone
+            and Milestone.objects.filter(name=new_milestone, notify_on_reach=True).exists()
+        ):
+            self._send_milestone_email(instance, previous_milestone, new_milestone)
 
-        return Response({"status": "Checklist updated"}, status=status.HTTP_200_OK)
+        return Response(serializer.data)
+
+    def _send_milestone_email(self, loan, old_milestone, new_milestone):
+        milestone_obj = Milestone.objects.filter(name=new_milestone, notify_on_reach=True).first()
+        if not milestone_obj:
+            return
+
+        recipients = set()
+        for attr in ("broker", "loan_officer"):
+            person = getattr(loan, attr, None)
+            email = getattr(person, "email", None)
+            if email:
+                recipients.add(email)
+
+        for attr in ("team_leader", "team_manager", "processor", "support"):
+            employee = getattr(loan, attr, None)
+            email = getattr(getattr(employee, "user", None), "email", None)
+            if email:
+                recipients.add(email)
+
+        if not recipients:
+            fallback = getattr(settings, "MILESTONE_ALERT_RECIPIENTS", [])
+            recipients.update(fallback)
+
+        if not recipients:
+            return
+
+        subject = f"Loan {loan.id} reached milestone: {new_milestone}"
+        message = (
+            f"Loan {loan} moved from '{old_milestone or 'N/A'}' to '{new_milestone}'.\n"
+            f"Triggered by milestone setting."
+        )
+
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            recipient_list=list(recipients),
+            fail_silently=False,
+        )
+
+    
     
     @action(detail=False, methods=['delete'], url_path='bulk-delete')
     def bulk_delete(self, request):

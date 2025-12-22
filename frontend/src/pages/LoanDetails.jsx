@@ -122,6 +122,7 @@ const localTheme = createTheme({
 
 export default function LoanDetails() {
 
+  const [roleAssignments, setRoleAssignments] = useState({});
 
   
 
@@ -221,32 +222,31 @@ const outerTheme = useTheme();
   }, [selectedLoan]);
 
   // handle click — only sets selectedLoan and editMode; modal opens from effect above
-  const handleEditLoan = (loanObj) => {
+ const handleEditLoan = (loanObj) => {
+    if (loanObj?.role_assignments) {
+      const mapped = {};
+      loanObj.role_assignments.forEach(ra => {
+        mapped[ra.role_id] = ra.employees || [];
+      });
+      setRoleAssignments(mapped);
+    } else {
+      setRoleAssignments({});
+    }
     setSelectedLoan(loanObj);
     setEditMode(true);
-    setLenders(Array.isArray(loanObj?.lenders) ? loanObj.lenders : []);
-
   };
-  const handleSaveEditLoan = async (payloadFromDialog) => {
+
+  const handleSaveEditLoan = async (payload) => {
     try {
-      await updateLoan({ id: loan.id, data: payloadFromDialog }).unwrap();
+      await updateLoan({ id: loan.id, data: payload }).unwrap();
       setOpenNew(false);
       setEditMode(false);
       setSelectedLoan(null);
-      setNewLoan({});
-      setLenders([]);
+      setRoleAssignments({});
       refetch();
-      setSnackbar({
-        open: true,
-        severity: "success",
-        message: "Loan updated.",
-      });
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        severity: "error",
-        message: "Failed to update loan.",
-      });
+      setSnackbar({ open: true, severity: "success", message: "Loan updated." });
+    } catch {
+      setSnackbar({ open: true, severity: "error", message: "Failed to update loan." });
     }
   };
 
@@ -454,30 +454,54 @@ const outerTheme = useTheme();
 
                               {/* Mini-card 2 */}
                               <Card
-                                variant="outlined"
-                                sx={{
-                                  width: "100%", // full width of left column
-                                  boxSizing: "border-box",
-                                  p: 2,
-                                }}
-                              >
-                                <Typography sx={{ mb: 1 }}>
-                                  <strong>Loan Comment:</strong>{" "}
-                                  {loan.loan_comment ?? "-"}
-                                </Typography>
-                                <Typography sx={{ mb: 1 }}>
-                                  <strong>Team Leader:</strong>{" "}
-                                  {loan.team_leader?.name ?? "-"}
-                                </Typography>
-                                <Typography sx={{ mb: 1 }}>
-                                  <strong>Processor:</strong>{" "}
-                                  {loan.processor?.name ?? "-"}
-                                </Typography>
-                                <Typography sx={{ mb: 1 }}>
-                                  <strong>Support:</strong>{" "}
-                                  {loan.support?.name ?? "-"}
-                                </Typography>
-                              </Card>
+  variant="outlined"
+  sx={{
+    width: "100%",
+    boxSizing: "border-box",
+    p: 2,
+  }}
+>
+  <Typography variant="subtitle1" gutterBottom>
+    Assigned Roles
+  </Typography>
+
+  {Array.isArray(loan.role_assignments) && loan.role_assignments.length > 0 ? (
+    <Stack spacing={1.5}>
+      {loan.role_assignments.map((ra) => (
+        <Box key={ra.role_id}>
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+            {ra.role_name || ra.role?.name || `Role #${ra.role_id}`}
+          </Typography>
+
+          {Array.isArray(ra.employees) && ra.employees.length > 0 ? (
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {ra.employees.map((emp) => (
+                <Chip
+                  key={emp.id || emp}
+                  label={
+                    emp.name ||
+                    emp.full_name ||
+                    emp.email ||
+                    `#${emp.id || emp}`
+                  }
+                  size="small"
+                />
+              ))}
+            </Stack>
+          ) : (
+            <Typography variant="caption" color="text.secondary">
+              No employees assigned
+            </Typography>
+          )}
+        </Box>
+      ))}
+    </Stack>
+  ) : (
+    <Typography variant="body2" color="text.secondary">
+      No roles assigned
+    </Typography>
+  )}
+</Card>
                             </Box>
 
                             {/* RIGHT column (fixed ~30%) */}
@@ -574,24 +598,24 @@ const outerTheme = useTheme();
         <DocStatus loanId={loan.id} />
 
         {/* LoanFormDialog modal (safe defaults) */}
-        <Suspense fallback={null}>
-          <LoanFormDialog
-            open={openNew}
-            onClose={() => {
-              setOpenNew(false);
-              setEditMode(false);
-              setSelectedLoan(null);
-              setNewLoan({});
-              setLenders([]);
-            }}
-            onSave={handleSaveEditLoan}
-            newLoan={newLoan}
-            setNewLoan={setNewLoan}
-            lenders={lenders}
-            setLenders={setLenders}
-            milestones={milestones}
-          />
-        </Suspense>
+         <Suspense fallback={null}>
+    <LoanFormDialog
+      open={openNew}
+      onClose={() => {
+        setOpenNew(false);
+        setEditMode(false);
+        setSelectedLoan(null);
+        setRoleAssignments({});
+      }}
+      onSave={handleSaveEditLoan}
+      newLoan={newLoan}
+      setNewLoan={setNewLoan}
+      lenders={lenders}
+      setLenders={setLenders}
+      roleAssignments={roleAssignments}
+      setRoleAssignments={setRoleAssignments}
+    />
+  </Suspense>
 
         {/* feedback */}
         <Snackbar

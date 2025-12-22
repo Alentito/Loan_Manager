@@ -9,6 +9,7 @@ import {
   StepLabel,
   FormGroup,
   FormControlLabel,
+  TablePagination,
   Checkbox,
   Divider,
   Select,
@@ -33,6 +34,8 @@ import {
 const steps = ["Role Details", "Assign Permissions"];
 
 export default function RoleManagement() {
+  const [assignableOnLoan, setAssignableOnLoan] = useState(false);
+
   const [mode, setMode] = useState("create");
   const [editingRoleId, setEditingRoleId] = useState(null);
   const [activeStep, setActiveStep] = useState(0);
@@ -40,25 +43,33 @@ export default function RoleManagement() {
   const [roleType, setRoleType] = useState("Custom");
   const [selectedPermissions, setSelectedPermissions] = useState({});
   const [modalOpen, setModalOpen] = useState(false);
+  const [sortOrder, setSortOrder] = useState(0);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const [createRole, { isLoading: savingRole }] = useCreateGroupMutation();
   const [updateRole] = useUpdateGroupMutation();
   const [deleteRole] = useDeleteGroupMutation();
 
-  const {
-    data: permissionsData = [],
-    isLoading: loadingPerms,
-  } = useGetPermissionsQuery();
+  const { data: permissionsData = [], isLoading: loadingPerms } =
+    useGetPermissionsQuery();
 
   const {
     data: groupsRaw = {},
     isLoading: loadingGroups,
     refetch: refetchGroups,
-  } = useGetGroupsQuery();
+  } = useGetGroupsQuery({ page: page + 1, page_size: rowsPerPage });
 
-  const groups = Array.isArray(groupsRaw)
-    ? groupsRaw
-    : groupsRaw.results || [];
+  const groups = Array.isArray(groupsRaw) ? groupsRaw : groupsRaw.results || [];
+
+  const totalCount = groupsRaw?.count ?? groups.length;
+
+  const sortedGroups = [...groups].sort((a, b) => {
+    const aOrder = a.sort_order ?? 0;
+    const bOrder = b.sort_order ?? 0;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a.name.localeCompare(b.name);
+  });
 
   const groupedPermissions = useMemo(() => {
     const map = {};
@@ -102,6 +113,7 @@ export default function RoleManagement() {
     setRoleType("Custom");
     setSelectedPermissions({});
     setActiveStep(0);
+    setSortOrder(0);
   };
 
   const openCreateModal = () => {
@@ -110,28 +122,34 @@ export default function RoleManagement() {
   };
 
   const openEditModal = (role) => {
-    setMode("edit");
-    setEditingRoleId(role.id);
-    setRoleName(role.name);
-    setRoleType(role.type || "Custom");
-    setSelectedPermissions(() => {
-      const next = {};
-      (role.permissions || []).forEach((perm) => {
-        const groupKey = `${perm.app_label}/${perm.model}`;
-        if (!next[groupKey]) next[groupKey] = {};
-        next[groupKey][perm.codename] = true;
-      });
-      return next;
+  setMode("edit");
+  setEditingRoleId(role.id);
+  setRoleName(role.name);
+  setRoleType(role.type || "Custom");
+  setSortOrder(role.sort_order ?? 0);
+  setAssignableOnLoan(!!role.assignable_on_loan); // <-- Add this line
+  setSelectedPermissions(() => {
+    const next = {};
+    (role.permissions || []).forEach((perm) => {
+      const groupKey = `${perm.app_label}/${perm.model}`;
+      if (!next[groupKey]) next[groupKey] = {};
+      next[groupKey][perm.codename] = true;
     });
-    setActiveStep(0);
-    setModalOpen(true);
-  };
+    return next;
+  });
+  setActiveStep(0);
+  setModalOpen(true);
+};
 
   const handleCloseModal = () => {
     setModalOpen(false);
     resetFormState();
   };
-
+  const handleChangePage = (_event, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
   const handleNext = async () => {
     if (activeStep < steps.length - 1) {
       setActiveStep((prev) => prev + 1);
@@ -152,6 +170,8 @@ export default function RoleManagement() {
       name: roleName,
       type: roleType,
       permission_ids: selectedIds,
+      sort_order: Number(sortOrder) || 0,
+      assignable_on_loan: assignableOnLoan,
     };
 
     try {
@@ -253,9 +273,14 @@ export default function RoleManagement() {
   };
 
   return (
-    <Box sx={{ p: 3, width: "100%",        // ensure it stretches full available width
+    <Box
+      sx={{
+        p: 3,
+        width: "100%", // ensure it stretches full available width
         maxWidth: "100%",
-        boxSizing: "border-box", }}>
+        boxSizing: "border-box",
+      }}
+    >
       <Typography variant="h5" sx={{ mb: 2 }}>
         Roles
       </Typography>
@@ -270,17 +295,18 @@ export default function RoleManagement() {
             <TableRow>
               <TableCell>Role Name</TableCell>
               <TableCell>Permissions</TableCell>
+              <TableCell>Sort Order</TableCell>
               <TableCell width={160}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loadingGroups ? (
               <TableRow>
-                <TableCell colSpan={3}>Loading…</TableCell>
+                <TableCell colSpan={4}>Loading…</TableCell>
               </TableRow>
             ) : groups.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3}>
+                <TableCell colSpan={4}>
                   No roles found. Create your first role.
                 </TableCell>
               </TableRow>
@@ -290,11 +316,11 @@ export default function RoleManagement() {
                   <TableCell>{group.name}</TableCell>
                   <TableCell>
                     {group.permissions?.length
-                      ? group.permissions
-                          .map((perm) => perm.name)
-                          .join(", ")
+                      ? group.permissions.map((perm) => perm.name).join(", ")
                       : "—"}
                   </TableCell>
+                  <TableCell width={120}>{group.sort_order ?? 0}</TableCell>
+
                   <TableCell>
                     <Button
                       size="small"
@@ -317,6 +343,16 @@ export default function RoleManagement() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <TablePagination
+        component="div"
+        count={totalCount}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+      />
 
       <Modal open={modalOpen} onClose={handleCloseModal}>
         <Box
@@ -356,18 +392,23 @@ export default function RoleManagement() {
                 onChange={(e) => setRoleName(e.target.value)}
                 sx={{ mb: 2 }}
               />
-              <Typography variant="body2" sx={{ mb: 1 }}>
-                Role Type
-              </Typography>
-              <Select
+              <TextField
+                label="Sort Order"
+                type="number"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
                 fullWidth
-                value={roleType}
-                onChange={(e) => setRoleType(e.target.value)}
-                sx={{ mb: 3 }}
-              >
-                <MenuItem value="Custom">Custom</MenuItem>
-                <MenuItem value="System">System</MenuItem>
-              </Select>
+                sx={{ mb: 2 }}
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={assignableOnLoan}
+                    onChange={(e) => setAssignableOnLoan(e.target.checked)}
+                  />
+                }
+                label="Assignable on Loan"
+              />
             </Box>
           ) : (
             renderPermissionStep()

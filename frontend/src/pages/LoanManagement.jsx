@@ -30,6 +30,7 @@ import {
   CircularProgress,
   Box,
   TextField,
+  Grid,
   Button,
   Tabs,
   Tab,
@@ -63,7 +64,7 @@ export default function LoanManagement() {
   const Permissions = useSelector(
     (state) => state.auth.user?.permissions || []
   );
-
+const [roleAssignments, setRoleAssignments] = useState({});
 
   const [openFilter, setOpenFilter] = React.useState(false);
   const [filters, setFilters] = React.useState({
@@ -107,7 +108,7 @@ export default function LoanManagement() {
     last_name: "",
     broker_id: "",
     loan_officer_id: "",
-    milestone: "",
+    milestone_id: "",
     compensation: "",
     lock_status: "",
     closing_date: "",
@@ -135,14 +136,21 @@ export default function LoanManagement() {
       ...loan,
       broker_id: loan.broker?.id || "",
       loan_officer_id: loan.loan_officer?.id || "",
-      team_leader_id: loan.team_leader?.id ?? null,
-      team_manager_id: loan.team_manager?.id ?? null,
-      processor_id: loan.processor?.id ?? null,
-      support_id: loan.support?.id ?? null,
+      milestone_id: loan.milestone?.id || "",   // set FK on edit
+
+   
       // Optionally, set other _id fields for team_leader, etc. if needed
     }); // Populate modal with loan data
     setLenders(Array.isArray(loan.lenders) ? loan.lenders : []); // prefill
-
+if (loan.role_assignments) {
+    const assignments = {};
+    loan.role_assignments.forEach((ra) => {
+      assignments[ra.role_id] = ra.employees || [];
+    });
+    setRoleAssignments(assignments);
+  } else {
+    setRoleAssignments({});
+  }
     setEditMode(true);
     setOpenNew(true);
   };
@@ -177,7 +185,7 @@ export default function LoanManagement() {
     3: "Busted",
   };
   const milestoneFilter =
-    activeTab === "all" || activeTab === "archived" ? undefined : activeTab;
+    activeTab === "Active Loans" || activeTab === "all" || activeTab === "archived" ? undefined : activeTab;
 
   const includeArchived = activeTab === "archived";
 const loanQueryArgs = useMemo(() => {
@@ -244,6 +252,13 @@ const loanQueryArgs = useMemo(() => {
     document.body.removeChild(link);
   };
 
+const roleAssignmentsArray = Object.entries(roleAssignments).map(
+  ([roleId, emps]) => ({
+    role_id: Number(roleId),
+    employee_ids: emps.map((e) => e.id),
+  })
+);
+
   const handleSaveNewLoan = async () => {
     try {
       const newLoanData = {
@@ -251,7 +266,7 @@ const loanQueryArgs = useMemo(() => {
         last_name: newLoan.last_name || "Unknown",
         broker_id: newLoan.broker_id || null, // <-- correct
         loan_officer_id: newLoan.loan_officer_id || null, // <-- correct
-        milestone: newLoan.milestone || "Unknown",
+        milestone_id: newLoan.milestone_id || null,
         compensation: newLoan.compensation || null,
         lock_status: newLoan.lock_status || null,
         closing_date: newLoan.closing_date || null,
@@ -259,10 +274,7 @@ const loanQueryArgs = useMemo(() => {
         subject_property: newLoan.subject_property || null,
         loan_comment: newLoan.loan_comment || null,
         lender_ids: (lenders || []).map((l) => l?.id).filter((id) => id != null), // M2M IDs
-        team_leader_id: newLoan.team_leader_id || null,
-        team_manager_id: newLoan.team_manager_id || null,
-        processor_id: newLoan.processor_id || null,
-        support_id: newLoan.support_id || null,
+        role_assignments: roleAssignmentsArray,
       };
 
       if (editMode && selectedLoan) {
@@ -277,21 +289,19 @@ const loanQueryArgs = useMemo(() => {
         last_name: "",
         broker_id: "",
         loan_officer_id: "",
-        milestone: "",
+        milestone_id: "",
         compensation: "",
         lock_status: "",
         closing_date: "",
         point_file: "",
         subject_property: "",
         loan_comment: "",
-        team_leader_id: "",
-        team_manager_id: "",
-        processor_id: "",
-        support_id: "",
+       
       });
       setLenders([]); // reset to empty
       setOpenNew(false);
       setEditMode(false);
+      setRoleAssignments({});
       setSelectedLoan(null);
     } catch (error) {
       console.error("Error saving loan:", error);
@@ -386,7 +396,7 @@ const loanQueryArgs = useMemo(() => {
         }}
       >
         <Tab label="Loan Pipeline" value="all" />
-        <Tab label="Active Loans" value="Application" />
+        <Tab label="Active Loans" value="Active Loans" />
         <Tab label="Funded Loans" value="funded" />
         <Tab label="Busted Loans" value="busted" />
         <Tab label="Archived Loans" value="archived" />
@@ -568,174 +578,142 @@ const loanQueryArgs = useMemo(() => {
         lenders={lenders}
         setLenders={setLenders}
         milestones={milestones}
+        roleAssignments={roleAssignments}
+        setRoleAssignments={setRoleAssignments}
       />
-      <Dialog
+       <Dialog
         open={openFilter}
         onClose={() => setOpenFilter(false)}
-        maxWidth="sm"
+        maxWidth="xs"         // small width
         fullWidth
+        keepMounted
       >
-        <DialogTitle>Filter Loans</DialogTitle>
-        <DialogContent dividers>
-          {/* Borrower Search */}
-          <TextField
-            label="first name"
-            fullWidth
-            sx={{ mb: 2 }}
-            value={filters.first_name || ""}
-            onChange={(e) => handleFilterChange("first_name", e.target.value)}
-          />
+        <DialogTitle sx={{ py: 1.5, fontSize: 16, fontWeight: 600 }}>
+          Filter Loans
+        </DialogTitle>
 
-          {/* Broker */}
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Broker</InputLabel>
-            <Select
-              value={filters.broker || ""}
-              onChange={(e) => handleFilterChange("broker", e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              {brokers?.map((b) => (
-                <MenuItem key={b.id} value={b.id}>
-                  {b.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+        <DialogContent dividers sx={{ p: 1.5 }}>
+          <Grid container spacing={1.25}>
+            {/* Broker */}
+            <Grid item xs={12}>
+              <FormControl fullWidth size="small" margin="dense">
+                <InputLabel>Broker</InputLabel>
+                <Select
+                  label="Broker"
+                  value={filters.broker || ""}
+                  onChange={(e) => handleFilterChange("broker", e.target.value)}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {brokers.map((b) => (
+                    <MenuItem key={b} value={b}>{b}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
 
-          {/* Loan Officer */}
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Loan Officer</InputLabel>
-            <Select
-              value={filters.loanOfficer || ""}
-              onChange={(e) =>
-                handleFilterChange("loanOfficer", e.target.value)
-              }
-            >
-              <MenuItem value="">All</MenuItem>
-              {loanOfficers?.map((o) => (
-                <MenuItem key={o.id} value={o.id}>
-                  {o.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+            {/* Loan Officer */}
+            <Grid item xs={12}>
+              <FormControl fullWidth size="small" margin="dense">
+                <InputLabel>Loan Officer</InputLabel>
+                <Select
+                  label="Loan Officer"
+                  value={filters.loanOfficer || ""}
+                  onChange={(e) => handleFilterChange("loanOfficer", e.target.value)}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {loanOfficers.map((o) => (
+                    <MenuItem key={o} value={o}>{o}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
 
-          {/* Milestone */}
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Milestone</InputLabel>
-            <Select
-              value={filters.milestone || ""}
-              onChange={(e) => handleFilterChange("milestone", e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="Application">Application</MenuItem>
-              <MenuItem value="Underwriting">Underwriting</MenuItem>
-              <MenuItem value="Funded">Funded</MenuItem>
-              <MenuItem value="Busted">Busted</MenuItem>
-            </Select>
-          </FormControl>
+            {/* Milestone */}
+            <Grid item xs={12}>
+              <FormControl fullWidth size="small" margin="dense">
+                <InputLabel>Milestone</InputLabel>
+                <Select
+                  label="Milestone"
+                  value={filters.milestone || ""}
+                  onChange={(e) => handleFilterChange("milestone", e.target.value)}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {milestones.map((m) => (
+                    <MenuItem key={m} value={m}>{m}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
 
-          {/* Lock Status */}
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Lock Status</InputLabel>
-            <Select
-              value={filters.lockStatus || ""}
-              onChange={(e) => handleFilterChange("lockStatus", e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="Locked">Locked</MenuItem>
-              <MenuItem value="Unlocked">Unlocked</MenuItem>
-            </Select>
-          </FormControl>
+            {/* Amount range */}
+            <Grid item xs={6}>
+              <TextField
+                label="Min Amount"
+                type="number"
+                size="small"
+                fullWidth
+                margin="dense"
+                value={filters.minAmount || ""}
+                onChange={(e) => handleFilterChange("minAmount", e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                label="Max Amount"
+                type="number"
+                size="small"
+                fullWidth
+                margin="dense"
+                value={filters.maxAmount || ""}
+                onChange={(e) => handleFilterChange("maxAmount", e.target.value)}
+              />
+            </Grid>
 
-          {/* Compensation */}
-          <TextField
-            label="Compensation"
-            fullWidth
-            sx={{ mb: 2 }}
-            value={filters.compensation || ""}
-            onChange={(e) => handleFilterChange("compensation", e.target.value)}
-          />
-
-          {/* Subject Property */}
-          <TextField
-            label="Subject Property"
-            fullWidth
-            sx={{ mb: 2 }}
-            value={filters.subjectProperty || ""}
-            onChange={(e) =>
-              handleFilterChange("subjectProperty", e.target.value)
-            }
-          />
-
-          {/* Loan Amount Range */}
-          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
-            <TextField
-              label="Min Amount"
-              type="number"
-              fullWidth
-              value={filters.minAmount || ""}
-              onChange={(e) => handleFilterChange("minAmount", e.target.value)}
-            />
-            <TextField
-              label="Max Amount"
-              type="number"
-              fullWidth
-              value={filters.maxAmount || ""}
-              onChange={(e) => handleFilterChange("maxAmount", e.target.value)}
-            />
-          </Box>
-
-          {/* Closing Date Range */}
-          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
-            <TextField
-              label="Closing Date From"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-              value={filters.closingDateFrom || ""}
-              onChange={(e) =>
-                handleFilterChange("closingDateFrom", e.target.value)
-              }
-            />
-            <TextField
-              label="Closing Date To"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-              value={filters.closingDateTo || ""}
-              onChange={(e) =>
-                handleFilterChange("closingDateTo", e.target.value)
-              }
-            />
-          </Box>
-
-          {/* Created At Date Range */}
-          <Box sx={{ display: "flex", gap: 2 }}>
-            <TextField
-              label="Created From"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-              value={filters.createdFrom || ""}
-              onChange={(e) =>
-                handleFilterChange("createdFrom", e.target.value)
-              }
-            />
-            <TextField
-              label="Created To"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-              value={filters.createdTo || ""}
-              onChange={(e) => handleFilterChange("createdTo", e.target.value)}
-            />
-          </Box>
+            {/* Created date range */}
+            <Grid item xs={6}>
+              <TextField
+                label="Created From"
+                type="date"
+                size="small"
+                fullWidth
+                margin="dense"
+                InputLabelProps={{ shrink: true }}
+                value={filters.createdFrom || ""}
+                onChange={(e) => handleFilterChange("createdFrom", e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                label="Created To"
+                type="date"
+                size="small"
+                fullWidth
+                margin="dense"
+                InputLabelProps={{ shrink: true }}
+                value={filters.createdTo || ""}
+                onChange={(e) => handleFilterChange("createdTo", e.target.value)}
+              />
+            </Grid>
+          </Grid>
         </DialogContent>
 
-        <DialogActions>
-          <Button onClick={() => setOpenFilter(false)}>Cancel</Button>
-          <Button onClick={applyFilters} variant="contained">
+        <DialogActions sx={{ p: 1.25 }}>
+          <Button size="small" onClick={() => setOpenFilter(false)}>Cancel</Button>
+          <Button
+            size="small"
+            onClick={() => {
+              handleFilterChange("broker", "");
+              handleFilterChange("loanOfficer", "");
+              handleFilterChange("milestone", "");
+              handleFilterChange("minAmount", "");
+              handleFilterChange("maxAmount", "");
+              handleFilterChange("createdFrom", "");
+              handleFilterChange("createdTo", "");
+            }}
+          >
+            Clear
+          </Button>
+          <Button size="small" variant="contained" onClick={applyFilters}>
             Apply
           </Button>
         </DialogActions>
