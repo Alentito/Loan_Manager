@@ -149,8 +149,8 @@ class CookieTokenRefreshView(APIView):
                 key="access_token",
                 value=new_access,
                 httponly=True,
-                secure=False,
-                samesite="Lax" ,
+                secure=True,
+                samesite="None",
                 max_age=15 * 60,
                 path="/"
             )
@@ -160,50 +160,78 @@ class CookieTokenRefreshView(APIView):
                 key="refresh_token",
                 value=refresh_token,
                 httponly=True,
-                secure=False,
-                samesite="Lax" ,
+                secure=True,
+                samesite="None",
                 max_age=7 * 24 * 3600,
                 path="/"
             )
-            csrf.get_token(request)
+            # Ensure a CSRF token exists and explicitly set it as a cookie
+            csrf_token = csrf.get_token(request)
+            res.set_cookie(
+                key="csrftoken",
+                value=csrf_token,
+                httponly=False,
+                secure=True,
+                samesite="None",
+                path="/",
+            )
             return res
         except Exception as e:
             print("Refresh error:", e)  # <-- Now 'e' is defined!
             return Response({'detail': 'Invalid refresh token', 'error': str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+
 
 User = get_user_model()
 
 class CookieTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
-
+        
         if response.status_code == 200:
             data = response.data
             refresh = data["refresh"]
             access = data["access"]
             username = request.data.get("username")
 
+
+            print("Login for user:", request.data.get("username"))
+            print("Access token:", access)
+            print("Refresh token:", refresh)
+            
             try:
                 user = User.objects.get(username=username)
                 if hasattr(user, "employee") and user.employee:
-                    employee = user.employee
-
-                    # 1️⃣ Mark all missing absents for past days
-                    mark_missing_absents(employee)
-
-                    # 2️⃣ Mark today’s attendance based on login
-                    attendance_today = mark_attendance_on_login(user, login_dt=timezone.now())
-                    print(f"[ATTENDANCE] user={user.username} -> {attendance_today.status}")
-
+                    attendance = mark_attendance_on_login(user, login_dt=timezone.now())
+                    print(f"[ATTENDANCE] user={user.username} -> {attendance.status}")
             except Exception as e:
-                print(f"[ERROR] attendance marking failed: {e}")
+                print(f"[ERROR] mark_attendance_on_login failed: {e}")
 
-            # Set JWT cookies
+
             res = Response(status=status.HTTP_200_OK)
-            res.set_cookie("access_token", access, httponly=True, secure=False, samesite="Lax")
-            res.set_cookie("refresh_token", refresh, httponly=True, secure=False, samesite="Lax")
+            res.set_cookie(
+                key="access_token",
+                value=access,
+                httponly=True,
+                secure=True,  # only sent over HTTPS
+                samesite="None",  # allow cross-site cookie sending
+            )
+            res.set_cookie(
+                key="refresh_token",
+                value=refresh,
+                httponly=True,
+                secure=True,
+                samesite="None",
+            )
+            # Ensure a CSRF token exists and explicitly set it as a cookie so frontend JS can read it
+            csrf_token = csrf.get_token(request)
+            res.set_cookie(
+                key="csrftoken",
+                value=csrf_token,
+                httponly=False,
+                secure=True,
+                samesite="None",
+                path="/",
+            )
             res.data = {"message": "Login successful"}
             return res
-
         return response
-
