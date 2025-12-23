@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True)),
             ],
             options={
-                'ordering': ('-date',), 'permissions': [('view_latelogins', 'Can view late login records')]
+                'ordering': ('-date',),
             },
         ),
         migrations.CreateModel(
@@ -56,24 +56,6 @@ class Migration(migrations.Migration):
                 'permissions': [('sidebar_broker', 'Can view in sidebar')],
             },
         ),
-        
-        migrations.CreateModel(
-            name='AttendanceLog',
-            fields=[
-                ('id', models.BigAutoField(primary_key=True, serialize=False)),
-                ('login_time', models.DateTimeField()),
-                ('logout_time', models.DateTimeField(null=True, blank=True)),
-                ('attendance', models.ForeignKey(
-                    related_name='logs',
-                    on_delete=django.db.models.deletion.CASCADE,
-                    to='employee.attendance'
-                )),
-            ],
-            options={
-                'ordering': ['login_time'],
-            },
-        ),
-
         migrations.CreateModel(
             name='Designation',
             fields=[
