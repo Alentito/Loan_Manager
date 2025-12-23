@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True)),
             ],
             options={
-                'ordering': ('-date',),
+                'ordering': ('-date',), 'permissions': [('view_latelogins', 'Can view late login records')]
             },
         ),
         migrations.CreateModel(
