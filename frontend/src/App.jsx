@@ -82,7 +82,7 @@ function App() {
     } 
     // Optional: If break ended, and user is still on /breaks/:id, send them back to dashboard
     else if (!activeBreak?.has_active_break && location.pathname.startsWith("/breaks/")) {
-      navigate("/dashboard", { replace: true });
+      navigate("/breaks", { replace: true });
     }
   }
 }, [isAuthenticated, isSuccess, activeBreak, navigate, location.pathname]);

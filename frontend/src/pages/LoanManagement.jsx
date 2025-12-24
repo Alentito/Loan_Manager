@@ -84,9 +84,11 @@ const [roleAssignments, setRoleAssignments] = useState({});
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
   };
-
-  const applyFilters = () => {
+  
+const applyFilters = () => {
   setUseUrlMilestone(false);
+  searchParams.delete("milestone");
+  setSearchParams(searchParams);
   setPage(1);
   setOpenFilter(false);
 };
@@ -202,12 +204,10 @@ const loanQueryArgs = useMemo(() => {
     page,
     pageSize: rowsPerPage,
     milestone: useUrlMilestone
-  ? urlMilestone
-  : milestoneFilter || filters.milestone || undefined,
-
+      ? urlMilestone
+      : milestoneFilter || filters.milestone || undefined,
     search,
     ordering,
-    ...filters,
   };
 
   return includeArchived
@@ -218,11 +218,11 @@ const loanQueryArgs = useMemo(() => {
   rowsPerPage,
   milestoneFilter,
   urlMilestone,
-  useUrlMilestone, // ✅ REQUIRED
+  useUrlMilestone,
   search,
   ordering,
   includeArchived,
-  filters,
+  filters.milestone,
 ]);
 
 
@@ -260,7 +260,12 @@ useEffect(() => {
   setUseUrlMilestone(false);
   setActiveTab(newValue);
   setPage(1);
+
+  // ✅ remove milestone from URL
+  searchParams.delete("milestone");
+  setSearchParams(searchParams);
 };
+
 
 
   const exportToXML = () => {
