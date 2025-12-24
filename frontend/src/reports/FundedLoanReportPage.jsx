@@ -113,9 +113,9 @@ const processors = useMemo(() => {
 }, [filters.team_leader, filters.broker, leadProcessors, linkedData, allEmployees]);
 
 
-  const handleMilestoneClick = (milestoneId) => {
+const handleMilestoneClick = (milestoneId) => {
   if (milestoneId) {
-    navigate(`/loans?milestone=${milestoneId}`);
+    navigate(`/loan-management?milestone=${milestoneId}`);
   }
 };
 
@@ -314,7 +314,6 @@ const processors = useMemo(() => {
     </Box>
   );
 }
-
 
 
 
