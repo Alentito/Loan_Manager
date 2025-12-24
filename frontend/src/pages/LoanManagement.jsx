@@ -54,7 +54,12 @@ import { FaMoneyCheckAlt } from "react-icons/fa";
 const brokers = ["Broker A", "Broker B"];
 const loanOfficers = ["Officer X", "Officer Y"];
 const lendersList = ["Lender 1", "Lender 2"];
-const milestones = ["Application", "Underwriting", "Funding"];
+const milestones = [
+  { id: 1, name: "Application" },
+  { id: 2, name: "Funded" },
+  { id: 3, name: "Busted" },
+];
+
 const teamLeads = ["Lead A", "Lead B"];
 const teamManagers = ["Manager A", "Manager B"];
 const processors = ["Processor A", "Processor B"];
@@ -81,10 +86,12 @@ const [roleAssignments, setRoleAssignments] = useState({});
   };
 
   const applyFilters = () => {
-    // Trigger backend filtering via RTK Query refetch
-    refetchLoans(filters);
-    setOpenFilter(false);
-  };
+  setUseUrlMilestone(false);
+  setPage(1);
+  setOpenFilter(false);
+};
+
+
 
   const theme = useTheme();
   //const [uploadXml, { isLoading: isUploading, isSuccess, error }] = useUploadXmlMutation();//xml upload
@@ -97,7 +104,7 @@ const [roleAssignments, setRoleAssignments] = useState({});
   const [openImport, setOpenImport] = useState(false);
   const [openNew, setOpenNew] = useState(false);
   const [lenders, setLenders] = useState([]); // store selected Lender objects (from API)
-
+  
   //sorting for tloan table
   const [sortField, setSortField] = useState("created_at");
   const [sortDirection, setSortDirection] = useState("asc");
@@ -172,11 +179,13 @@ if (loan.role_assignments) {
   };
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const urlMilestone = searchParams.get("milestone");
   const pageFromURL = parseInt(searchParams.get("page") ?? "1", 10);
   const sizeFromURL = parseInt(searchParams.get("rowsPerPage") ?? "10", 10); // NEW
 
   const [page, setPage] = useState(pageFromURL);
   const [rowsPerPage, setRowsPerPage] = useState(sizeFromURL); // NEW
+  const [useUrlMilestone, setUseUrlMilestone] = useState(!!urlMilestone);
 
   //const rowsPerPage = 5;
   const milestoneMap = {
@@ -189,18 +198,41 @@ if (loan.role_assignments) {
 
   const includeArchived = activeTab === "archived";
 const loanQueryArgs = useMemo(() => {
-    const base = {
-      page,
-      pageSize: rowsPerPage,
-      milestone: milestoneFilter,
-      search,
-      ordering,
-      ...filters,
-    };
-    return includeArchived
-      ? { ...base, include_archived: true, is_archived: true }
-      : base;
-  }, [page, rowsPerPage, milestoneFilter, search, ordering, includeArchived, filters]);
+  const base = {
+    page,
+    pageSize: rowsPerPage,
+    milestone: useUrlMilestone
+  ? urlMilestone
+  : milestoneFilter || filters.milestone || undefined,
+
+    search,
+    ordering,
+    ...filters,
+  };
+
+  return includeArchived
+    ? { ...base, include_archived: true, is_archived: true }
+    : base;
+}, [
+  page,
+  rowsPerPage,
+  milestoneFilter,
+  urlMilestone,
+  useUrlMilestone, // ✅ REQUIRED
+  search,
+  ordering,
+  includeArchived,
+  filters,
+]);
+
+
+useEffect(() => {
+  if (urlMilestone) {
+    setActiveTab("all"); // or keep current
+    setPage(1);
+  }
+}, [urlMilestone]);
+
 
   const { data, isLoading, isError } = useGetLoansQuery(loanQueryArgs);
 
@@ -225,9 +257,11 @@ const loanQueryArgs = useMemo(() => {
   const [updateLoan] = useUpdateLoanMutation();
   const [deleteLoan] = useDeleteLoanMutation();
   const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue);
-    setPage(1); // Reset pagination to page 1 when tab changes
-  };
+  setUseUrlMilestone(false);
+  setActiveTab(newValue);
+  setPage(1);
+};
+
 
   const exportToXML = () => {
     let xml = '<?xml version="1.0" encoding="UTF-8"?><Loans>';
@@ -639,8 +673,11 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 >
                   <MenuItem value="">All</MenuItem>
                   {milestones.map((m) => (
-                    <MenuItem key={m} value={m}>{m}</MenuItem>
-                  ))}
+  <MenuItem key={m.id} value={m.id}>
+    {m.name}
+  </MenuItem>
+))}
+
                 </Select>
               </FormControl>
             </Grid>

@@ -1523,28 +1523,46 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def late_logins(self, request):
         """
         Return employees who logged in late for a specific day/week/month (CST aligned)
-        Includes proper grace period handling and HH:MM:SS late duration formatting.
+        Supports optional calendar date (?date=YYYY-MM-DD)
         """
         tz = pytz.timezone("America/Chicago")
-        filter_type = request.query_params.get("filter", "day")  # 'day' | 'week' | 'month'
+
+        filter_type = request.query_params.get("filter", "day")  # day | week | month
+        date_param = request.query_params.get("date")
+
         now = datetime.now(tz)
 
-        # --- Determine date range ---
+        # ------------------ Resolve Selected Date ------------------
+        if date_param:
+            selected_date = parse_date(date_param)
+            if not selected_date:
+                return Response(
+                    {"error": "Invalid date format. Use YYYY-MM-DD"},
+                    status=400
+                )
+        else:
+            selected_date = now.date()
+
+        # ------------------ Determine Date Range ------------------
         if filter_type == "day":
-            start_date = now.date()
-            end_date = now.date()
+            start_date = selected_date
+            end_date = selected_date
+
         elif filter_type == "week":
-            start_date = now.date() - timedelta(days=now.weekday())
+            start_date = selected_date - timedelta(days=selected_date.weekday())
             end_date = start_date + timedelta(days=6)
+
         elif filter_type == "month":
-            start_date = now.replace(day=1).date()
-            next_month = now.replace(day=28) + timedelta(days=4)
-            end_date = (next_month - timedelta(days=next_month.day)).date()
+            start_date = selected_date.replace(day=1)
+            next_month = (start_date + timedelta(days=32)).replace(day=1)
+            end_date = next_month - timedelta(days=1)
+
         else:
             return Response({"error": "Invalid filter"}, status=400)
 
         default_grace_period = 10  # minutes
 
+        # ------------------ Query Late Attendance ------------------
         qs = (
             Attendance.objects.filter(
                 date__range=[start_date, end_date],
@@ -1554,15 +1572,21 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             .order_by("-date", "employee__user__username")
         )
 
+        # ------------------ Build Response ------------------
         results = []
+
         for att in qs:
             emp = att.employee
             user = getattr(emp, "user", None)
 
-            # --- Determine grace period (from shift or fallback to 10) ---
-            grace = att.shift.grace_period_minutes if getattr(att, "shift", None) and att.shift.grace_period_minutes else default_grace_period
-            
-            # --- Compute late duration ---
+            # Grace period (shift-level or default)
+            grace = (
+                att.shift.grace_period_minutes
+                if getattr(att, "shift", None) and att.shift.grace_period_minutes
+                else default_grace_period
+            )
+
+            # Late duration
             minutes_late = att.minutes_late or 0
             adjusted_minutes = max(0, minutes_late - grace)
             total_seconds = adjusted_minutes * 60
@@ -1570,22 +1594,27 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             hours = total_seconds // 3600
             minutes = (total_seconds % 3600) // 60
             seconds = total_seconds % 60
+
             late_duration = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-            # --- Convert login time to CST if stored in UTC ---
-            login_time = None
+            # Login time in CST
             if att.login_time:
-                if timezone.is_naive(att.login_time):
-                    login_time = pytz.UTC.localize(att.login_time)
-                else:
-                    login_time = att.login_time
+                login_time = (
+                    pytz.UTC.localize(att.login_time)
+                    if timezone.is_naive(att.login_time)
+                    else att.login_time
+                )
                 login_time = login_time.astimezone(tz).strftime("%Y-%m-%d %I:%M:%S %p")
             else:
                 login_time = "N/A"
 
             results.append({
-                "employee_id": getattr(emp, "employee_code", getattr(emp, "id", None)),
-                "employee_name": user.get_full_name() if user and user.get_full_name() else user.username if user else "N/A",
+                "employee_id": getattr(emp, "employee_code", emp.id),
+                "employee_name": (
+                    user.get_full_name()
+                    if user and user.get_full_name()
+                    else user.username if user else "N/A"
+                ),
                 "date": att.date.strftime("%Y-%m-%d"),
                 "status": att.status,
                 "login_time": login_time,
@@ -1593,137 +1622,13 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 "shift_name": getattr(att.shift, "name", "N/A"),
             })
 
+        # ------------------ Final Response ------------------
         return Response({
             "filter": filter_type,
-            "from": start_date,
-            "to": end_date,
-            "results": results
+            "from": start_date.strftime("%Y-%m-%d"),
+            "to": end_date.strftime("%Y-%m-%d"),
+            "results": results,
         })
-    
-    @action(detail=False, methods=["get"], url_path="monthly-worked-hours")
-    def monthly_worked_hours(self, request):
-        employee_id = request.query_params.get("employeeId")
-        month = int(request.query_params.get("month", 0))
-        year = int(request.query_params.get("year", 0))
-
-        if not (employee_id and month and year):
-            return Response({"error": "employeeId, month, year required"}, status=400)
-
-        attendances = (
-            Attendance.objects.filter(
-                employee_id=employee_id,
-                date__year=year,
-                date__month=month,
-            )
-            .select_related("shift")
-            .prefetch_related("logs", "breaks")
-            .order_by("date")
-        )
-
-        total_seconds = 0
-        per_day_data = []
-
-        for record in attendances:
-            daily_seconds = record.calculate_effective_work_seconds()
-            total_seconds += daily_seconds
-            per_day_data.append({
-                "date": record.date,
-                "worked_seconds": daily_seconds,
-                "worked_hhmmss": str(timedelta(seconds=int(daily_seconds))),
-                "shift": record.shift.name if record.shift else None,
-            })
-
-        return Response({
-            "employee": employee_id,
-            "month": month,
-            "year": year,
-            "total_worked_seconds": int(total_seconds),
-            "total_worked_hhmmss": str(timedelta(seconds=int(total_seconds))),
-            "per_day": per_day_data,
-        })
-
-    
-    @action(detail=False, methods=["get"], url_path="late-logins")
-    def late_logins(self, request):
-        """
-        Return employees who logged in late for a specific day/week/month (CST aligned)
-        Includes proper grace period handling and HH:MM:SS late duration formatting.
-        """
-        tz = pytz.timezone("America/Chicago")
-        filter_type = request.query_params.get("filter", "day")  # 'day' | 'week' | 'month'
-        now = datetime.now(tz)
-
-        # --- Determine date range ---
-        if filter_type == "day":
-            start_date = now.date()
-            end_date = now.date()
-        elif filter_type == "week":
-            start_date = now.date() - timedelta(days=now.weekday())
-            end_date = start_date + timedelta(days=6)
-        elif filter_type == "month":
-            start_date = now.replace(day=1).date()
-            next_month = now.replace(day=28) + timedelta(days=4)
-            end_date = (next_month - timedelta(days=next_month.day)).date()
-        else:
-            return Response({"error": "Invalid filter"}, status=400)
-
-        default_grace_period = 10  # minutes
-
-        qs = (
-            Attendance.objects.filter(
-                date__range=[start_date, end_date],
-                status=Attendance.STATUS_LATE
-            )
-            .select_related("employee", "employee__user", "shift")
-            .order_by("-date", "employee__user__username")
-        )
-
-        results = []
-        for att in qs:
-            emp = att.employee
-            user = getattr(emp, "user", None)
-
-            # --- Determine grace period (from shift or fallback to 10) ---
-            grace = att.shift.grace_period_minutes if getattr(att, "shift", None) and att.shift.grace_period_minutes else default_grace_period
-            
-            # --- Compute late duration ---
-            minutes_late = att.minutes_late or 0
-            adjusted_minutes = max(0, minutes_late - grace)
-            total_seconds = adjusted_minutes * 60
-
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
-            late_duration = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-            # --- Convert login time to CST if stored in UTC ---
-            login_time = None
-            if att.login_time:
-                if timezone.is_naive(att.login_time):
-                    login_time = pytz.UTC.localize(att.login_time)
-                else:
-                    login_time = att.login_time
-                login_time = login_time.astimezone(tz).strftime("%Y-%m-%d %I:%M:%S %p")
-            else:
-                login_time = "N/A"
-
-            results.append({
-                "employee_id": getattr(emp, "employee_code", getattr(emp, "id", None)),
-                "employee_name": user.get_full_name() if user and user.get_full_name() else user.username if user else "N/A",
-                "date": att.date.strftime("%Y-%m-%d"),
-                "status": att.status,
-                "login_time": login_time,
-                "late_duration": late_duration,
-                "shift_name": getattr(att.shift, "name", "N/A"),
-            })
-
-        return Response({
-            "filter": filter_type,
-            "from": start_date,
-            "to": end_date,
-            "results": results
-        })
-
 
 class PunchInView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
