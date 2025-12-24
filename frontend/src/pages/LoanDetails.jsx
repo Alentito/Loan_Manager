@@ -124,7 +124,7 @@ export default function LoanDetails() {
 
   const [roleAssignments, setRoleAssignments] = useState({});
 
-  
+    
 
 const outerTheme = useTheme();
   const localTheme = useMemo(
