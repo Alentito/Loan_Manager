@@ -10,7 +10,9 @@ export const loanApi = createApi({
     getLoans: builder.query({
       query: ({ page = 1, pageSize, milestone, search,ordering, assigned_to,include_archived,is_archived, }) => {
         let url = `loan/?page=${page}&page_size=${pageSize}`;
-        if (milestone) url += `&milestone=${milestone}`;
+        if (milestone !== undefined && milestone !== null && milestone !== "") {
+    url += `&milestone=${milestone}`;
+  }
         if (search) url += `&search=${encodeURIComponent(search)}`;
         if (ordering) url += `&ordering=${ordering}`; // <-- new line
         if (assigned_to) url += `&assigned_to=${encodeURIComponent(assigned_to)}`; // pass "me" or id
