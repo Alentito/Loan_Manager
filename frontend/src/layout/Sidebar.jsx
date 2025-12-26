@@ -42,6 +42,7 @@ export function SidebarContent() {
     { path: "/milestones", label: "Milestones", icon: Flag, permission: "loan.view_milestone" },
     { path: "/tasks", label: "Tasks", icon: ListChecks, permission: "loan.view_task" },
     { path: "/brokers", label: "Brokers", icon: UserRound, permission: "employee.sidebar_broker" },
+    { path: "/payroll", label: "Payroll", icon: BadgeDollarSign, permission: "employee.view_payroll" },
     { path: "/loan-officers", label: "Loan Officers", icon: Building2, permission: "employee.sidebar_loanofficer" },
     { path: "/employees", label: "Employees", icon: Users, permission: "employee.sidebar_employee" },
     { path: "/payroll", label: "Payroll", icon: BadgeDollarSign, permission: "employee.view_payroll" },
