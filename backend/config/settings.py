@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'django_celery_results',
     'channels',
     'payroll',
+    'solo',
     'loan',
     'employee',
     'audit',
