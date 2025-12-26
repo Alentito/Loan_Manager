@@ -12,7 +12,7 @@ import LoanManagement from "./pages/LoanManagement";
 import LoanDetails from "./pages/LoanDetails";
 import Tasks from "./pages/Tasks";
 import Audit from "./pages/Audit";
-import Payroll from "./pages/Payroll";
+//import Payroll from "./pages/Payroll";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import RoleManagement from "./pages/RoleManagement";
@@ -45,6 +45,9 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useGetActiveBreakQuery } from "./api/breakApi"; 
 import FundedLoanReportPage from "@/reports/FundedLoanReportPage";
 import LateLoginsPage from "./attendance/LateLoginsPage";
+
+import PayrollManagement from "./pages/PayrollManagemnet";
+
 
 function App() {
   useInitializeAuth();
@@ -118,7 +121,7 @@ function App() {
             <Route path="/brokers" element={<BrokerList />} />
             <Route path="/loan-officers" element={<LoanOfficerList />} />
             <Route path="/employees" element={<EmployeeList />} />
-            <Route path="/payroll" element={<Payroll />} />
+          
             <Route path="/reports" element={<Reports />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/role-management" element={<RoleManagement />} />
@@ -156,6 +159,9 @@ function App() {
             <Route path="/admin/meetings" element={<MeetingAdminPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/attendance/late-logins" element={<LateLoginsPage />} />
+                       
+            <Route path="/payroll" element={<PayrollManagement />} />
+
 
           </Route>
         </Route>
