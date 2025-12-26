@@ -12,7 +12,7 @@ import { authApi } from '../api/authApi';
 
 import authReducer from "../api/authSlice"; // <--- ADD THIS
 
-
+import { payrollApi } from "../api/payrollApi";
 import { holidayApi } from '../api/holidayApi';
 import { meetingApi } from '../api/meetingApi';
 import { leaveApi } from '../api/leaveApi';
@@ -57,6 +57,7 @@ export const store = configureStore({
     [tokenApi.reducerPath]: tokenApi.reducer,
     [incomeAssetNoteApi.reducerPath]: incomeAssetNoteApi.reducer,
     [fundedLoanReportApi.reducerPath]: fundedLoanReportApi.reducer,
+    [payrollApi.reducerPath]: payrollApi.reducer,
     
   },
 
@@ -82,6 +83,7 @@ export const store = configureStore({
       .concat(tokenApi.middleware)
       .concat(incomeAssetNoteApi.middleware)
       .concat(fundedLoanReportApi.middleware),
+      .concat(payrollApi.middleware)
 
 });
 
