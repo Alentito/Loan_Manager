@@ -82,8 +82,8 @@ export const store = configureStore({
       .concat(teamManagerApi.middleware)
       .concat(tokenApi.middleware)
       .concat(incomeAssetNoteApi.middleware)
-      .concat(fundedLoanReportApi.middleware),
-      .concat(payrollApi.middleware)
+      .concat(fundedLoanReportApi.middleware)
+      .concat(payrollApi.middleware),
 
 });
 
