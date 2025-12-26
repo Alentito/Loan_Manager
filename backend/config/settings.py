@@ -33,7 +33,7 @@ INSTALLED_APPS = [
     'django_filters',
     'django_celery_results',
     'channels',
-
+    'payroll',
     'loan',
     'employee',
     'audit',
