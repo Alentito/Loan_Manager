@@ -1,0 +1,90 @@
+/* ---------- Base Cell Styling ---------- */
+.fc-daygrid-day-frame {
+  border-radius: 8px;
+  transition: all 0.25s ease-in-out;
+  padding: 6px;
+}
+
+.fc-daygrid-day:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transform: scale(1.02);
+}
+
+/* ---------- Attendance Status ---------- */
+.status-present {
+  background-color: #4caf50 !important; /* Green */
+  color: #fff !important;
+  opacity: 0.6;
+}
+
+.status-late {
+  background-color: #ff9800 !important; /* Orange */
+  color: #fff !important;
+  opacity: 0.6;
+}
+
+.status-absent {
+  background-color: #e53935 !important; /* Red */
+  color: #fff !important;
+  opacity: 0.6;
+}
+
+.status-on_leave,
+.status-on-leave {
+  background-color: #8e24aa !important; /* Purple for Paid Leave */
+  color: #fff !important;
+}
+
+.status-unpaid_leave {
+  background-color: #f57c00 !important; /* Deep Orange for Unpaid Leave */
+  color: #fff !important;
+  opacity: 0.5;
+}
+
+/* ---------- Holidays & Weekends ---------- */
+.status-holiday {
+  background-color: #eb3980 !important; /* Festive pink-red */
+  color: #fff !important;
+  opacity: 0.9;
+}
+
+.status-weekend {
+  background-color: #0b62ed !important; /* Blue-gray */
+  color: #fff !important;
+  opacity: 0.9;
+}
+
+/* ---------- Meetings ---------- */
+.status-meeting {
+  background-color: #1976d2 !important; /* Blue */
+  color: #fff !important;
+}
+
+/* ---------- Event Styling ---------- */
+.fc-event {
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 3px 6px;
+  border-radius: 6px;
+  margin-bottom: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fc-event:hover {
+  transform: scale(1.05);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- Highlight Today ---------- */
+.fc-day-today {
+  background-color: rgba(25, 118, 210, 0.08) !important; /* Light blue tint */
+  border: 2px solid #1976d2 !important; /* MUI primary */
+  border-radius: 8px !important;
+}
+
+.fc-day-today .fc-daygrid-day-number {
+  color: #1976d2 !important;
+  font-weight: 700 !important;
+}
