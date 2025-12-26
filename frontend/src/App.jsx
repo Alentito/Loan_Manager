@@ -5,6 +5,8 @@ import CssBaseline from "@mui/material/CssBaseline";
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
+import Payroll from "./pages/Payroll";
+
 import Dashboard from "./pages/Dashboard";
 import LoanManagement from "./pages/LoanManagement";
 import LoanDetails from "./pages/LoanDetails";
