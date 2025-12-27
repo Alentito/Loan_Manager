@@ -32,13 +32,17 @@ export const attendanceApi = createApi({
 
     // ✅ Mark today's attendance for an employee
     markAttendance: builder.mutation({
-      query: (body) => ({
-        url: "attendance/",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: [{ type: "Attendance", id: "LIST" }],
-    }),
+  query: (body) => ({
+    url: "attendance/",
+    method: "POST",
+    body,
+  }),
+  invalidatesTags: (result, error, arg) => [
+    { type: "Attendance", id: "LIST" },
+    { type: "Attendance", id: `EMP-${arg.employee}-${arg.date}` },
+  ],
+}),
+
 
     // ✅ For managers/admins — list all attendance records
     getAllAttendance: builder.query({
