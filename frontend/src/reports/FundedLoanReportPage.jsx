@@ -65,7 +65,8 @@ export default function FundedLoanReportPage() {
     });
 
   // 🔹 Fetch report data
-  const { data, isLoading: isReportLoading } = useGetFundedLoanReportQuery({
+  const { data, isLoading: isReportLoading, refetch } = useGetFundedLoanReportQuery(
+  {
     broker: filters.broker?.id,
     loan_officer: filters.loan_officer?.id,
     team_leader: filters.team_leader?.id,
@@ -73,7 +74,21 @@ export default function FundedLoanReportPage() {
     start_date: filters.start_date,
     end_date: filters.end_date,
     page: filters.page,
-  });
+  },
+  {
+    refetchOnFocus: true,      // 👈 refresh when tab becomes active
+    refetchOnReconnect: true,  // 👈 refresh when internet reconnects
+    refetchOnMountOrArgChange: true, // 👈 refresh when filters change
+  }
+);
+
+React.useEffect(() => {
+  const handleFocus = () => refetch();
+  window.addEventListener("focus", handleFocus);
+
+  return () => window.removeEventListener("focus", handleFocus);
+}, [refetch]);
+
   console.log("📊 funded report raw data:", data);
   // ======================================================
   // 🔸 Derived dropdown options
@@ -114,11 +129,18 @@ const processors = useMemo(() => {
 
 
 const handleMilestoneClick = (milestoneId) => {
-  if (milestoneId) {
-    navigate(`/loan-management?milestone=${milestoneId}`);
-  }
-};
+  const params = new URLSearchParams();
 
+  if (milestoneId) params.append("milestone", milestoneId);
+  if (filters.broker?.id) params.append("broker", filters.broker.id);
+  if (filters.loan_officer?.id) params.append("loan_officer", filters.loan_officer.id);
+  if (filters.team_leader?.id) params.append("team_leader", filters.team_leader.id);
+  if (filters.processor?.id) params.append("processor", filters.processor.id);
+  if (filters.start_date) params.append("start_date", filters.start_date);
+  if (filters.end_date) params.append("end_date", filters.end_date);
+
+  navigate(`/loan-management?${params.toString()}`);
+};
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
@@ -314,8 +336,3 @@ const handleMilestoneClick = (milestoneId) => {
     </Box>
   );
 }
-
-
-
-
-
