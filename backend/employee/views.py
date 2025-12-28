@@ -1047,51 +1047,27 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             if leave.status != "pending":
                 return Response({"detail": "Already processed"}, status=400)
 
-            approval_type = request.data.get("approval_type")
-            if approval_type:
-                approval_type = str(approval_type).strip().lower()
-
+            approval_type = request.data.get("approval_type", "").lower()
             if approval_type not in ["paid", "unpaid"]:
-                return Response(
-                    {"detail": "approval_type must be 'paid' or 'unpaid'."},
-                    status=400
-                )
+                return Response({"detail": "approval_type must be 'paid' or 'unpaid'."}, status=400)
 
-            # --- Apply balance + fallback logic ---
-            leave_days = (leave.end_date - leave.start_date).days + 1
-            final_type = approval_type
-
-            if approval_type == "paid":
-            # Deduct full leave days from balance, allow negative
-                employee.leave_balance -= leave_days
-                final_type = "paid" if employee.leave_balance >= 0 else "unpaid"
-            else:
-                # Unpaid leave
-                if employee.leave_balance <= 0:
-                    # If balance is 0 or negative, continue decreasing
-                    employee.leave_balance -= leave_days
-                final_type = "unpaid"
-
-            # Save updated leave balance
-            employee.save(update_fields=["leave_balance"])
-
-            # --- Update leave record ---
+            # 🚀 Just set values — no deduction here
             leave.status = "approved"
-            leave.approval_type = final_type
+            leave.approval_type = approval_type
             leave.approved_by = request.user
             leave.processed_at = now_cst()
-            leave.save()
+            leave.save()  # 👈 Model will auto adjust balance
 
-            # --- Mark attendance ---
             mark_attendance_for_leave(
-                leave.employee,
+                employee,
                 leave.start_date,
                 leave.end_date,
                 approved=True,
-                leave_type=final_type
+                leave_type=approval_type
             )
 
             return Response(LeaveRequestSerializer(leave).data, status=200)
+
 
 
     @action(detail=True, methods=["post"], url_path="deny")
