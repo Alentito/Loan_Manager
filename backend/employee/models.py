@@ -61,8 +61,7 @@ class LoanOfficer(models.Model):
 
 
 class Employee(models.Model):
-   
-    # Identity fields
+
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
     roles = models.ManyToManyField(Group, blank=True)   # allow multiple roles
     login_id = models.CharField(max_length=50, unique=True, db_index=True, null=True, blank=True)
@@ -175,6 +174,52 @@ class LeaveRequests(models.Model):
         on_delete=models.SET_NULL
     )
     processed_at = models.DateTimeField(null=True, blank=True) 
+
+    def save(self, *args, **kwargs):
+    # Get previous state only when updating existing instance
+        previous = LeaveRequests.objects.get(pk=self.pk) if self.pk else None
+
+        super().save(*args, **kwargs)  # Save first
+
+        # If new record → no action
+        if not previous:
+            return
+
+        # If neither status nor approval_type changed → skip to avoid double updates
+        if previous.status == self.status and previous.approval_type == self.approval_type:
+            return
+
+        self.apply_impact_on_employee(previous)
+
+
+    @property
+    def total_days(self):
+        # e.g. 1-day leave still counts as "1"
+        return (self.end_date - self.start_date).days + 1
+
+
+    def apply_impact_on_employee(self, previous):
+        employee = self.employee
+        days = self.total_days
+
+        # 1️⃣ Approving a PAID leave → deduct ONCE
+        if self.status == "approved" and self.approval_type == "paid":
+            # Deduct only if it wasn't already deducted before
+            if not (previous.status == "approved" and previous.approval_type == "paid"):
+                employee.leave_balance = max(0, employee.leave_balance - days)
+                employee.save(update_fields=["leave_balance"])
+            return
+
+        # 2️⃣ Reverting an approved paid leave → restore balance back
+        if previous.status == "approved" and previous.approval_type == "paid" and self.status in ["pending", "denied"]:
+            employee.leave_balance = min(employee.yearly_paid_leaves, employee.leave_balance + days)
+            employee.save(update_fields=["leave_balance"])
+            print("IMPACT RUNNING →", self.status, self.approval_type)
+            return
+
+        # 3️⃣ unpaid leave or no change → do nothing
+
+
     class Meta:
         permissions = [
             ("approve_leave", "Can approve leave requests"),
