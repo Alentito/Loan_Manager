@@ -175,6 +175,7 @@ class LeaveRequests(models.Model):
     )
     processed_at = models.DateTimeField(null=True, blank=True) 
 
+    
     def save(self, *args, **kwargs):
     # Get previous state only when updating existing instance
         previous = LeaveRequests.objects.get(pk=self.pk) if self.pk else None
@@ -190,13 +191,55 @@ class LeaveRequests(models.Model):
             return
 
         self.apply_impact_on_employee(previous)
-
+        self.apply_attendance_status_updates(previous)
 
     @property
     def total_days(self):
         # e.g. 1-day leave still counts as "1"
         return (self.end_date - self.start_date).days + 1
 
+    def apply_attendance_status_updates(self, previous):
+        employee = self.employee
+        date_range = [self.start_date, self.end_date]
+
+        # APPROVED + PAID → mark as paid leave
+        if self.status == "approved" and self.approval_type == "paid":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status=Attendance.STATUS_ON_LEAVE)
+            return
+
+        # APPROVED + UNPAID → mark as unpaid leave
+        if self.status == "approved" and self.approval_type == "unpaid":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status=Attendance.STATUS_UNPAID_LEAVE)
+            return
+
+        # 🚩 APPROVED → DENIED (Revert to ABSENT)
+        if previous.status == "approved" and self.status == "denied":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status=Attendance.STATUS_ABSENT)
+            return
+        
+        if previous.status == "denied" and self.status == "pending":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status="")  # empty status, calendar logic will decide
+            return
+    
+        # 🚩 APPROVED → PENDING (Revert to blank → no response yet)
+        if previous.status == "approved" and self.status == "pending":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status="")  # blank state on frontend
+            return
 
     def apply_impact_on_employee(self, previous):
         employee = self.employee
@@ -228,6 +271,7 @@ class LeaveRequests(models.Model):
 
     def __str__(self):
          return f"{self.employee} - {self.approval_type or 'N/A'} ({self.status})"
+
 
 
 class Shift(models.Model):
