@@ -90,6 +90,14 @@ const AttendancePage = () => {
     { skip: !employeeIdToFetch }
   );
 
+  // 🔄 Auto-refresh attendance when it gets marked on login
+useEffect(() => {
+  if (todayAttendance) {
+    refetch(); // fetch fresh attendance list
+  }
+}, [todayAttendance, refetch]);
+
+
   const { data: attendanceSummary } = useGetAttendanceSummaryQuery(
     { employeeId: employeeIdToFetch, year },
     { skip: !employeeIdToFetch }
