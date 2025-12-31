@@ -67,6 +67,14 @@ export const leaveApi = createApi({
       }),
       invalidatesTags: [{ type: "LeaveRequest", id: "LIST" }],
     }),
+    revertLeaveToPending: builder.mutation({
+  query: (id) => ({
+    url: `/leave-requests/${id}/`,
+    method: "PATCH",
+    body: { status: "pending", approval_type: null }
+  }),
+  invalidatesTags: ["LeaveRequest"],
+}),
 
     // ✅ Manager/HR: approve leave
     approveLeave: builder.mutation({
@@ -96,4 +104,6 @@ export const {
   useSubmitLeaveRequestMutation,
   useApproveLeaveMutation,
   useDenyLeaveMutation,
+  useRevertLeaveToPendingMutation
+
 } = leaveApi;
