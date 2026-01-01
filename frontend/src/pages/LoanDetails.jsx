@@ -105,20 +105,6 @@ const handleTabHover = (tabIndex) => {
 };
 
 // local theme to make fonts and spacing consistent with an enterprise look
-const localTheme = createTheme({
-  typography: {
-    fontFamily: "'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif",
-    fontSize: 14, // base font size
-    h6: { fontSize: "1rem", fontWeight: 600 },
-    body2: { fontSize: "0.95rem" },
-    caption: { fontSize: "0.8rem" },
-  },
-  components: {
-    MuiButton: {
-      defaultProps: { size: "medium" },
-    },
-  },
-});
 
 export default function LoanDetails() {
 
@@ -250,6 +236,7 @@ const outerTheme = useTheme();
     }
   };
 
+  
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this loan?")) return;
     try {
