@@ -838,9 +838,3 @@ class ChecklistQuestionViewSet(viewsets.ModelViewSet):
     queryset = ChecklistQuestion.objects.all().order_by('order')
     serializer_class = ChecklistQuestionSerializer
     pagination_class = None
-
-
-
-
-
-
