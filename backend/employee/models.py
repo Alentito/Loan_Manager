@@ -75,6 +75,17 @@ class Employee(models.Model):
     team = models.ForeignKey('Team', on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
     primary_shift = models.ForeignKey('Shift', on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_employees')
     alternate_shift = models.ForeignKey('Shift', on_delete=models.SET_NULL, null=True, blank=True, related_name='alternate_employees')
+    bank_name = models.CharField(max_length=100, null=True, blank=True)
+    bank_account_no = models.CharField(max_length=50, null=True, blank=True, db_index=True)
+    work_location = models.CharField(max_length=150, null=True, blank=True)
+    
+    hra = models.DecimalField("House Rent Allowance", max_digits=10, decimal_places=2, default=0)
+    conveyance_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    medical_reimbursement = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    uniform_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    food_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    special_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    arrear_salary = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
@@ -110,7 +121,19 @@ class Employee(models.Model):
         day_rate = (self.base_salary / Decimal(period_working_days)).quantize(Decimal("0.01"))
         return (day_rate * Decimal(payable_days)).quantize(Decimal("0.01"))
     
-
+    @property
+    def total_monthly_salary(self):
+        return (
+            self.basic +
+            self.hra +
+            self.conveyance_allowance +
+            self.medical_reimbursement +
+            self.uniform_allowance +
+            self.food_allowance +
+            self.special_allowance +
+            self.arrear_salary
+        )   
+        
     class Meta:
         permissions = [
            
