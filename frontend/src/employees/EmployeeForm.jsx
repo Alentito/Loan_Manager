@@ -37,6 +37,17 @@ const EmployeeForm = ({
     team: "",
     shift: "",
     alternate_shift: "", // NEW field
+    bank_name: "",
+    bank_account_no: "",
+    work_location: "",
+    basic: "",
+    hra: "",
+    conveyance_allowance: "",
+    medical_reimbursement: "",
+    uniform_allowance: "",
+    food_allowance: "",
+    special_allowance: "",
+    arrear_salary: "",
   });
 
   const [localErrors, setLocalErrors] = useState({});
@@ -67,6 +78,17 @@ const EmployeeForm = ({
       team: existingData.team || "",
       shift: existingData.shift || "",
       alternate_shift: existingData.alternate_shift || "",
+      bank_name: existingData.bank_name || "",
+      bank_account_no: existingData.bank_account_no || "",
+      work_location: existingData.work_location || "",
+      basic: existingData.basic || "",
+      hra: existingData.hra || "",
+      conveyance_allowance: existingData.conveyance_allowance || "",
+      medical_reimbursement: existingData.medical_reimbursement || "",
+      uniform_allowance: existingData.uniform_allowance || "",
+      food_allowance: existingData.food_allowance || "",
+      special_allowance: existingData.special_allowance || "",
+      arrear_salary: existingData.arrear_salary || "",
     }));
   }, [existingData]);
 
@@ -164,6 +186,9 @@ const EmployeeForm = ({
       team: "",
       shift: "",
       alternate_shift: "",
+      bank_name: "",
+      bank_account_no: "",
+      work_location: "",
     });
     setLocalErrors({});
   };
@@ -328,33 +353,46 @@ const EmployeeForm = ({
   </FormControl>
 </Grid>
 
-
-
-        {/* Alternate Shift (free text + dropdown) */}
-        {/* Alternate Shift (Autocomplete but stores ID) 
+{/* 🏦 Bank Name */}
 <Grid item xs={12} sm={6}>
-  <Autocomplete
-    options={shifts}
-    getOptionLabel={(option) => option.name || ""}
-    value={shifts.find((s) => s.id === formData.alternate_shift) || null}
-    onChange={(e, newValue) => {
-      handleChange("alternate_shift", newValue ? newValue.id : "");
-    }}
-    renderInput={(params) => (
-      <TextField
-        {...params}
-        label="Alternate Shift"
-        fullWidth
-        error={!!getError("alternate_shift")}
-        helperText={getError("alternate_shift")}
-        sx={{ minWidth: 250 }}
-      />
-    )}
-    disabled={submitting}
-  />
+  {renderTextField("bank_name", "Bank Name")}
 </Grid>
 
-*/}
+{/* 💳 Bank Account Number */}
+<Grid item xs={12} sm={6}>
+  {renderTextField("bank_account_no", "Bank Account Number")}
+</Grid>
+
+{/* 📍 Work Location */}
+<Grid item xs={12} sm={6}>
+  {renderTextField("work_location", "Work Location")}
+</Grid>
+
+<Grid item xs={12} sm={6}>
+  {renderTextField("basic", "Basic Salary", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("hra", "HRA (House Rent Allowance)", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("conveyance_allowance", "Conveyance Allowance", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("medical_reimbursement", "Medical Reimbursement", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("uniform_allowance", "Uniform Allowance", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("food_allowance", "Food Allowance", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("special_allowance", "Special Allowance", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("arrear_salary", "Arrear Salary", "number")}
+</Grid>
+
         <Grid item xs={12} sm={6}>
           {renderTextField("login_password", "Login Password")}
         </Grid>
