@@ -20,10 +20,10 @@ class Broker(models.Model):
     email = models.EmailField(max_length=100, unique=True, db_index=True)  # already unique
     NMLS = models.CharField(max_length=50, unique=True, db_index=True)  # already unique
     primary_phone = models.CharField(max_length=25, unique=True, db_index=True)  # already unique
-    phone = models.CharField(max_length=25, unique=True, db_index=True)  # already unique
-    address = models.TextField()
-    company_address = models.TextField()
-     
+    phone = models.CharField(max_length=25, db_index=True, blank=True, null=True)  # already unique
+    address = models.TextField(blank=True, null=True)
+    company_address = models.TextField(blank=True, null=True)
+
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
