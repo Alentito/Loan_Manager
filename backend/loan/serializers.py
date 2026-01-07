@@ -263,10 +263,18 @@ class LoanSerializer(serializers.ModelSerializer):
             employees = item.pop('employees', [])
             ra = LoanRoleAssignment.objects.create(loan=loan, **item)
             ra.employees.set(employees)
+
+        if loan.milestone:
+            LoanMilestoneHistory.objects.create(
+                loan=loan,
+                milestone=loan.milestone
+            )
         return loan
 
     def update(self, instance, validated_data):
         ras = validated_data.pop('role_assignments', None)
+        old_milestone = instance.milestone
+
         loan = super().update(instance, validated_data)
         if ras is not None:
             LoanRoleAssignment.objects.filter(loan=loan).delete()
@@ -274,4 +282,18 @@ class LoanSerializer(serializers.ModelSerializer):
                 employees = item.pop('employees', [])
                 ra = LoanRoleAssignment.objects.create(loan=loan, **item)
                 ra.employees.set(employees)
+
+        if (
+            old_milestone != loan.milestone
+            and loan.milestone
+            and not LoanMilestoneHistory.objects.filter(
+                loan=loan,
+                milestone=loan.milestone
+            ).exists()
+        ):
+            LoanMilestoneHistory.objects.create(
+                loan=loan,
+                milestone=loan.milestone
+            )
+          
         return loan
