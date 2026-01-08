@@ -1284,6 +1284,11 @@ class BreakViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=200)
     
 
+class LateLoginPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
+    
     
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all().select_related("employee", "shift").prefetch_related(
