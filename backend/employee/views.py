@@ -260,33 +260,27 @@ def export_brokers_excel(request):
 
     for broker in Broker.objects.all().order_by('-created_at'):
         ws.append([
-            broker.name or '-',
-            broker.email or '-',
-            broker.NMLS or '-',
-            broker.primary_phone or '-',
-            broker.phone or '-',
-            broker.address or '-',
-            broker.company_address or '-',
-            broker.created_at.strftime('%Y-%m-%d %H:%M:%S') if broker.created_at else '-',
-            broker.updated_at.strftime('%Y-%m-%d %H:%M:%S') if broker.updated_at else '-',
-            broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '-',
+            broker.name or '',
+            broker.email or '',
+            broker.NMLS or '',
+            broker.primary_phone or '',
+            broker.phone or '',
+            broker.address or '',
+            broker.company_address or '',
+            broker.created_at.strftime('%Y-%m-%d %H:%M:%S') if broker.created_at else '',
+            broker.updated_at.strftime('%Y-%m-%d %H:%M:%S') if broker.updated_at else '',
+            broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '',
         ])
 
-    # Auto-adjust column width
     for col_num, _ in enumerate(headers, 1):
         ws.column_dimensions[get_column_letter(col_num)].width = 25
 
-    buffer = BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-
     response = HttpResponse(
-        buffer.getvalue(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename="brokers.xlsx"'
+    wb.save(response)
     return response
-
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
