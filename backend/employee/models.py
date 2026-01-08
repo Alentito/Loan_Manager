@@ -78,7 +78,7 @@ class Employee(models.Model):
     bank_name = models.CharField(max_length=100, null=True, blank=True)
     bank_account_no = models.CharField(max_length=50, null=True, blank=True, db_index=True)
     work_location = models.CharField(max_length=150, null=True, blank=True)
-    
+    basic = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     hra = models.DecimalField("House Rent Allowance", max_digits=10, decimal_places=2, default=0)
     conveyance_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     medical_reimbursement = models.DecimalField(max_digits=10, decimal_places=2, default=0)
