@@ -807,25 +807,54 @@ def export_employees_excel(request):
     ws = wb.active
     ws.title = "Employees"
 
-    headers = ['Name', 'Email', 'Contact Number', 'Designation', 'Team', 'Joining Date', 'Created At', 'Updated At']
+    headers = [
+        'Login ID', 'Name', 'Company Email', 'Contact Number',
+        'Roles', 'Team', 'Work Location',
+        'Primary Shift',
+        'Basic', 'HRA', 'Conveyance', 'Medical',
+        'Uniform', 'Food', 'Special Allowance', 'Arrear Salary',
+        'Bank Name', 'Bank Account No',
+        'Yearly Paid Leaves', 'Leave Balance',
+        'Archived', 'Created At', 'Updated At'
+    ]
     ws.append(headers)
 
-    employees = Employee.objects.select_related('designation', 'team').all().order_by('-created_at')
+    employees = (
+        Employee.objects
+        .select_related('team', 'primary_shift')
+        .prefetch_related('roles')
+        .order_by('-created_at')
+    )
 
     for emp in employees:
         ws.append([
+            emp.login_id or '',
             emp.name or '',
             emp.company_email or '',
             emp.contact_number or '',
-            emp.designation.name if emp.designation else '',
+            ", ".join(emp.roles.values_list('name', flat=True)),
             emp.team.name if emp.team else '',
-            getattr(emp, 'joining_date', '-') if getattr(emp, 'joining_date', None) else '-',
-            emp.created_at.strftime('%Y-%m-%d %H:%M:%S') if emp.created_at else '',
-            emp.updated_at.strftime('%Y-%m-%d %H:%M:%S') if emp.updated_at else '',
+            emp.work_location or '',
+            emp.primary_shift.name if emp.primary_shift else '',
+            float(emp.basic),
+            float(emp.hra),
+            float(emp.conveyance_allowance),
+            float(emp.medical_reimbursement),
+            float(emp.uniform_allowance),
+            float(emp.food_allowance),
+            float(emp.special_allowance),
+            float(emp.arrear_salary),
+            emp.bank_name or '',
+            emp.bank_account_no or '',
+            emp.yearly_paid_leaves,
+            emp.leave_balance,
+            'Yes' if emp.is_archived else 'No',
+            emp.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            emp.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
         ])
 
-    for col_num, _ in enumerate(headers, 1):
-        ws.column_dimensions[get_column_letter(col_num)].width = 20
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 22
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -834,46 +863,96 @@ def export_employees_excel(request):
     wb.save(response)
     return response
 
-
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def export_employees_pdf(request):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
-    y = height - 50
+    y = height - 40
 
-    # Title
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(180, y, "Employee Details Report")
+    p.setFont("Helvetica-Bold", 15)
+    p.drawCentredString(width / 2, y, "Employee Details Report")
     y -= 30
-    p.setFont("Helvetica", 10)
 
-    employees = Employee.objects.select_related('designation', 'team').all().order_by('-created_at')
+    employees = (
+        Employee.objects
+        .select_related('team', 'primary_shift')
+        .prefetch_related('roles')
+        .order_by('-created_at')
+    )
 
     for emp in employees:
-        details = [
-            f"Name: {emp.name or '-'}",
-            f"Email: {emp.company_email or '-'}",
-            f"Contact Number: {emp.contact_number or '-'}",
-            f"Designation: {emp.designation.name if emp.designation else '-'}",
-            f"Team: {emp.team.name if emp.team else '-'}",
-            f"Joining Date: {getattr(emp, 'joining_date', '-') if getattr(emp, 'joining_date', None) else '-'}",
-            f"Created At: {emp.created_at.strftime('%Y-%m-%d %H:%M:%S') if emp.created_at else '-'}",
-            f"Updated At: {emp.updated_at.strftime('%Y-%m-%d %H:%M:%S') if emp.updated_at else '-'}",
+        # --- Section Header ---
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(40, y, "EMPLOYEE INFORMATION")
+        y -= 16
+        p.setFont("Helvetica", 10)
+
+        rows = [
+            ("Login ID", emp.login_id),
+            ("Name", emp.name),
+            ("Company Email", emp.company_email),
+            ("Contact Number", emp.contact_number),
+            ("Roles", ", ".join(emp.roles.values_list('name', flat=True))),
+            ("Team", emp.team.name if emp.team else "-"),
+            ("Work Location", emp.work_location),
+            ("Primary Shift", emp.primary_shift.name if emp.primary_shift else "-"),
         ]
 
-        for line in details:
-            p.drawString(50, y, line)
-            y -= 15
-            if y < 50:  # new page if needed
-                p.showPage()
-                p.setFont("Helvetica", 10)
-                y = height - 50
+        for label, value in rows:
+            p.drawString(50, y, f"{label}: {value or '-'}")
+            y -= 14
 
+        y -= 6
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(40, y, "SALARY DETAILS")
+        y -= 16
+        p.setFont("Helvetica", 10)
+
+        salary_rows = [
+            ("Basic", emp.basic),
+            ("HRA", emp.hra),
+            ("Conveyance", emp.conveyance_allowance),
+            ("Medical", emp.medical_reimbursement),
+            ("Uniform", emp.uniform_allowance),
+            ("Food", emp.food_allowance),
+            ("Special Allowance", emp.special_allowance),
+            ("Arrear Salary", emp.arrear_salary),
+        ]
+
+        for label, value in salary_rows:
+            p.drawString(50, y, f"{label}: {value}")
+            y -= 14
+
+        y -= 6
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(40, y, "BANK & LEAVE DETAILS")
+        y -= 16
+        p.setFont("Helvetica", 10)
+
+        footer_rows = [
+            ("Bank Name", emp.bank_name),
+            ("Account No", emp.bank_account_no),
+            ("Leave Balance", f"{emp.leave_balance}/{emp.yearly_paid_leaves}"),
+            ("Archived", "Yes" if emp.is_archived else "No"),
+            ("Created At", emp.created_at.strftime('%Y-%m-%d %H:%M:%S')),
+            ("Updated At", emp.updated_at.strftime('%Y-%m-%d %H:%M:%S')),
+        ]
+
+        for label, value in footer_rows:
+            p.drawString(50, y, f"{label}: {value or '-'}")
+            y -= 14
+
+        # Divider
         y -= 10
-        p.line(50, y, width - 50, y)
+        p.line(40, y, width - 40, y)
         y -= 20
+
+        if y < 80:
+            p.showPage()
+            p.setFont("Helvetica", 10)
+            y = height - 40
 
     p.save()
     buffer.seek(0)
