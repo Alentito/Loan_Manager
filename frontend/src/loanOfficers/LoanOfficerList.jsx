@@ -115,7 +115,7 @@ const LoanOfficerList = () => {
   // Export handler
   const handleExport = (format) => {
     const map = { excel: 'export/loan-officers/excel/', pdf: 'export/loan-officers/pdf/' };
-    if (format && map[format]) window.open(`http://localhost:8000/api/${map[format]}`, '_blank');
+    if (format && map[format]) window.open(`https://backend-l3f9.onrender.com/api/${map[format]}`, '_blank');
   };
 
   const total = data?.count || 0;
