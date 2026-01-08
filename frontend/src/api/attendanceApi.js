@@ -119,14 +119,15 @@ punchOut: builder.mutation({
 }),
 // ✅ Get Late Logins list (day/week/month)
 getLateLogins: builder.query({
-  query: ({ filter = "day", date }) => {
+  query: ({ filter = "day", date, page = 1, page_size = 10 }) => {
     const params = new URLSearchParams();
     if (filter) params.append("filter", filter);
     if (date) params.append("date", date);
+    params.append("page", page);
+    params.append("page_size", page_size);
 
     return `attendance/late-logins/?${params.toString()}`;
   },
-  transformResponse: (response) => response?.results ?? [],
   providesTags: [{ type: "Attendance", id: "LateLogins" }],
 }),
 
