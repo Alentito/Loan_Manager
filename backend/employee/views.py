@@ -1570,18 +1570,13 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=["get"], url_path="late-logins")
     def late_logins(self, request):
-        """
-        Return employees who logged in late for a specific day/week/month (CST aligned)
-        Supports optional calendar date (?date=YYYY-MM-DD)
-        """
         tz = pytz.timezone("America/Chicago")
 
-        filter_type = request.query_params.get("filter", "day")  # day | week | month
+        filter_type = request.query_params.get("filter", "day")
         date_param = request.query_params.get("date")
-
         now = datetime.now(tz)
 
-        # ------------------ Resolve Selected Date ------------------
+        # ---------------- Resolve Date ----------------
         if date_param:
             selected_date = parse_date(date_param)
             if not selected_date:
@@ -1592,70 +1587,58 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         else:
             selected_date = now.date()
 
-        # ------------------ Determine Date Range ------------------
+        # ---------------- Date Range ----------------
         if filter_type == "day":
-            start_date = selected_date
-            end_date = selected_date
-
+            start_date = end_date = selected_date
         elif filter_type == "week":
             start_date = selected_date - timedelta(days=selected_date.weekday())
             end_date = start_date + timedelta(days=6)
-
         elif filter_type == "month":
             start_date = selected_date.replace(day=1)
             next_month = (start_date + timedelta(days=32)).replace(day=1)
             end_date = next_month - timedelta(days=1)
-
         else:
             return Response({"error": "Invalid filter"}, status=400)
 
-        default_grace_period = 10  # minutes
-
-        # ------------------ Query Late Attendance ------------------
+        # ---------------- Query ----------------
         qs = (
             Attendance.objects.filter(
                 date__range=[start_date, end_date],
                 status=Attendance.STATUS_LATE
             )
             .select_related("employee", "employee__user", "shift")
-            .order_by("-date", "employee__user__username")
+            .order_by("-date", "-login_time", "-id")
         )
 
-        # ------------------ Build Response ------------------
-        results = []
+        # ---------------- Pagination ----------------
+        paginator = LateLoginPagination()
+        page = paginator.paginate_queryset(qs, request)
 
-        for att in qs:
+        results = []
+        default_grace_period = 10
+
+        for att in page:
             emp = att.employee
             user = getattr(emp, "user", None)
 
-            # Grace period (shift-level or default)
             grace = (
                 att.shift.grace_period_minutes
-                if getattr(att, "shift", None) and att.shift.grace_period_minutes
+                if att.shift and att.shift.grace_period_minutes
                 else default_grace_period
             )
 
-            # Late duration
             minutes_late = att.minutes_late or 0
             adjusted_minutes = max(0, minutes_late - grace)
             total_seconds = adjusted_minutes * 60
 
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
+            h = total_seconds // 3600
+            m = (total_seconds % 3600) // 60
+            s = total_seconds % 60
 
-            late_duration = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-            # Login time in CST
-            if att.login_time:
-                login_time = (
-                    pytz.UTC.localize(att.login_time)
-                    if timezone.is_naive(att.login_time)
-                    else att.login_time
-                )
-                login_time = login_time.astimezone(tz).strftime("%Y-%m-%d %I:%M:%S %p")
-            else:
-                login_time = "N/A"
+            login_time = (
+                timezone.localtime(att.login_time, tz).strftime("%Y-%m-%d %I:%M:%S %p")
+                if att.login_time else "N/A"
+            )
 
             results.append({
                 "employee_id": getattr(emp, "employee_code", emp.id),
@@ -1667,18 +1650,20 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 "date": att.date.strftime("%Y-%m-%d"),
                 "status": att.status,
                 "login_time": login_time,
-                "late_duration": late_duration,
+                "late_duration": f"{h:02d}:{m:02d}:{s:02d}",
                 "shift_name": getattr(att.shift, "name", "N/A"),
             })
 
-        # ------------------ Final Response ------------------
-        return Response({
-            "filter": filter_type,
-            "from": start_date.strftime("%Y-%m-%d"),
-            "to": end_date.strftime("%Y-%m-%d"),
-            "results": results,
-        })
+        # ---------------- Final Paginated Response ----------------
+        response = paginator.get_paginated_response(results)
 
+        # Attach metadata
+        response.data["filter"] = filter_type
+        response.data["from"] = start_date.strftime("%Y-%m-%d")
+        response.data["to"] = end_date.strftime("%Y-%m-%d")
+
+        return response
+        
 class PunchInView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
