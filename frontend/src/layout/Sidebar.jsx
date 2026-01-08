@@ -131,12 +131,7 @@ export function SidebarContent() {
       </nav>
 
       <div className={`px-4 py-3 border-t ${sectionBorder}`}>
-        <Link
-          to="/settings"
-          className={`flex items-center gap-2 text-sm transition-colors ${isDark ? "text-slate-300 hover:text-slate-100" : "text-white/90 hover:text-white"}`}
-        >
-          <Settings size={18} /> Settings
-        </Link>
+        
         <button
           onClick={handleLogout}
           className={`mt-2 flex items-center gap-2 text-sm transition-colors ${isDark ? "text-slate-300 hover:text-rose-300" : "text-white/90 hover:text-white"}`}
