@@ -1743,6 +1743,77 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         response.data["to"] = end_date.strftime("%Y-%m-%d")
 
         return response
+
+    @action(detail=False, methods=["get"], url_path="login-logout")
+    def login_logout(self, request):
+        tz = pytz.timezone("America/Chicago")
+
+        filter_type = request.query_params.get("filter", "day")
+        date_param = request.query_params.get("date")
+
+        now = datetime.now(tz)
+        selected_date = parse_date(date_param) if date_param else now.date()
+
+        # ---- date range ----
+        if filter_type == "day":
+            start_date = end_date = selected_date
+        elif filter_type == "week":
+            start_date = selected_date - timedelta(days=selected_date.weekday())
+            end_date = start_date + timedelta(days=6)
+        else:  # month
+            start_date = selected_date.replace(day=1)
+            next_month = (start_date + timedelta(days=32)).replace(day=1)
+            end_date = next_month - timedelta(days=1)
+
+        qs = (
+            Attendance.objects.filter(date__range=[start_date, end_date])
+            .select_related("employee", "employee__user", "shift")
+            .prefetch_related("breaks")
+            .order_by("-date", "-login_time")
+        )
+
+        paginator = LateLoginPagination()
+        page = paginator.paginate_queryset(qs, request)
+
+        results = []
+
+        for att in page:
+            emp = att.employee
+            user = getattr(emp, "user", None)
+
+            # ✅ CORRECT WORK CALCULATION
+            if att.login_time and att.logout_time:
+                worked_seconds = int(
+                    (att.logout_time - att.login_time).total_seconds()
+                )
+            else:
+                worked_seconds = 0
+
+            worked_hhmmss = str(timedelta(seconds=worked_seconds))
+
+            results.append({
+                "employee_id": getattr(emp, "employee_code", emp.id),
+                "employee_name": (
+                    user.get_full_name()
+                    if user and user.get_full_name()
+                    else user.username if user else "N/A"
+                ),
+                "date": att.date.strftime("%Y-%m-%d"),
+                "status": att.status,
+                "login_time": timezone.localtime(att.login_time, tz).strftime("%I:%M %p")
+                    if att.login_time else "—",
+                "logout_time": timezone.localtime(att.logout_time, tz).strftime("%I:%M %p")
+                    if att.logout_time else "—",
+                "worked_hours": worked_hhmmss,
+                "shift_name": (
+                    att.shift.name
+                    if att.shift
+                    else getattr(emp.primary_shift, "name", "N/A")
+                ),
+            })
+
+        return paginator.get_paginated_response(results)
+
         
 class PunchInView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
