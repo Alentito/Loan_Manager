@@ -57,7 +57,7 @@ export function SidebarContent() {
     { path: "/admin/holidays", label: "Holidays", icon: CalendarCheck2, permission: "employee.view_publicholiday" },
     { path: "/lenders", label: "Lenders", icon: Building2, permission: "employee.sidebar_lender" },
     { path: "/attendance/summary", label: "Monthly Summary", icon: ClipboardList, permission: "employee.view_attendancesummary" },
-    { path: "/attendance/late-logins", label: "Late Logins", icon: Clock, permission: "employee.view_latelogins" },
+    { path: "/attendance/late-logins", label: "Logins Summary", icon: Clock, permission: "employee.view_latelogins" },
     //{ path: "/tokens/my-tokens", label: "My Tokens", icon: ClipboardList, permission: "employee.view_tokens" },
     { path: "/token/new", label: "Complaint", icon: ClipboardList, permission: "employee.add_employeetoken" },
     { path: "/admin/token-approvals", label: "Respond", icon: ClipboardList, permission: "employee.approve_tokens" },
