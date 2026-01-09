@@ -131,6 +131,19 @@ getLateLogins: builder.query({
   providesTags: [{ type: "Attendance", id: "LateLogins" }],
 }),
 
+getAbsents: builder.query({
+  query: ({ filter = "day", date, page = 1, page_size = 10 }) => {
+    const params = new URLSearchParams();
+    params.append("filter", filter);
+    if (date) params.append("date", date);
+    params.append("page", page);
+    params.append("page_size", page_size);
+
+    return `attendance/absents/?${params.toString()}`;
+  },
+  providesTags: [{ type: "Attendance", id: "Absents" }],
+}),
+
 
   }),
 });
@@ -147,4 +160,5 @@ export const {
   usePunchInMutation,
   usePunchOutMutation,
   useGetLateLoginsQuery,
+  useGetAbsentsQuery,
 } = attendanceApi;
