@@ -1717,8 +1717,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         results = []
         for att in page:
-            emp = att.employee
+            emp = att.employee          # ✅ ADD THIS LINE
             user = getattr(emp, "user", None)
+
+            shift_name = (
+                att.shift.name
+                if att.shift
+                else getattr(emp.primary_shift, "name", "N/A")
+            )
 
             results.append({
                 "employee_id": getattr(emp, "employee_code", emp.id),
@@ -1728,7 +1734,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     else user.username if user else "N/A"
                 ),
                 "date": att.date.strftime("%Y-%m-%d"),
-                "shift_name": getattr(att.shift, "name", "N/A"),
+                "shift_name": shift_name,
             })
 
         response = paginator.get_paginated_response(results)
