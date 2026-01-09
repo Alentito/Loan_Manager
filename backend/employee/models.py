@@ -380,7 +380,7 @@ class Attendance(models.Model):
     
     class Meta:
         permissions = [
-            ("view_latelogins", "Can view late login records"),
+            ("view_latelogins", "Can view login records"),
         ]
         unique_together = ("employee", "date")
         ordering = ("-date",)
