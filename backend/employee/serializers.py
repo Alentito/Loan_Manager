@@ -88,7 +88,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'yearly_paid_leaves', 'leave_balance',
             'team_name', 'primary_shift_name', 'alternate_shift_name',
             'manager_id', 'team_manager_name', 'bank_name',
-            'bank_account_no', 'basic',
+            'bank_account_no',
             'work_location',
             'hra', 'conveyance_allowance', 'medical_reimbursement',
             'uniform_allowance', 'food_allowance', 'special_allowance',
