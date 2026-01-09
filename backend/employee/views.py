@@ -1668,6 +1668,75 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         response.data["to"] = end_date.strftime("%Y-%m-%d")
 
         return response
+
+
+    @action(detail=False, methods=["get"], url_path="absents")
+    def absents(self, request):
+        tz = pytz.timezone("America/Chicago")
+
+        filter_type = request.query_params.get("filter", "day")
+        date_param = request.query_params.get("date")
+        now = datetime.now(tz)
+
+        # -------- Resolve Date --------
+        if date_param:
+            selected_date = parse_date(date_param)
+            if not selected_date:
+                return Response(
+                    {"error": "Invalid date format. Use YYYY-MM-DD"},
+                    status=400
+                )
+        else:
+            selected_date = now.date()
+
+        # -------- Date Range --------
+        if filter_type == "day":
+            start_date = end_date = selected_date
+        elif filter_type == "week":
+            start_date = selected_date - timedelta(days=selected_date.weekday())
+            end_date = start_date + timedelta(days=6)
+        elif filter_type == "month":
+            start_date = selected_date.replace(day=1)
+            next_month = (start_date + timedelta(days=32)).replace(day=1)
+            end_date = next_month - timedelta(days=1)
+        else:
+            return Response({"error": "Invalid filter"}, status=400)
+
+        # -------- Query ABSENT --------
+        qs = (
+            Attendance.objects.filter(
+                date__range=[start_date, end_date],
+                status=Attendance.STATUS_ABSENT
+            )
+            .select_related("employee", "employee__user", "shift")
+            .order_by("-date", "employee__user__username")
+        )
+
+        paginator = LateLoginPagination()  # reuse same paginator
+        page = paginator.paginate_queryset(qs, request)
+
+        results = []
+        for att in page:
+            emp = att.employee
+            user = getattr(emp, "user", None)
+
+            results.append({
+                "employee_id": getattr(emp, "employee_code", emp.id),
+                "employee_name": (
+                    user.get_full_name()
+                    if user and user.get_full_name()
+                    else user.username if user else "N/A"
+                ),
+                "date": att.date.strftime("%Y-%m-%d"),
+                "shift_name": getattr(att.shift, "name", "N/A"),
+            })
+
+        response = paginator.get_paginated_response(results)
+        response.data["filter"] = filter_type
+        response.data["from"] = start_date.strftime("%Y-%m-%d")
+        response.data["to"] = end_date.strftime("%Y-%m-%d")
+
+        return response
         
 class PunchInView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
