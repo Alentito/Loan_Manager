@@ -40,7 +40,7 @@ const EmployeeForm = ({
     bank_name: "",
     bank_account_no: "",
     work_location: "",
-    basic: "",
+    base_salary: "",
     hra: "",
     conveyance_allowance: "",
     medical_reimbursement: "",
@@ -81,7 +81,7 @@ const EmployeeForm = ({
       bank_name: existingData.bank_name || "",
       bank_account_no: existingData.bank_account_no || "",
       work_location: existingData.work_location || "",
-      basic: existingData.basic || "",
+      base_salary: existingData.base_salary || "",
       hra: existingData.hra || "",
       conveyance_allowance: existingData.conveyance_allowance || "",
       medical_reimbursement: existingData.medical_reimbursement || "",
@@ -189,6 +189,7 @@ const EmployeeForm = ({
       bank_name: "",
       bank_account_no: "",
       work_location: "",
+      base_salary: "",
     });
     setLocalErrors({});
   };
@@ -369,7 +370,7 @@ const EmployeeForm = ({
 </Grid>
 
 <Grid item xs={12} sm={6}>
-  {renderTextField("basic", "Basic Salary", "number")}
+  {renderTextField("base_salary", "Basic Salary", "number")}
 </Grid>
 <Grid item xs={12} sm={6}>
   {renderTextField("hra", "HRA (House Rent Allowance)", "number")}
