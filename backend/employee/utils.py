@@ -539,6 +539,7 @@ def mark_missing_absents(employee):
         absent_records.append(
             Attendance(
                 employee=employee,
+                shift=employee.primary_shift,
                 date=single_date,
                 status=Attendance.STATUS_ABSENT,
                 login_time=None,
