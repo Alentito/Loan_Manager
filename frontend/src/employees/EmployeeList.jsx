@@ -488,7 +488,7 @@ const EmployeeList = () => {
                 ['Bank Name', viewingEmployee.bank_name],
                 ['Bank A/C No', viewingEmployee.bank_account_no],
                 ['Work Location', viewingEmployee.work_location],
-                ['Basic Salary', viewingEmployee.basic],
+                ['Basic Salary', viewingEmployee.base_salary],
                 ['HRA', viewingEmployee.hra],
                 ['Conveyance Allowance', viewingEmployee.conveyance_allowance],
                 ['Medical Reimbursement', viewingEmployee.medical_reimbursement],
