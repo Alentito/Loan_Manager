@@ -17,9 +17,10 @@ import {
 import {
   useGetLateLoginsQuery,
   useGetAbsentsQuery,
+  useGetLoginLogoutQuery, // ⬅️ ADD THIS
 } from "../api/attendanceApi";
 
-// CST-safe YYYY-MM-DD
+/* ------------------ Helpers ------------------ */
 const getCSTTodayString = () =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Chicago",
@@ -27,13 +28,14 @@ const getCSTTodayString = () =>
 
 const pageSize = 10;
 
+/* ------------------ Component ------------------ */
 export default function AttendanceReportsPage() {
-  const [tab, setTab] = useState("late"); // late | absent
+  const [tab, setTab] = useState("late"); // late | absent | login
   const [viewMode, setViewMode] = useState("month");
   const [currentDate, setCurrentDate] = useState(getCSTTodayString());
   const [page, setPage] = useState(1);
 
-  // Reset page on filter change
+  /* Reset page on filter change */
   useEffect(() => {
     setPage(1);
   }, [tab, viewMode, currentDate]);
@@ -45,41 +47,54 @@ export default function AttendanceReportsPage() {
     page_size: pageSize,
   };
 
-  const lateQuery = useGetLateLoginsQuery(queryArgs, {
-    skip: tab !== "late",
-  });
+  /* ------------------ Queries ------------------ */
+  const lateQuery = useGetLateLoginsQuery(queryArgs, { skip: tab !== "late" });
+  const absentQuery = useGetAbsentsQuery(queryArgs, { skip: tab !== "absent" });
+  const loginQuery = useGetLoginLogoutQuery(queryArgs, { skip: tab !== "login" });
 
-  const absentQuery = useGetAbsentsQuery(queryArgs, {
-    skip: tab !== "absent",
-  });
+  /* ------------------ Tab Config ------------------ */
+  const tabsConfig = {
+    late: {
+      label: "Late Logins",
+      query: lateQuery,
+      columns: ["status", "login_time", "late_duration"],
+    },
+    absent: {
+      label: "Absents",
+      query: absentQuery,
+      columns: [],
+    },
+    login: {
+      label: "Login / Logout",
+      query: loginQuery,
+      columns: ["login_time", "logout_time", "worked_hours", "status"],
+    },
+  };
 
-  const data = tab === "late" ? lateQuery.data : absentQuery.data;
-  const isLoading = tab === "late" ? lateQuery.isLoading : absentQuery.isLoading;
-  const error = tab === "late" ? lateQuery.error : absentQuery.error;
+  const { query, columns } = tabsConfig[tab];
+  const { data, isLoading, error } = query;
 
   const rows = data?.results || [];
   const total = data?.count || 0;
 
+  /* ------------------ Render ------------------ */
   return (
     <Box p={3}>
       <Typography variant="h5" gutterBottom>
         Attendance Reports
       </Typography>
 
-      {/* 🔹 Tabs (like Loan Pipeline) */}
+      {/* 🔹 Tabs */}
       <Box display="flex" gap={2} mb={2}>
-        <Button
-          variant={tab === "late" ? "contained" : "outlined"}
-          onClick={() => setTab("late")}
-        >
-          Late Logins
-        </Button>
-        <Button
-          variant={tab === "absent" ? "contained" : "outlined"}
-          onClick={() => setTab("absent")}
-        >
-          Absents
-        </Button>
+        {Object.entries(tabsConfig).map(([key, cfg]) => (
+          <Button
+            key={key}
+            variant={tab === key ? "contained" : "outlined"}
+            onClick={() => setTab(key)}
+          >
+            {cfg.label}
+          </Button>
+        ))}
       </Box>
 
       {/* 🔹 Filters */}
@@ -123,12 +138,18 @@ export default function AttendanceReportsPage() {
                   <TableCell>Name</TableCell>
                   <TableCell>Date</TableCell>
 
-                  {tab === "late" && (
-                    <>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Login Time</TableCell>
-                      <TableCell>Late Duration</TableCell>
-                    </>
+                  {columns.includes("status") && <TableCell>Status</TableCell>}
+                  {columns.includes("login_time") && (
+                    <TableCell>Login</TableCell>
+                  )}
+                  {columns.includes("logout_time") && (
+                    <TableCell>Logout</TableCell>
+                  )}
+                  {columns.includes("late_duration") && (
+                    <TableCell>Late Duration</TableCell>
+                  )}
+                  {columns.includes("worked_hours") && (
+                    <TableCell>Worked Hours</TableCell>
                   )}
 
                   <TableCell>Shift</TableCell>
@@ -143,12 +164,20 @@ export default function AttendanceReportsPage() {
                       <TableCell>{row.employee_name}</TableCell>
                       <TableCell>{row.date}</TableCell>
 
-                      {tab === "late" && (
-                        <>
-                          <TableCell>{row.status}</TableCell>
-                          <TableCell>{row.login_time}</TableCell>
-                          <TableCell>{row.late_duration}</TableCell>
-                        </>
+                      {columns.includes("status") && (
+                        <TableCell>{row.status}</TableCell>
+                      )}
+                      {columns.includes("login_time") && (
+                        <TableCell>{row.login_time}</TableCell>
+                      )}
+                      {columns.includes("logout_time") && (
+                        <TableCell>{row.logout_time}</TableCell>
+                      )}
+                      {columns.includes("late_duration") && (
+                        <TableCell>{row.late_duration}</TableCell>
+                      )}
+                      {columns.includes("worked_hours") && (
+                        <TableCell>{row.worked_hours}</TableCell>
                       )}
 
                       <TableCell>{row.shift_name}</TableCell>
@@ -156,10 +185,7 @@ export default function AttendanceReportsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell
-                      colSpan={tab === "late" ? 7 : 4}
-                      align="center"
-                    >
+                    <TableCell colSpan={7} align="center">
                       No records found
                     </TableCell>
                   </TableRow>
