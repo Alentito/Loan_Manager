@@ -293,7 +293,7 @@ class LeaveRequests(models.Model):
         if self.status == "approved" and self.approval_type == "paid":
             # Deduct only if it wasn't already deducted before
             if not (previous.status == "approved" and previous.approval_type == "paid"):
-                employee.leave_balance = max(0, employee.leave_balance - days)
+                employee.leave_balance = employee.leave_balance - days
                 employee.save(update_fields=["leave_balance"])
             return
 
