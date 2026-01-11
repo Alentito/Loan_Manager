@@ -269,10 +269,6 @@ class LoanRoleAssignment(models.Model):
 
 
 class Loan(models.Model):
-    LOCK_STATUS_CHOICES = [
-        ('lock', 'Lock'),
-        ('float', 'Float'),
-    ]
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100,default="Unknown")
 
@@ -282,18 +278,49 @@ class Loan(models.Model):
     milestone = models.ForeignKey(Milestone, null=True, blank=True, on_delete=models.SET_NULL)
 
     compensation = models.CharField(max_length=100, blank=True, null=True)
-    lock_status = models.CharField(
-        max_length=100,
+
+    # Structured compensation (UI: two independent options + amounts)
+    compensation_borrower_paid = models.BooleanField(default=False)
+    compensation_borrower_paid_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    compensation_lender_paid = models.BooleanField(default=False)
+    compensation_lender_paid_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+
+    # Funded milestone options (UI only when milestone is Funded)
+    funded_check_to_company = models.BooleanField(default=False)
+    funded_check_to_company_note = models.CharField(max_length=200, blank=True, null=True)
+
+    funded_invoice = models.BooleanField(default=False)
+    funded_invoice_company = models.CharField(
+        max_length=20,
+        choices=[("entegra", "Entegra"), ("quantegra", "Quantegra")],
         blank=True,
         null=True,
-        choices=LOCK_STATUS_CHOICES,
-        default=None,
     )
+    funded_invoice_entegra_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    funded_invoice_quantegra_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+
+    lock_status = models.CharField(max_length=100, blank=True, null=True)
+    lock_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     closing_date = models.DateField(blank=True, null=True)
     point_file = models.CharField(max_length=255, blank=True, null=True)
     subject_property = models.CharField(max_length=255, blank=True, null=True)
     loan_comment = models.TextField(blank=True, null=True)
+
     lenders = models.ManyToManyField('employee.Lender', related_name='loans', blank=True)
+
+    # team_leader = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_leader')
+    # team_manager = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_team_manager')
+    # processor = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_processor')
+    # support = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='loans_support')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     external_id = models.CharField(
@@ -326,7 +353,7 @@ class Loan(models.Model):
     class Meta:
      permissions = [
         ("view_all_loans", "Can view all loans"),
-        ("View_reports", "Can view reports"),
+        ("view_reports", "Can view reports"),
      ]
 
     def __str__(self):
@@ -372,22 +399,3 @@ class IncomeAssetNote(models.Model):
 
     def __str__(self):
         return f"IncomeAssetNote(loan={self.loan_id})"
-
-class LoanMilestoneHistory(models.Model):
-    loan = models.ForeignKey(
-        Loan,
-        on_delete=models.CASCADE,
-        related_name="milestone_history"
-    )
-    milestone = models.ForeignKey(
-        Milestone,
-        on_delete=models.CASCADE
-    )
-    changed_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["changed_at"]
-
-    def __str__(self):
-        return f"{self.loan_id} → {self.milestone.name} @ {self.changed_at}"
-
