@@ -105,12 +105,26 @@ const handleTabHover = (tabIndex) => {
 };
 
 // local theme to make fonts and spacing consistent with an enterprise look
+const localTheme = createTheme({
+  typography: {
+    fontFamily: "'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif",
+    fontSize: 14, // base font size
+    h6: { fontSize: "1rem", fontWeight: 600 },
+    body2: { fontSize: "0.95rem" },
+    caption: { fontSize: "0.8rem" },
+  },
+  components: {
+    MuiButton: {
+      defaultProps: { size: "medium" },
+    },
+  },
+});
 
 export default function LoanDetails() {
 
   const [roleAssignments, setRoleAssignments] = useState({});
 
-    
+  
 
 const outerTheme = useTheme();
   const localTheme = useMemo(
@@ -225,6 +239,11 @@ const outerTheme = useTheme();
   const handleSaveEditLoan = async (payload) => {
     try {
       await updateLoan({ id: loan.id, data: payload }).unwrap();
+      try {
+        localStorage.removeItem(`loanFormDraft:edit:${loan.id}`);
+      } catch {
+        // ignore
+      }
       setOpenNew(false);
       setEditMode(false);
       setSelectedLoan(null);
@@ -236,7 +255,6 @@ const outerTheme = useTheme();
     }
   };
 
-  
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this loan?")) return;
     try {
@@ -423,12 +441,32 @@ const outerTheme = useTheme();
                               >
                                 <Typography sx={{ mb: 1 }}>
                                   <strong>Compensation:</strong>{" "}
-                                  {loan.compensation ?? "Nil"}
+                                  {(() => {
+                                    const parts = [];
+                                    if (loan.compensation_borrower_paid) {
+                                      parts.push(
+                                        `Borrower Paid: ${loan.compensation_borrower_paid_amount ?? "-"}`
+                                      );
+                                    }
+                                    if (loan.compensation_lender_paid) {
+                                      parts.push(
+                                        `Lender Paid: ${loan.compensation_lender_paid_amount ?? "-"}`
+                                      );
+                                    }
+                                    if (parts.length) return parts.join(" | ");
+                                    return loan.compensation ?? "Nil";
+                                  })()}
                                 </Typography>
                                 <Typography sx={{ mb: 1 }}>
                                   <strong>Lock Status:</strong>{" "}
                                   {loan.lock_status ?? "Nil"}
                                 </Typography>
+                                {String(loan.lock_status || "").toLowerCase() === "locked" ? (
+                                  <Typography sx={{ mb: 1 }}>
+                                    <strong>Lock Amount:</strong>{" "}
+                                    {loan.lock_amount ?? "-"}
+                                  </Typography>
+                                ) : null}
                                 <Typography sx={{ mb: 1 }}>
                                   <strong>Point File:</strong>{" "}
                                   {loan.point_file ?? "Nil"}
