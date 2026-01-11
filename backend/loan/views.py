@@ -599,10 +599,11 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
         # Start with base queryset INCLUDING prefetch of role assignments
         qs = self._with_role_prefetch(Loan.objects.all())
 
-        if not (user.is_superuser or user.has_perm("loan.view_all_loans")):
+        if user.is_superuser or user.has_perm("loan.view_all_loans"):
             include_archived = self.request.query_params.get("include_archived", "").lower()
             if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
                 qs = qs.filter(is_archived=False)
+            return qs.order_by("-created_at")
             
 
         # Non-privileged visibility logic
