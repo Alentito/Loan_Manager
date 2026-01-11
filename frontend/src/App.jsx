@@ -4,9 +4,8 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
-
-
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import Dashboard from "./pages/Dashboard";
 import LoanManagement from "./pages/LoanManagement";
 import LoanDetails from "./pages/LoanDetails";
@@ -23,7 +22,6 @@ import LoanOfficerList from "./loanOfficers/LoanOfficerList";
 import EmployeeList from "./employees/EmployeeList";
 import useInitializeAuth from "./api/useInitializeAuth";
 import ProtectedLayout from "./auth/ProtectedLayout";
-
 import AttendancePage from "./attendance/AttendancePage";
 // import MonthlySummaryTable from "./attendance/MonthlySummaryTable";
 import LeaveRequestForm from "./leaves/LeaveRequestForm";
@@ -100,6 +98,15 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <ToastContainer
+      position="top-right"
+      autoClose={3000}
+      hideProgressBar={false}
+      newestOnTop
+      closeOnClick
+      pauseOnHover
+      draggable
+    />
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
