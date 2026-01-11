@@ -1105,14 +1105,19 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         return qs.filter(start_date__lte=end_of_month, end_date__gte=start_of_month)
 
 
-    @action(detail=True, methods=["post"], url_path="approve")
+    @action(detail=True, methods=["post"], url_path="approve", permission_classes=[IsAuthenticated])
     def approve_request(self, request, pk=None):
         with transaction.atomic():
             leave = self.get_object()
             employee = leave.employee
 
-            if leave.employee == request.user.employee:
-                return Response({"detail": "You cannot approve your own leave request."}, status=403)
+            user_employee = getattr(request.user, "employee", None)
+            if user_employee and leave.employee_id == user_employee.id:
+                return Response(
+                    {"detail": "You cannot approve your own leave request."},
+                    status=403
+                )
+
 
             if not request.user.has_perm("employee.approve_leave"):
                 return Response({"detail": "Not authorized"}, status=403)
@@ -1143,13 +1148,14 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
 
 
 
-    @action(detail=True, methods=["post"], url_path="deny")
+    @action(detail=True, methods=["post"], url_path="deny", permission_classes=[IsAuthenticated])
     def deny_request(self, request, pk=None):
         with transaction.atomic():
             leave = self.get_object()
 
             # Prevent self-denial
-            if leave.employee == request.user.employee:
+            user_employee = getattr(request.user, "employee", None)
+            if user_employee and leave.employee_id == user_employee.id:
                 return Response(
                     {"detail": "You cannot deny your own leave request."},
                     status=403
