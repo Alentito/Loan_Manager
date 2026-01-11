@@ -146,28 +146,37 @@ export default function LeaveApprovalPage() {
 
   // ------------------ Handlers ------------------
   const handleDecision = async (id, decision, employee, approvalType = null) => {
-    if (employee?.id === userId) {
-      toast.error("⚠️ You cannot approve/deny your own leave request.");
-      return;
-    }
+  if (employee?.id === userId) {
+    toast.error("⚠️ You cannot approve or deny your own leave request.");
+    return;
+  }
 
-    try {
-      if (decision === "approved") {
-        if (!approvalType) {
-          toast.error("Please select Paid or Unpaid before approving.");
-          return;
-        }
-        await approveLeave({ id, approval_type: approvalType }).unwrap();
-      } else {
-        await denyLeave(id).unwrap();
+  try {
+    if (decision === "approved") {
+      if (!approvalType) {
+        toast.error("Please select Paid or Unpaid before approving.");
+        return;
       }
-
-      toast.success(`Leave ${decision}`);
-      refetch();
-    } catch {
-      toast.error("Failed to update leave request");
+      await approveLeave({ id, approval_type: approvalType }).unwrap();
+    } else {
+      await denyLeave(id).unwrap();
     }
-  };
+
+    toast.success(`Leave ${decision}`);
+    refetch();
+  } catch (err) {
+    console.error("Leave approval error:", err);
+
+    const message =
+      err?.data?.detail ||
+      err?.error?.data?.detail ||
+      err?.error ||
+      "Failed to update leave request";
+
+    toast.error(message);
+  }
+};
+
 
   const StatusBox = ({ status }) => {
     const bgColor =
