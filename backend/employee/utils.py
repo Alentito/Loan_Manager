@@ -516,25 +516,37 @@ def mark_missing_absents(employee):
     end_date = today - timedelta(days=1)  # only past days
 
     if start_date > end_date:
-        return  # nothing to do
+        return
 
-    # Get existing attendance for this employee in range
     existing_dates = set(
-        Attendance.objects.filter(employee=employee, date__range=(start_date, end_date))
-        .values_list("date", flat=True)
+        Attendance.objects.filter(
+            employee=employee,
+            date__range=(start_date, end_date)
+        ).values_list("date", flat=True)
     )
 
-    # Get public holidays
-    holidays = set(PublicHoliday.objects.filter(is_public=True, date__range=(start_date, end_date))
-                   .values_list("date", flat=True))
+    holidays = set(
+        PublicHoliday.objects.filter(
+            is_public=True,
+            date__range=(start_date, end_date)
+        ).values_list("date", flat=True)
+    )
 
     absent_records = []
 
-    for single_date in (start_date + timedelta(days=n) for n in range((end_date - start_date).days + 1)):
+    for single_date in (
+        start_date + timedelta(days=n)
+        for n in range((end_date - start_date).days + 1)
+    ):
+        # 🚫 SKIP WEEKENDS (Saturday=5, Sunday=6)
+        if single_date.weekday() in (5, 6):
+            continue
+
         if single_date in existing_dates:
-            continue  # attendance or leave already exists
+            continue
+
         if single_date in holidays:
-            continue  # public holiday, skip
+            continue
 
         absent_records.append(
             Attendance(
@@ -552,6 +564,6 @@ def mark_missing_absents(employee):
 
     if absent_records:
         Attendance.objects.bulk_create(absent_records)
-        for att in absent_records:
-            update_monthly_summary(att)
+
+
 
