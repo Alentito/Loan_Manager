@@ -233,11 +233,24 @@ class LoanSerializer(serializers.ModelSerializer):
 
     role_assignments = LoanRoleAssignmentSerializer(many=True, required=False)
 
+
+    # read-side: nested serializers
     broker = BrokerSerializer(read_only=True)
     loan_officer = LoanOfficerSerializer(read_only=True)
 
+    # team_leader = EmployeeSerializer(read_only=True)
+    # team_manager = EmployeeSerializer(read_only=True)
+    # processor = EmployeeSerializer(read_only=True)
+    # support = EmployeeSerializer(read_only=True)
+
     lenders = LenderSerializer(read_only=True, many=True)
     
+
+
+
+    #lenders = LenderSerializer(read_only=True, many=True)
+
+    # write-only PK fields (frontend should send these on create/update)
     broker_id = serializers.PrimaryKeyRelatedField(
         queryset=Broker.objects.all(), source='broker', write_only=True, required=False, allow_null=True
     )
@@ -245,6 +258,109 @@ class LoanSerializer(serializers.ModelSerializer):
         queryset=LoanOfficer.objects.all(), source='loan_officer', write_only=True, required=False, allow_null=True
     )
 
+    def validate(self, attrs):
+        instance = getattr(self, "instance", None)
+
+        borrower_paid = attrs.get(
+            "compensation_borrower_paid",
+            getattr(instance, "compensation_borrower_paid", False) if instance else False,
+        )
+        borrower_paid_amount = attrs.get(
+            "compensation_borrower_paid_amount",
+            getattr(instance, "compensation_borrower_paid_amount", None) if instance else None,
+        )
+        lender_paid = attrs.get(
+            "compensation_lender_paid",
+            getattr(instance, "compensation_lender_paid", False) if instance else False,
+        )
+        lender_paid_amount = attrs.get(
+            "compensation_lender_paid_amount",
+            getattr(instance, "compensation_lender_paid_amount", None) if instance else None,
+        )
+
+        milestone = attrs.get("milestone", getattr(instance, "milestone", None) if instance else None)
+        milestone_name = (getattr(milestone, "name", None) or "").strip().lower()
+        is_funded_milestone = milestone_name == "funded"
+
+        lock_status = attrs.get(
+            "lock_status",
+            getattr(instance, "lock_status", None) if instance else None,
+        )
+        lock_amount = attrs.get(
+            "lock_amount",
+            getattr(instance, "lock_amount", None) if instance else None,
+        )
+
+        funded_check_to_company = attrs.get(
+            "funded_check_to_company",
+            getattr(instance, "funded_check_to_company", False) if instance else False,
+        )
+        funded_check_to_company_note = attrs.get(
+            "funded_check_to_company_note",
+            getattr(instance, "funded_check_to_company_note", None) if instance else None,
+        )
+
+        funded_invoice = attrs.get(
+            "funded_invoice",
+            getattr(instance, "funded_invoice", False) if instance else False,
+        )
+        funded_invoice_company = attrs.get(
+            "funded_invoice_company",
+            getattr(instance, "funded_invoice_company", None) if instance else None,
+        )
+        funded_invoice_entegra_amount = attrs.get(
+            "funded_invoice_entegra_amount",
+            getattr(instance, "funded_invoice_entegra_amount", None) if instance else None,
+        )
+        funded_invoice_quantegra_amount = attrs.get(
+            "funded_invoice_quantegra_amount",
+            getattr(instance, "funded_invoice_quantegra_amount", None) if instance else None,
+        )
+
+        errors = {}
+
+        if borrower_paid and borrower_paid_amount is None:
+            errors["compensation_borrower_paid_amount"] = "Borrower paid amount is required when Borrower Paid is selected."
+        if lender_paid and lender_paid_amount is None:
+            errors["compensation_lender_paid_amount"] = "Lender paid amount is required when Lender Paid is selected."
+
+        if is_funded_milestone:
+            if funded_check_to_company_note is not None and len(str(funded_check_to_company_note)) > 200:
+                errors["funded_check_to_company_note"] = "Must be 200 characters or fewer."
+            if funded_invoice:
+                if not funded_invoice_company:
+                    errors["funded_invoice_company"] = "Company is required when Invoice is selected."
+                else:
+                    company = str(funded_invoice_company).strip().lower()
+                    if company == "entegra":
+                        if funded_invoice_entegra_amount is None:
+                            errors["funded_invoice_entegra_amount"] = "Amount is required for Entegra when selected."
+                    elif company == "quantegra":
+                        if funded_invoice_quantegra_amount is None:
+                            errors["funded_invoice_quantegra_amount"] = "Amount is required for Quantegra when selected."
+                    else:
+                        errors["funded_invoice_company"] = "Invalid company."
+
+        if (str(lock_status or "").strip().lower() == "locked") and lock_amount is None:
+            errors["lock_amount"] = "Lock amount is required when Lock Status is Locked."
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return attrs
+
+    # team_leader_id = serializers.PrimaryKeyRelatedField(
+    #     queryset=Employee.objects.all(), source='team_leader', write_only=True, required=False, allow_null=True
+    # )
+    # team_manager_id = serializers.PrimaryKeyRelatedField(
+    #     queryset=Employee.objects.all(), source='team_manager', write_only=True, required=False, allow_null=True
+    # )
+    # processor_id = serializers.PrimaryKeyRelatedField(
+    #     queryset=Employee.objects.all(), source='processor', write_only=True, required=False, allow_null=True
+    # )
+    # support_id = serializers.PrimaryKeyRelatedField(
+    #     queryset=Employee.objects.all(), source='support', write_only=True, required=False, allow_null=True
+    # )
 
     lender_ids = serializers.PrimaryKeyRelatedField(
         queryset=Lender.objects.all(), source='lenders', write_only=True, many=True, required=False
@@ -263,18 +379,10 @@ class LoanSerializer(serializers.ModelSerializer):
             employees = item.pop('employees', [])
             ra = LoanRoleAssignment.objects.create(loan=loan, **item)
             ra.employees.set(employees)
-
-        if loan.milestone:
-            LoanMilestoneHistory.objects.create(
-                loan=loan,
-                milestone=loan.milestone
-            )
         return loan
 
     def update(self, instance, validated_data):
         ras = validated_data.pop('role_assignments', None)
-        old_milestone = instance.milestone
-
         loan = super().update(instance, validated_data)
         if ras is not None:
             LoanRoleAssignment.objects.filter(loan=loan).delete()
@@ -282,18 +390,4 @@ class LoanSerializer(serializers.ModelSerializer):
                 employees = item.pop('employees', [])
                 ra = LoanRoleAssignment.objects.create(loan=loan, **item)
                 ra.employees.set(employees)
-
-        if (
-            old_milestone != loan.milestone
-            and loan.milestone
-            and not LoanMilestoneHistory.objects.filter(
-                loan=loan,
-                milestone=loan.milestone
-            ).exists()
-        ):
-            LoanMilestoneHistory.objects.create(
-                loan=loan,
-                milestone=loan.milestone
-            )
-          
         return loan
