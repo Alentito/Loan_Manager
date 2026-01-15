@@ -20,7 +20,7 @@ import {
 } from "@mui/material";
 import { useGetBrokersQuery } from "../../api/brokerApi";
 import { useGetLoanOfficersQuery } from "../../api/loanOfficerApi";
-import { useGetEmployeesQuery } from "../../api/employeeApi";
+import { useGetAllEmployeesQuery } from "../../api/employeeApi";
 import { useGetMilestonesQuery } from "../../api/milestoneApi";
 import { useGetLendersQuery } from "../../api/lenderApiSlice";
 import { useGetGroupsQuery } from "../../api/authApi";
@@ -63,7 +63,7 @@ export default function LoanFormDialog({
   const assignableRoles = allRoles.filter((r) => r.assignable_on_loan);
 
   // Employees
-  const { data: employeesData = {} } = useGetEmployeesQuery({ page_size: 2000 });
+  const { data: employeesData = {} } = useGetAllEmployeesQuery({ page_size: 2000 });
   const employees = employeesData.results || [];
 
   // Normalize any stored primitive IDs into full employee objects after employees load
