@@ -80,27 +80,41 @@ export default function AttendanceCalendar({
 
   // Attendance events
   const attendanceDates = new Set();
+  // 🔹 Get all pending attendance entries so UI shows them blank (no absent/leave)
+const pendingLeaveDates = new Set(
+  attendance
+    .filter((a) => a.status?.toLowerCase() === "pending")
+    .map((a) => formatToCSTDate(a.date))
+);
+
   const eventsFromAttendance = [];
   attendance.forEach(({ date, status, daily_late_hhmmss }) => {
-    const dateStr = formatToCSTDate(date);
-    if (!dateStr) return;
-    attendanceDates.add(dateStr);
+  const dateStr = formatToCSTDate(date);
+  if (!dateStr) return;
 
-    const normalized = (status || "").toLowerCase();
-    let title = STATUS_TITLES[normalized] || `🔹 ${status}`;
+  const normalized = (status || "").toLowerCase();
 
-    // 🕒 Add per-day late time if exists
-    if (normalized === "late" && daily_late_hhmmss && daily_late_hhmmss !== "00:00:00") {
-      title += `\n⏱️ ${daily_late_hhmmss}`;
-    }
+  // skip pending / blank
+  if (normalized === "pending" || normalized === "") return;
 
-    eventsFromAttendance.push({
-      id: `att-${dateStr}`,
-      title,
-      date: dateStr,
-      classNames: [`status-${normalized}`],
-    });
+  // only add to attendanceDates if it’s real
+  attendanceDates.add(dateStr);
+
+  let title = STATUS_TITLES[normalized] || `🔹 ${status}`;
+
+  // 🕒 Add per-day late time if exists
+  if (normalized === "late" && daily_late_hhmmss && daily_late_hhmmss !== "00:00:00") {
+    title += `\n⏱️ ${daily_late_hhmmss}`;
+  }
+
+  eventsFromAttendance.push({
+    id: `att-${dateStr}`,
+    title,
+    date: dateStr,
+    classNames: [`status-${normalized}`],
   });
+});
+
 
   const eventsFromBreaks = [];
   breaks.forEach(({ id, start_time, end_time }) => {
@@ -151,20 +165,26 @@ export default function AttendanceCalendar({
 
     const employeeCreationStr = formatToCSTDate(employee?.created_at); // pass employee as prop
 
-    if (
-      !isWeekendYMD(year, month, d) &&
-      !holidayDates.has(dateStr) &&
-      !attendanceDates.has(dateStr) &&
-      isPastDay &&
-      (!employeeCreationStr || dateStr >= employeeCreationStr)
-    ) {
-      generatedEvents.push({
-        id: `absent-${dateStr}`,
-        title: STATUS_TITLES["absent"],
-        date: dateStr,
-        classNames: ["status-absent"],
-      });
-    }
+    // 🆕 Skip pending dates completely (stay blank)
+if (pendingLeaveDates.has(dateStr)) {
+  continue; // do NOT mark absent or leave → stays empty
+}
+
+// Normal rule → mark absent only when it's not pending
+if (
+  !isWeekendYMD(year, month, d) &&
+  !holidayDates.has(dateStr) &&
+  !attendanceDates.has(dateStr) &&
+  isPastDay &&
+  (!employeeCreationStr || dateStr >= employeeCreationStr)
+) {
+  generatedEvents.push({
+    id: `absent-${dateStr}`,
+    title: STATUS_TITLES["absent"],
+    date: dateStr,
+    classNames: ["status-absent"],
+  });
+}
 
   }
 

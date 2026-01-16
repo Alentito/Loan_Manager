@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -18,11 +18,14 @@ import {
   useGetFundedLoanReportQuery,
   useGetBrokerLinkedEmployeesQuery,
   useGetTeamLeadProcessorsQuery,
-
+  useExportLoanReportMutation,
 } from "@/api/fundedLoanReportApi";
 import { useGetBrokersQuery } from "@/api/brokerApi";
 import { useGetAllEmployeesQuery } from "@/api/employeeApi";
 import { useNavigate } from "react-router-dom";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 
 
 
@@ -38,6 +41,10 @@ export default function FundedLoanReportPage() {
     end_date: "",
     page: 1,
   });
+  const [exportLoanReport, { isLoading: isExporting }] =
+  useExportLoanReportMutation();
+  const [exportAnchor, setExportAnchor] = useState(null);
+  const exportOpen = Boolean(exportAnchor);
 
   // 🔹 Fetch all brokers
   const { data: brokers, isLoading: isBrokersLoading } = useGetBrokersQuery({
@@ -65,7 +72,8 @@ export default function FundedLoanReportPage() {
     });
 
   // 🔹 Fetch report data
-  const { data, isLoading: isReportLoading } = useGetFundedLoanReportQuery({
+  const { data, isLoading: isReportLoading, refetch } = useGetFundedLoanReportQuery(
+  {
     broker: filters.broker?.id,
     loan_officer: filters.loan_officer?.id,
     team_leader: filters.team_leader?.id,
@@ -73,7 +81,21 @@ export default function FundedLoanReportPage() {
     start_date: filters.start_date,
     end_date: filters.end_date,
     page: filters.page,
-  });
+  },
+  {
+    refetchOnFocus: true,      // 👈 refresh when tab becomes active
+    refetchOnReconnect: true,  // 👈 refresh when internet reconnects
+    refetchOnMountOrArgChange: true, // 👈 refresh when filters change
+  }
+);
+
+useEffect(() => {
+  const handleFocus = () => refetch();
+  window.addEventListener("focus", handleFocus);
+  return () => window.removeEventListener("focus", handleFocus);
+}, [refetch]);
+
+
   console.log("📊 funded report raw data:", data);
   // ======================================================
   // 🔸 Derived dropdown options
@@ -112,13 +134,22 @@ const processors = useMemo(() => {
   return allProcessorList;
 }, [filters.team_leader, filters.broker, leadProcessors, linkedData, allEmployees]);
 
+  const openExportMenu = (e) => setExportAnchor(e.currentTarget);
+const closeExportMenu = () => setExportAnchor(null);
 
 const handleMilestoneClick = (milestoneId) => {
-  if (milestoneId) {
-    navigate(`/loan-management?milestone=${milestoneId}`);
-  }
-};
+  const params = new URLSearchParams();
 
+  if (milestoneId) params.append("milestone", milestoneId);
+  if (filters.broker?.id) params.append("broker", filters.broker.id);
+  if (filters.loan_officer?.id) params.append("loan_officer", filters.loan_officer.id);
+  if (filters.team_leader?.id) params.append("team_leader", filters.team_leader.id);
+  if (filters.processor?.id) params.append("processor", filters.processor.id);
+  if (filters.start_date) params.append("start_date", filters.start_date);
+  if (filters.end_date) params.append("end_date", filters.end_date);
+
+  navigate(`/loan-management?${params.toString()}`);
+};
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
@@ -133,6 +164,21 @@ const handleMilestoneClick = (milestoneId) => {
       ...(field === "team_leader" && { processor: null }),
     }));
   };
+
+const handleExport = (type) => {
+  const idMap = {
+    broker: filters.broker?.id ?? filters.broker?.broker_id,
+    team_leader: filters.team_leader?.id,
+    processor: filters.processor?.id,
+  };
+
+  exportLoanReport({
+    type,
+    id: idMap[type],        // ✅ now broker id is correct
+    start_date: filters.start_date,
+    end_date: filters.end_date,
+  });
+};
 
   const handleDateChange = (field) => (e) =>
     setFilters((prev) => ({ ...prev, [field]: e.target.value }));
@@ -169,6 +215,46 @@ const handleMilestoneClick = (milestoneId) => {
       <Typography variant="h5" mb={3} fontWeight={600}>
         📊 Loan Report
       </Typography>
+    
+<Box mb={2}>
+  <Button
+    variant="contained"
+    endIcon={<KeyboardArrowDownIcon />}
+    onClick={openExportMenu}
+    disabled={isExporting}
+  >
+    Export
+  </Button>
+
+  <Menu anchorEl={exportAnchor} open={exportOpen} onClose={closeExportMenu}>
+    <MenuItem onClick={() => { handleExport("all"); closeExportMenu(); }}>
+  Invoice – All
+</MenuItem>
+
+<MenuItem onClick={() => { handleExport("broker"); closeExportMenu(); }}>
+  Invoice – Broker Wise
+</MenuItem>
+
+<MenuItem onClick={() => { handleExport("team_leader"); closeExportMenu(); }}>
+  Invoice – Team Lead Wise
+</MenuItem>
+
+<MenuItem
+  onClick={() => {
+    if (filters.processor) {
+      handleExport("processor"); // single processor
+    } else {
+      handleExport("all"); // processor summary is inside ALL export
+    }
+    closeExportMenu();
+  }}
+>
+  Invoice – Processor Wise
+</MenuItem>
+
+
+  </Menu>
+</Box>
 
       {/* 🔸 Filter Section */}
       <Paper sx={{ p: 3, mb: 4 }}>
@@ -314,9 +400,3 @@ const handleMilestoneClick = (milestoneId) => {
     </Box>
   );
 }
-
-
-
-
-
-

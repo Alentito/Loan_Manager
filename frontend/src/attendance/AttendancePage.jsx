@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { Box, Typography, Paper } from "@mui/material";
+import { Box, Typography, Paper, Grid } from "@mui/material";
 import toast from "react-hot-toast";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
@@ -89,6 +89,14 @@ const AttendancePage = () => {
     { employeeId: employeeIdToFetch, month, year },
     { skip: !employeeIdToFetch }
   );
+
+  // 🔄 Auto-refresh attendance when it gets marked on login
+useEffect(() => {
+  if (todayAttendance) {
+    refetch(); // fetch fresh attendance list
+  }
+}, [todayAttendance, refetch]);
+
 
   const { data: attendanceSummary } = useGetAttendanceSummaryQuery(
     { employeeId: employeeIdToFetch, year },
@@ -284,21 +292,47 @@ const monthlyWorkedHHMMSS = useMemo(() => {
 
   // ---------------------- Render ----------------------
   return (
-    <Box sx={{ bgcolor: "#f4f6f8", minHeight: "100vh", py: 4 }}>
-      <Paper sx={{ maxWidth: 900, mx: "auto", p: 4, borderRadius: 2 }}>
-        <Typography variant="h4" align="center" fontWeight={600} gutterBottom>
-          Employee Attendance
-        </Typography>
+<Box
+  sx={{
+    minHeight: "100vh",
+    width: "100%",
+    bgcolor: "#f4f6f8",
+    px: { xs: 2, sm: 3, md: 6 },
+    py: 3,
+  }}
+>
+  <Grid
+    container
+    spacing={3}
+    sx={{ maxWidth: "1400px", mx: "auto", width: "100%" }}
+  >
+    {/* Attendance content */}
+    <Grid item xs={12}>
+      <Paper elevation={6} sx={{ borderRadius: 3 }}>
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h4" fontWeight={600} gutterBottom>
+            Employee Attendance
+          </Typography>
 
-        <Box>
-          <Typography variant="h6">Welcome, {displayedEmployee?.name}</Typography>
+          <Typography variant="h6">
+            Welcome, {displayedEmployee?.name}
+          </Typography>
           <Typography variant="body2" color="text.secondary">
             Login ID: {displayedEmployee?.login_id || displayedEmployee?.id}
           </Typography>
-        </Box>
 
         {/* Summary Cards */}
-        <Box display="grid" gridTemplateColumns={{ xs: "1fr 1fr", sm: "1fr 1fr 1fr 1fr" }} gap={2} mt={3} mb={3}>
+        <Box
+            display="grid"
+            gridTemplateColumns={{
+              xs: "1fr 1fr",
+              sm: "repeat(4, 1fr)",
+              md: "repeat(6, 1fr)",
+            }}
+            gap={2}
+            mt={3}
+            mb={3}
+          >
           {[
             { key: "present", label: "✅ Present", count: totalPresent, color: "success" },
             { key: "late", label: "⏰ Late", count: totalLate, color: "warning" },
@@ -326,8 +360,7 @@ const monthlyWorkedHHMMSS = useMemo(() => {
           ))}
         </Box>
 
-        <Box mt={2}>
-          <AttendanceCalendar
+        <AttendanceCalendar
             attendance={attendance}
             holidays={allHolidays}
             meetings={meetings}
@@ -337,23 +370,28 @@ const monthlyWorkedHHMMSS = useMemo(() => {
             filter={filter}
             month={month}
             year={year}
-            onMonthChange={(m, y) => { setMonth(m); setYear(y); }}
+            onMonthChange={(m, y) => {
+              setMonth(m);
+              setYear(y);
+            }}
             employee={displayedEmployee}
           />
         </Box>
       </Paper>
+    </Grid>
+  </Grid>
 
-      <AttendanceDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        date={selectedDateInfo.date}
-        attendance={selectedDateInfo.attendance}
-        holiday={selectedDateInfo.holiday?.title}
-        meetings={selectedDateInfo.meetings}
-        breaks={selectedDateInfo.breaks}
-        totalBreak={selectedDateInfo.totalBreak}
-      />
-    </Box>
+  <AttendanceDialog
+    open={dialogOpen}
+    onClose={() => setDialogOpen(false)}
+    date={selectedDateInfo.date}
+    attendance={selectedDateInfo.attendance}
+    holiday={selectedDateInfo.holiday?.title}
+    meetings={selectedDateInfo.meetings}
+    breaks={selectedDateInfo.breaks}
+    totalBreak={selectedDateInfo.totalBreak}
+  />
+</Box>
   );
 };
 

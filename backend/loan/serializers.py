@@ -11,7 +11,7 @@ from employee.serializers import BrokerSerializer, LoanOfficerSerializer, Employ
 from employee.models import Broker, LoanOfficer, Employee,Lender
 
 
-from .models import Notification
+from .models import Notification, LoanMilestoneHistory
 
 from rest_framework import serializers
 from .models import Milestone,LoanRoleAssignment

@@ -8,11 +8,26 @@ export const loanApi = createApi({
   tagTypes: ["Loan","IncomeAssetNote",], // For caching and invalidation
   endpoints: (builder) => ({
     getLoans: builder.query({
-      query: ({ page = 1, pageSize, milestone, search,ordering, assigned_to,include_archived,is_archived, }) => {
+      query: ({
+  page = 1,
+  pageSize,
+  milestone,
+  broker,
+  loan_officer,
+  team_leader,
+  processor,
+  start_date,
+  end_date,
+  search,
+  ordering,
+  assigned_to,
+  include_archived,
+  is_archived,
+}) => {
+
         let url = `loan/?page=${page}&page_size=${pageSize}`;
         if (milestone !== undefined && milestone !== null && milestone !== "") {
-    url += `&milestone=${milestone}`;
-  }
+          url += `&milestone=${milestone}`;} 
         if (search) url += `&search=${encodeURIComponent(search)}`;
         if (ordering) url += `&ordering=${ordering}`; // <-- new line
         if (assigned_to) url += `&assigned_to=${encodeURIComponent(assigned_to)}`; // pass "me" or id
@@ -20,6 +35,12 @@ export const loanApi = createApi({
           url += `&include_archived=${include_archived ? "true" : "false"}`;
         if (is_archived !== undefined)
           url += `&is_archived=${is_archived ? "true" : "false"}`;
+        if (broker) url += `&broker=${broker}`;
+        if (loan_officer) url += `&loan_officer=${loan_officer}`;
+        if (team_leader) url += `&team_leader=${team_leader}`;
+        if (processor) url += `&processor=${processor}`;
+        if (start_date) url += `&start_date=${start_date}`;
+        if (end_date) url += `&end_date=${end_date}`;
         return url;
       },
       providesTags: (result) =>

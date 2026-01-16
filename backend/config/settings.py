@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'loan',
     'django_filters',
     'django_celery_results',
+    "django_celery_beat",
     'audit',
     'employee',
     'report',
@@ -219,10 +220,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "employee.tasks.send_late_notifications",
         "schedule": crontab(hour=12, minute=5),
     },
-    'mark_absent_daily': {
-        'task': 'employee.tasks.mark_absent_for_all_employees',
-        'schedule': crontab(minute=59, hour=23),  # 23:59 CST
-    },
+    "mark-daily-absents": {
+        "task": "employee.tasks.mark_daily_absents",
+        "schedule": crontab(hour=23, minute=59),  # CST server timezone
+    }
     
 }
 

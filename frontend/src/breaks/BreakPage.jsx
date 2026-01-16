@@ -15,8 +15,7 @@ import {
   Alert,
   Pagination,
 } from "@mui/material";
-import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+
 import {
   useGetBreaksQuery,
   useStartBreakMutation,
@@ -32,6 +31,16 @@ const toCSTDate = (dateStr) => {
   if (!dateStr) return "";
   return new Date(dateStr).toLocaleString("en-US", { timeZone: "America/Chicago" });
 };
+// CST-safe YYYY-MM-DD
+const formatToCSTDate = (input) => {
+  if (!input) return "—";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+  const date = new Date(input);
+  if (isNaN(date)) return "—";
+  return date.toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+};
+
+const getTodayRaw = () => new Date().toISOString().split("T")[0];
 
 const BreakPage = () => {
   const navigate = useNavigate();
@@ -39,8 +48,7 @@ const BreakPage = () => {
   const pageSize = 10;
 
   const [viewMode, setViewMode] = useState("month");
-  const [currentDate, setCurrentDate] = useState(new Date());
-
+  const [currentDate, setCurrentDate] = useState(getTodayRaw());
   const [reason, setReason] = useState("");
   const [showReasonField, setShowReasonField] = useState(false);
   const [ongoingBreak, setOngoingBreak] = useState(null);
@@ -121,45 +129,51 @@ const BreakPage = () => {
   };
 
   // Change view mode
-  const handleViewModeChange = (mode) => {
-    const today = new Date();
-    setViewMode(mode);
-
-    if (mode === "day") setCurrentDate(today);
-    if (mode === "week") {
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay());
-      startOfWeek.setHours(0, 0, 0, 0);
-      setCurrentDate(startOfWeek);
-    }
-    if (mode === "month") setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1));
-  };
+ const handleViewModeChange = (mode) => {
+  setViewMode(mode);
+  setCurrentDate(getTodayRaw());
+};
 
   // Filter breaks by viewMode and currentDate
   const filteredBreaks = useMemo(() => {
-    return breaks.filter((b) => {
-      const startCST = new Date(
-        new Date(b.start_time).toLocaleString("en-US", { timeZone: "America/Chicago" })
-      );
+  return breaks.filter((b) => {
+    const start = formatToCSTDate(b.start_time);
+    const cur = currentDate;
 
-      if (viewMode === "day") return startCST.toDateString() === currentDate.toDateString();
-      if (viewMode === "week") {
-        const startOfWeek = new Date(currentDate);
-        startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-        return startCST >= startOfWeek && startCST <= endOfWeek;
-      }
-      if (viewMode === "month")
-        return startCST.getFullYear() === currentDate.getFullYear() &&
-               startCST.getMonth() === currentDate.getMonth();
+    if (!start || !cur) return false;
 
-      return true;
-    })
-    .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
-  }, [breaks, viewMode, currentDate]);
+    // DAY
+    if (viewMode === "day") {
+      return start === cur;
+    }
+
+    // WEEK
+    if (viewMode === "week") {
+      const dateObj = new Date(cur);
+      const startOfWeek = new Date(dateObj);
+      startOfWeek.setDate(dateObj.getDate() - dateObj.getDay());
+
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+
+      const s = new Date(start);
+      return s >= startOfWeek && s <= endOfWeek;
+    }
+
+    // MONTH
+    if (viewMode === "month") {
+      return start.slice(0, 7) === cur.slice(0, 7);
+    }
+
+    return true;
+  });
+}, [breaks, viewMode, currentDate]);
+
+useEffect(() => {
+  setPage(1);
+}, [viewMode, currentDate]);
+
 
   // Format seconds to human-readable duration
   const formatSeconds = (secs) =>
@@ -177,15 +191,13 @@ const BreakPage = () => {
         <Button variant={viewMode === "week" ? "contained" : "outlined"} onClick={() => handleViewModeChange("week")}>Week</Button>
         <Button variant={viewMode === "month" ? "contained" : "outlined"} onClick={() => handleViewModeChange("month")}>Month</Button>
 
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <DatePicker
-            label={viewMode === "day" ? "Select Day" : viewMode === "week" ? "Select Week" : "Select Month"}
-            value={currentDate}
-            onChange={setCurrentDate}
-            renderInput={(params) => <TextField {...params} size="small" />}
-            views={viewMode === "month" ? ["year", "month"] : ["year", "month", "day"]}
-          />
-        </LocalizationProvider>
+        <TextField
+  type="date"
+  size="small"
+  value={currentDate}
+  onChange={(e) => setCurrentDate(e.target.value || getTodayRaw())}
+/>
+
       </Box>
 
       {/* Break In Area */}

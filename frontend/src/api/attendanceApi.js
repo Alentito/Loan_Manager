@@ -32,13 +32,17 @@ export const attendanceApi = createApi({
 
     // ✅ Mark today's attendance for an employee
     markAttendance: builder.mutation({
-      query: (body) => ({
-        url: "attendance/",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: [{ type: "Attendance", id: "LIST" }],
-    }),
+  query: (body) => ({
+    url: "attendance/",
+    method: "POST",
+    body,
+  }),
+  invalidatesTags: (result, error, arg) => [
+    { type: "Attendance", id: "LIST" },
+    { type: "Attendance", id: `EMP-${arg.employee}-${arg.date}` },
+  ],
+}),
+
 
     // ✅ For managers/admins — list all attendance records
     getAllAttendance: builder.query({
@@ -115,16 +119,44 @@ punchOut: builder.mutation({
 }),
 // ✅ Get Late Logins list (day/week/month)
 getLateLogins: builder.query({
-  query: ({ filter = "day", date }) => {
+  query: ({ filter = "day", date, page = 1, page_size = 10 }) => {
     const params = new URLSearchParams();
     if (filter) params.append("filter", filter);
     if (date) params.append("date", date);
+    params.append("page", page);
+    params.append("page_size", page_size);
 
     return `attendance/late-logins/?${params.toString()}`;
   },
-  transformResponse: (response) => response?.results ?? [],
   providesTags: [{ type: "Attendance", id: "LateLogins" }],
 }),
+
+getAbsents: builder.query({
+  query: ({ filter = "day", date, page = 1, page_size = 10 }) => {
+    const params = new URLSearchParams();
+    params.append("filter", filter);
+    if (date) params.append("date", date);
+    params.append("page", page);
+    params.append("page_size", page_size);
+
+    return `attendance/absents/?${params.toString()}`;
+  },
+  providesTags: [{ type: "Attendance", id: "Absents" }],
+}),
+
+getLoginLogout: builder.query({
+  query: ({ filter = "day", date, page = 1, page_size = 10 }) => {
+    const params = new URLSearchParams();
+    params.append("filter", filter);
+    if (date) params.append("date", date);
+    params.append("page", page);
+    params.append("page_size", page_size);
+
+    return `attendance/login-logout/?${params.toString()}`;
+  },
+  providesTags: [{ type: "Attendance", id: "LoginLogout" }],
+}),
+
 
 
   }),
@@ -142,4 +174,6 @@ export const {
   usePunchInMutation,
   usePunchOutMutation,
   useGetLateLoginsQuery,
+  useGetAbsentsQuery,
+  useGetLoginLogoutQuery,
 } = attendanceApi;

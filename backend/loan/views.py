@@ -568,20 +568,13 @@ class LoanContactViewSet(viewsets.ModelViewSet):
 class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
     
     permission_classes = [StrictDjangoModelPermissions]
-
-    
     queryset = Loan.objects.all()  
     serializer_class = LoanSerializer
     pagination_class = CustomPageNumberPagination
     tracked_fields = "__all__"
-    
-
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = [ 'first_name', 'milestone', 'created_at', 'closing_date', 'broker' ,'is_archived']
-
-    
+    filterset_fields = [ 'first_name', 'milestone', 'created_at', 'closing_date', 'broker' ,'is_archived']  
     search_fields = ['first_name', 'last_name', 'broker__name','milestone']
-
     ordering_fields = ['created_at', 'amount', 'milestone', 'first_name']  # allowed sort fields
     ordering = ['created_at']  # default sort
 
@@ -605,12 +598,12 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
 
         # Start with base queryset INCLUDING prefetch of role assignments
         qs = self._with_role_prefetch(Loan.objects.all())
-
-        if user.is_superuser or user.has_perm("loan.view_all_loans"):
+        
+        if not (user.is_superuser or user.has_perm("loan.view_all_loans")):
             include_archived = self.request.query_params.get("include_archived", "").lower()
             if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
                 qs = qs.filter(is_archived=False)
-            return qs.order_by("-created_at")
+            
 
         # Non-privileged visibility logic
         from employee.models import Employee as EmpModel
@@ -620,19 +613,24 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
             employee = None
 
         visibility_q = Q()
-        # If legacy FK fields were removed, _has_field guards them.
-        for f in ("team_manager","team_leader","processor","support"):
-            if employee and _has_field(Loan, f):
-                visibility_q |= Q(**{f: employee})
+
+        if employee:
+            visibility_q |= Q(role_assignments__employees=employee)
 
         if _has_field(Loan, "created_by"):
             visibility_q |= Q(created_by=user)
 
-        assigner_exists = Task.objects.filter(loan_id=OuterRef("pk"), assigner_id=user.id)
-        if employee:
-            assignee_exists = Task.objects.filter(loan_id=OuterRef("pk"), assignee_id=employee.id)
-        else:
-            assignee_exists = Task.objects.none()
+        assigner_exists = Task.objects.filter(
+            loan_id=OuterRef("pk"),
+            assigner_id=user.id
+        )
+
+        assignee_exists = (
+            Task.objects.filter(
+                loan_id=OuterRef("pk"),
+                assignee_id=employee.id
+            ) if employee else Task.objects.none()
+        )
 
         qs = qs.annotate(
             is_assigner=Exists(assigner_exists),
@@ -645,7 +643,46 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
         if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
             qs = qs.filter(is_archived=False)
 
+        params = self.request.query_params
+
+        broker_id = params.get("broker")
+        officer_id = params.get("loan_officer")
+        team_leader = self.request.query_params.get("team_leader")
+        processor = self.request.query_params.get("processor")
+        milestone_id = params.get("milestone")
+        start_date = params.get("start_date")
+        end_date = params.get("end_date")
+
+        if broker_id:
+            qs = qs.filter(broker_id=broker_id)
+
+        if officer_id:
+            qs = qs.filter(loan_officer_id=officer_id)
+
+        if milestone_id:
+            qs = qs.filter(milestone_id=milestone_id)
+
+        if start_date:
+            qs = qs.filter(created_at__date__gte=start_date)
+
+        if end_date:
+            qs = qs.filter(created_at__date__lte=end_date)
+
+        # 🔑 ROLE-BASED FILTERING (CRITICAL)
+        if team_leader:
+            qs = qs.filter(
+                role_assignments__role__name__iexact="Lead",
+                role_assignments__employees__id=team_leader
+            )
+
+        if processor:
+            qs = qs.filter(
+                role_assignments__role__name__iexact="Processor",
+                role_assignments__employees__id=processor
+            )
+
         return qs.distinct().order_by("-created_at")
+
         
     @action(detail=True, methods=['post'], permission_classes=[StrictDjangoModelPermissions])
     def archive(self, request, pk=None):
@@ -801,9 +838,3 @@ class ChecklistQuestionViewSet(viewsets.ModelViewSet):
     queryset = ChecklistQuestion.objects.all().order_by('order')
     serializer_class = ChecklistQuestionSerializer
     pagination_class = None
-
-
-
-
-
-

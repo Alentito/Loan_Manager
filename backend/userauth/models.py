@@ -2,11 +2,6 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.conf import settings
 
-# Create your models here.
-# auth/models.py
-# class Profile(models.Model):
-#     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    
 
 class Permission(models.Model):
     codename = models.CharField(max_length=100, unique=True)  # e.g. "loan:create"
@@ -39,10 +34,3 @@ class RoleMetadata(models.Model):
     sort_order = models.PositiveIntegerField(default=0)
     assignable_on_loan = models.BooleanField(default=False)  # <--- Add this field
     
-
-# class Employee(models.Model):
-#     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-#     employee_id = models.CharField(max_length=50, unique=True)
-#     team = models.ForeignKey('Team', null=True, blank=True, on_delete=models.SET_NULL)
-#     roles = models.ManyToManyField(Role, blank=True)   # allow multiple roles
-#     # other HR fields...

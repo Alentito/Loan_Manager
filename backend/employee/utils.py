@@ -206,7 +206,7 @@ def mark_attendance_on_login(user, login_dt=None):
             attendance.save(update_fields=[
                 "status", "minutes_late", "counted_from", "login_time", "worked_minutes", "updated_at"
             ])
-            update_monthly_summary(attendance)
+            
         return attendance
 
     # Debug log (helpful when troubleshooting)
@@ -328,9 +328,6 @@ def mark_attendance_on_login(user, login_dt=None):
             # fallback to saving only minimal fields in case of custom model constraints
             attendance.save(update_fields=["logout_time", "updated_at"])
 
-    # After changes update summary
-    update_monthly_summary(attendance, old_status=old_status)
-
     return attendance
 
 
@@ -355,7 +352,7 @@ def mark_attendance_on_logout(user, logout_dt=None):
     # Get today's attendance record
     attendance = Attendance.objects.filter(employee=employee, date=att_date).first()
     if not attendance:
-        return None  # no login record exists
+        return None  # no login record exist
 
     # Don’t overwrite approved/denied leave
     if attendance.status in [Attendance.STATUS_ON_LEAVE, Attendance.STATUS_UNPAID_LEAVE]:
@@ -389,8 +386,7 @@ def mark_attendance_on_logout(user, logout_dt=None):
     # Recalculate worked minutes dynamically considering breaks
     attendance.recalc_worked_minutes(logout_dt=logout_dt_cst)
 
-    # Update monthly summary
-    update_monthly_summary(attendance, old_status=old_status)
+
 
     # Save attendance
     attendance.save(update_fields=[
@@ -402,63 +398,6 @@ def mark_attendance_on_logout(user, logout_dt=None):
 
 
 
-def update_monthly_summary(attendance, old_status=None):
-    from .models import MonthlyAttendanceSummary, Attendance
-
-    summary, _ = MonthlyAttendanceSummary.objects.get_or_create(
-        employee=attendance.employee,
-        year=attendance.date.year,
-        month=attendance.date.month,
-    )
-
-    # --- Rollback old status if changed ---
-    if old_status and old_status != attendance.status:
-        if old_status == Attendance.STATUS_PRESENT:
-            summary.present_count = max(0, summary.present_count - 1)
-        elif old_status == Attendance.STATUS_LATE:
-            summary.late_count = max(0, summary.late_count - 1)
-        elif old_status == Attendance.STATUS_ABSENT:
-            summary.absent_count = max(0, summary.absent_count - 1)
-        elif old_status == Attendance.STATUS_ON_LEAVE:
-            summary.leave_count = max(0, summary.leave_count - 1)
-        elif old_status == Attendance.STATUS_EARLY:
-            summary.early_count = max(0, summary.early_count - 1)
-        elif old_status == Attendance.STATUS_UNPAID_LEAVE:
-            summary.unpaid_leave_count = max(0, summary.unpaid_leave_count - 1)
-
-    # --- Apply new status ---
-    if attendance.status == Attendance.STATUS_PRESENT:
-        summary.present_count += 1
-    elif attendance.status == Attendance.STATUS_LATE:
-        summary.late_count += 1
-    elif attendance.status == Attendance.STATUS_ABSENT:
-        summary.absent_count += 1
-    elif attendance.status == Attendance.STATUS_ON_LEAVE:
-        summary.leave_count += 1
-    elif attendance.status == Attendance.STATUS_EARLY:
-        summary.early_count += 1
-    elif attendance.status == Attendance.STATUS_UNPAID_LEAVE:
-        summary.unpaid_leave_count += 1
-
-    # --- Recalculate total worked minutes for the month ---
-    total_worked = Attendance.objects.filter(
-        employee=attendance.employee,
-        date__year=attendance.date.year,
-        date__month=attendance.date.month
-    ).aggregate(total=Sum('worked_minutes'))['total'] or 0
-
-    summary.total_worked_minutes = total_worked
-
-    summary.save(update_fields=[
-        "present_count",
-        "late_count",
-        "absent_count",
-        "leave_count",
-        "early_count",
-        "unpaid_leave_count",
-        "total_worked_minutes",  # ✅ updated
-        "updated_at",
-    ])
 
 
 def mark_attendance_for_leave(employee, start_date, end_date, approved=True, leave_type=None):
@@ -504,7 +443,7 @@ def mark_attendance_for_leave(employee, start_date, end_date, approved=True, lea
                 "worked_minutes", "shift", "updated_at"
             ])
 
-        update_monthly_summary(attendance, old_status=old_status)
+
 
     return True
 
@@ -516,29 +455,42 @@ def mark_missing_absents(employee):
     end_date = today - timedelta(days=1)  # only past days
 
     if start_date > end_date:
-        return  # nothing to do
+        return
 
-    # Get existing attendance for this employee in range
     existing_dates = set(
-        Attendance.objects.filter(employee=employee, date__range=(start_date, end_date))
-        .values_list("date", flat=True)
+        Attendance.objects.filter(
+            employee=employee,
+            date__range=(start_date, end_date)
+        ).values_list("date", flat=True)
     )
 
-    # Get public holidays
-    holidays = set(PublicHoliday.objects.filter(is_public=True, date__range=(start_date, end_date))
-                   .values_list("date", flat=True))
+    holidays = set(
+        PublicHoliday.objects.filter(
+            is_public=True,
+            date__range=(start_date, end_date)
+        ).values_list("date", flat=True)
+    )
 
     absent_records = []
 
-    for single_date in (start_date + timedelta(days=n) for n in range((end_date - start_date).days + 1)):
+    for single_date in (
+        start_date + timedelta(days=n)
+        for n in range((end_date - start_date).days + 1)
+    ):
+        # 🚫 SKIP WEEKENDS (Saturday=5, Sunday=6)
+        if single_date.weekday() in (5, 6):
+            continue
+
         if single_date in existing_dates:
-            continue  # attendance or leave already exists
+            continue
+
         if single_date in holidays:
-            continue  # public holiday, skip
+            continue
 
         absent_records.append(
             Attendance(
                 employee=employee,
+                shift=employee.primary_shift,
                 date=single_date,
                 status=Attendance.STATUS_ABSENT,
                 login_time=None,
@@ -551,6 +503,4 @@ def mark_missing_absents(employee):
 
     if absent_records:
         Attendance.objects.bulk_create(absent_records)
-        for att in absent_records:
-            update_monthly_summary(att)
 

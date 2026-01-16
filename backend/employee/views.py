@@ -18,6 +18,7 @@ import xml.etree.ElementTree as ET
 import csv
 import json
 import os, re
+import openpyxl
 from datetime import date, timedelta
 import calendar
 from django.utils import timezone
@@ -68,6 +69,15 @@ from django.contrib.auth.decorators import permission_required
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone as dj_timezone
 from django.db.models.functions import TruncMonth
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+import re
+from textwrap import wrap
+
 
 
 
@@ -234,17 +244,6 @@ def broker_stats(request):
         'last_updated': last_updated,
     })
 
-
-from django.http import HttpResponse
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-import openpyxl
-from openpyxl.utils import get_column_letter
-from openpyxl import Workbook
-from io import BytesIO
-from loan.models import Broker  # update import as needed
-
-
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def export_brokers_excel(request):
@@ -260,33 +259,27 @@ def export_brokers_excel(request):
 
     for broker in Broker.objects.all().order_by('-created_at'):
         ws.append([
-            broker.name or '-',
-            broker.email or '-',
-            broker.NMLS or '-',
-            broker.primary_phone or '-',
-            broker.phone or '-',
-            broker.address or '-',
-            broker.company_address or '-',
-            broker.created_at.strftime('%Y-%m-%d %H:%M:%S') if broker.created_at else '-',
-            broker.updated_at.strftime('%Y-%m-%d %H:%M:%S') if broker.updated_at else '-',
-            broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '-',
+            broker.name or '',
+            broker.email or '',
+            broker.NMLS or '',
+            broker.primary_phone or '',
+            broker.phone or '',
+            broker.address or '',
+            broker.company_address or '',
+            broker.created_at.strftime('%Y-%m-%d %H:%M:%S') if broker.created_at else '',
+            broker.updated_at.strftime('%Y-%m-%d %H:%M:%S') if broker.updated_at else '',
+            broker.archived_at.strftime('%Y-%m-%d %H:%M:%S') if broker.archived_at else '',
         ])
 
-    # Auto-adjust column width
     for col_num, _ in enumerate(headers, 1):
         ws.column_dimensions[get_column_letter(col_num)].width = 25
 
-    buffer = BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-
     response = HttpResponse(
-        buffer.getvalue(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename="brokers.xlsx"'
+    wb.save(response)
     return response
-
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -332,6 +325,14 @@ def export_brokers_pdf(request):
     return HttpResponse(buffer, content_type='application/pdf', headers={
         'Content-Disposition': 'attachment; filename="brokers.pdf"',
     })
+
+
+def draw_multiline(p, text, x, y, max_chars=90, line_height=14):
+    lines = wrap(text, max_chars)
+    for line in lines:
+        p.drawString(x, y, line)
+        y -= line_height
+    return y
 
 
 def clean_xml_text(text):
@@ -813,25 +814,54 @@ def export_employees_excel(request):
     ws = wb.active
     ws.title = "Employees"
 
-    headers = ['Name', 'Email', 'Contact Number', 'Designation', 'Team', 'Joining Date', 'Created At', 'Updated At']
+    headers = [
+        'Login ID', 'Name', 'Company Email', 'Contact Number',
+        'Roles', 'Team', 'Work Location',
+        'Primary Shift',
+        'Basic', 'HRA', 'Conveyance', 'Medical',
+        'Uniform', 'Food', 'Special Allowance', 'Arrear Salary',
+        'Bank Name', 'Bank Account No',
+        'Yearly Paid Leaves', 'Leave Balance',
+        'Archived', 'Created At', 'Updated At'
+    ]
     ws.append(headers)
 
-    employees = Employee.objects.select_related('designation', 'team').all().order_by('-created_at')
+    employees = (
+        Employee.objects
+        .select_related('team', 'primary_shift')
+        .prefetch_related('roles')
+        .order_by('-created_at')
+    )
 
     for emp in employees:
         ws.append([
+            emp.login_id or '',
             emp.name or '',
             emp.company_email or '',
             emp.contact_number or '',
-            emp.designation.name if emp.designation else '',
+            ", ".join(emp.roles.values_list('name', flat=True)),
             emp.team.name if emp.team else '',
-            getattr(emp, 'joining_date', '-') if getattr(emp, 'joining_date', None) else '-',
-            emp.created_at.strftime('%Y-%m-%d %H:%M:%S') if emp.created_at else '',
-            emp.updated_at.strftime('%Y-%m-%d %H:%M:%S') if emp.updated_at else '',
+            emp.work_location or '',
+            emp.primary_shift.name if emp.primary_shift else '',
+            float(emp.basic),
+            float(emp.hra),
+            float(emp.conveyance_allowance),
+            float(emp.medical_reimbursement),
+            float(emp.uniform_allowance),
+            float(emp.food_allowance),
+            float(emp.special_allowance),
+            float(emp.arrear_salary),
+            emp.bank_name or '',
+            emp.bank_account_no or '',
+            emp.yearly_paid_leaves,
+            emp.leave_balance,
+            'Yes' if emp.is_archived else 'No',
+            emp.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            emp.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
         ])
 
-    for col_num, _ in enumerate(headers, 1):
-        ws.column_dimensions[get_column_letter(col_num)].width = 20
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 22
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -840,46 +870,96 @@ def export_employees_excel(request):
     wb.save(response)
     return response
 
-
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def export_employees_pdf(request):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
-    y = height - 50
+    y = height - 40
 
-    # Title
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(180, y, "Employee Details Report")
+    p.setFont("Helvetica-Bold", 15)
+    p.drawCentredString(width / 2, y, "Employee Details Report")
     y -= 30
-    p.setFont("Helvetica", 10)
 
-    employees = Employee.objects.select_related('designation', 'team').all().order_by('-created_at')
+    employees = (
+        Employee.objects
+        .select_related('team', 'primary_shift')
+        .prefetch_related('roles')
+        .order_by('-created_at')
+    )
 
     for emp in employees:
-        details = [
-            f"Name: {emp.name or '-'}",
-            f"Email: {emp.company_email or '-'}",
-            f"Contact Number: {emp.contact_number or '-'}",
-            f"Designation: {emp.designation.name if emp.designation else '-'}",
-            f"Team: {emp.team.name if emp.team else '-'}",
-            f"Joining Date: {getattr(emp, 'joining_date', '-') if getattr(emp, 'joining_date', None) else '-'}",
-            f"Created At: {emp.created_at.strftime('%Y-%m-%d %H:%M:%S') if emp.created_at else '-'}",
-            f"Updated At: {emp.updated_at.strftime('%Y-%m-%d %H:%M:%S') if emp.updated_at else '-'}",
+        # --- Section Header ---
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(40, y, "EMPLOYEE INFORMATION")
+        y -= 16
+        p.setFont("Helvetica", 10)
+
+        rows = [
+            ("Login ID", emp.login_id),
+            ("Name", emp.name),
+            ("Company Email", emp.company_email),
+            ("Contact Number", emp.contact_number),
+            ("Roles", ", ".join(emp.roles.values_list('name', flat=True))),
+            ("Team", emp.team.name if emp.team else "-"),
+            ("Work Location", emp.work_location),
+            ("Primary Shift", emp.primary_shift.name if emp.primary_shift else "-"),
         ]
 
-        for line in details:
-            p.drawString(50, y, line)
-            y -= 15
-            if y < 50:  # new page if needed
-                p.showPage()
-                p.setFont("Helvetica", 10)
-                y = height - 50
+        for label, value in rows:
+            p.drawString(50, y, f"{label}: {value or '-'}")
+            y -= 14
 
+        y -= 6
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(40, y, "SALARY DETAILS")
+        y -= 16
+        p.setFont("Helvetica", 10)
+
+        salary_rows = [
+            ("Basic", emp.basic),
+            ("HRA", emp.hra),
+            ("Conveyance", emp.conveyance_allowance),
+            ("Medical", emp.medical_reimbursement),
+            ("Uniform", emp.uniform_allowance),
+            ("Food", emp.food_allowance),
+            ("Special Allowance", emp.special_allowance),
+            ("Arrear Salary", emp.arrear_salary),
+        ]
+
+        for label, value in salary_rows:
+            p.drawString(50, y, f"{label}: {value}")
+            y -= 14
+
+        y -= 6
+        p.setFont("Helvetica-Bold", 11)
+        p.drawString(40, y, "BANK & LEAVE DETAILS")
+        y -= 16
+        p.setFont("Helvetica", 10)
+
+        footer_rows = [
+            ("Bank Name", emp.bank_name),
+            ("Account No", emp.bank_account_no),
+            ("Leave Balance", f"{emp.leave_balance}/{emp.yearly_paid_leaves}"),
+            ("Archived", "Yes" if emp.is_archived else "No"),
+            ("Created At", emp.created_at.strftime('%Y-%m-%d %H:%M:%S')),
+            ("Updated At", emp.updated_at.strftime('%Y-%m-%d %H:%M:%S')),
+        ]
+
+        for label, value in footer_rows:
+            p.drawString(50, y, f"{label}: {value or '-'}")
+            y -= 14
+
+        # Divider
         y -= 10
-        p.line(50, y, width - 50, y)
+        p.line(40, y, width - 40, y)
         y -= 20
+
+        if y < 80:
+            p.showPage()
+            p.setFont("Helvetica", 10)
+            y = height - 40
 
     p.save()
     buffer.seek(0)
@@ -1032,14 +1112,19 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         return qs.filter(start_date__lte=end_of_month, end_date__gte=start_of_month)
 
 
-    @action(detail=True, methods=["post"], url_path="approve")
+    @action(detail=True, methods=["post"], url_path="approve", permission_classes=[IsAuthenticated])
     def approve_request(self, request, pk=None):
         with transaction.atomic():
             leave = self.get_object()
             employee = leave.employee
 
-            if leave.employee == request.user.employee:
-                return Response({"detail": "You cannot approve your own leave request."}, status=403)
+            user_employee = getattr(request.user, "employee", None)
+            if user_employee and leave.employee_id == user_employee.id:
+                return Response(
+                    {"detail": "You cannot approve your own leave request."},
+                    status=403
+                )
+
 
             if not request.user.has_perm("employee.approve_leave"):
                 return Response({"detail": "Not authorized"}, status=403)
@@ -1047,60 +1132,37 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             if leave.status != "pending":
                 return Response({"detail": "Already processed"}, status=400)
 
-            approval_type = request.data.get("approval_type")
-            if approval_type:
-                approval_type = str(approval_type).strip().lower()
-
+            approval_type = request.data.get("approval_type", "").lower()
             if approval_type not in ["paid", "unpaid"]:
-                return Response(
-                    {"detail": "approval_type must be 'paid' or 'unpaid'."},
-                    status=400
-                )
+                return Response({"detail": "approval_type must be 'paid' or 'unpaid'."}, status=400)
 
-            # --- Apply balance + fallback logic ---
-            leave_days = (leave.end_date - leave.start_date).days + 1
-            final_type = approval_type
-
-            if approval_type == "paid":
-            # Deduct full leave days from balance, allow negative
-                employee.leave_balance -= leave_days
-                final_type = "paid" if employee.leave_balance >= 0 else "unpaid"
-            else:
-                # Unpaid leave
-                if employee.leave_balance <= 0:
-                    # If balance is 0 or negative, continue decreasing
-                    employee.leave_balance -= leave_days
-                final_type = "unpaid"
-
-            # Save updated leave balance
-            employee.save(update_fields=["leave_balance"])
-
-            # --- Update leave record ---
+            # 🚀 Just set values — no deduction here
             leave.status = "approved"
-            leave.approval_type = final_type
+            leave.approval_type = approval_type
             leave.approved_by = request.user
             leave.processed_at = now_cst()
-            leave.save()
+            leave.save()  # 👈 Model will auto adjust balance
 
-            # --- Mark attendance ---
             mark_attendance_for_leave(
-                leave.employee,
+                employee,
                 leave.start_date,
                 leave.end_date,
                 approved=True,
-                leave_type=final_type
+                leave_type=approval_type
             )
 
             return Response(LeaveRequestSerializer(leave).data, status=200)
 
 
-    @action(detail=True, methods=["post"], url_path="deny")
+
+    @action(detail=True, methods=["post"], url_path="deny", permission_classes=[IsAuthenticated])
     def deny_request(self, request, pk=None):
         with transaction.atomic():
             leave = self.get_object()
 
             # Prevent self-denial
-            if leave.employee == request.user.employee:
+            user_employee = getattr(request.user, "employee", None)
+            if user_employee and leave.employee_id == user_employee.id:
                 return Response(
                     {"detail": "You cannot deny your own leave request."},
                     status=403
@@ -1234,7 +1296,10 @@ class BreakViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(brk)
         return Response(serializer.data, status=200)
     
-
+class LateLoginPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
     
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all().select_related("employee", "shift").prefetch_related(
@@ -1521,18 +1586,13 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=["get"], url_path="late-logins")
     def late_logins(self, request):
-        """
-        Return employees who logged in late for a specific day/week/month (CST aligned)
-        Supports optional calendar date (?date=YYYY-MM-DD)
-        """
         tz = pytz.timezone("America/Chicago")
 
-        filter_type = request.query_params.get("filter", "day")  # day | week | month
+        filter_type = request.query_params.get("filter", "day")
         date_param = request.query_params.get("date")
-
         now = datetime.now(tz)
 
-        # ------------------ Resolve Selected Date ------------------
+        # ---------------- Resolve Date ----------------
         if date_param:
             selected_date = parse_date(date_param)
             if not selected_date:
@@ -1543,70 +1603,58 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         else:
             selected_date = now.date()
 
-        # ------------------ Determine Date Range ------------------
+        # ---------------- Date Range ----------------
         if filter_type == "day":
-            start_date = selected_date
-            end_date = selected_date
-
+            start_date = end_date = selected_date
         elif filter_type == "week":
             start_date = selected_date - timedelta(days=selected_date.weekday())
             end_date = start_date + timedelta(days=6)
-
         elif filter_type == "month":
             start_date = selected_date.replace(day=1)
             next_month = (start_date + timedelta(days=32)).replace(day=1)
             end_date = next_month - timedelta(days=1)
-
         else:
             return Response({"error": "Invalid filter"}, status=400)
 
-        default_grace_period = 10  # minutes
-
-        # ------------------ Query Late Attendance ------------------
+        # ---------------- Query ----------------
         qs = (
             Attendance.objects.filter(
                 date__range=[start_date, end_date],
                 status=Attendance.STATUS_LATE
             )
             .select_related("employee", "employee__user", "shift")
-            .order_by("-date", "employee__user__username")
+            .order_by("-date", "-login_time", "-id")
         )
 
-        # ------------------ Build Response ------------------
-        results = []
+        # ---------------- Pagination ----------------
+        paginator = LateLoginPagination()
+        page = paginator.paginate_queryset(qs, request)
 
-        for att in qs:
+        results = []
+        default_grace_period = 10
+
+        for att in page:
             emp = att.employee
             user = getattr(emp, "user", None)
 
-            # Grace period (shift-level or default)
             grace = (
                 att.shift.grace_period_minutes
-                if getattr(att, "shift", None) and att.shift.grace_period_minutes
+                if att.shift and att.shift.grace_period_minutes
                 else default_grace_period
             )
 
-            # Late duration
             minutes_late = att.minutes_late or 0
             adjusted_minutes = max(0, minutes_late - grace)
             total_seconds = adjusted_minutes * 60
 
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
+            h = total_seconds // 3600
+            m = (total_seconds % 3600) // 60
+            s = total_seconds % 60
 
-            late_duration = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-            # Login time in CST
-            if att.login_time:
-                login_time = (
-                    pytz.UTC.localize(att.login_time)
-                    if timezone.is_naive(att.login_time)
-                    else att.login_time
-                )
-                login_time = login_time.astimezone(tz).strftime("%Y-%m-%d %I:%M:%S %p")
-            else:
-                login_time = "N/A"
+            login_time = (
+                timezone.localtime(att.login_time, tz).strftime("%Y-%m-%d %I:%M:%S %p")
+                if att.login_time else "N/A"
+            )
 
             results.append({
                 "employee_id": getattr(emp, "employee_code", emp.id),
@@ -1618,17 +1666,164 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 "date": att.date.strftime("%Y-%m-%d"),
                 "status": att.status,
                 "login_time": login_time,
-                "late_duration": late_duration,
+                "late_duration": f"{h:02d}:{m:02d}:{s:02d}",
                 "shift_name": getattr(att.shift, "name", "N/A"),
             })
 
-        # ------------------ Final Response ------------------
-        return Response({
-            "filter": filter_type,
-            "from": start_date.strftime("%Y-%m-%d"),
-            "to": end_date.strftime("%Y-%m-%d"),
-            "results": results,
-        })
+        # ---------------- Final Paginated Response ----------------
+        response = paginator.get_paginated_response(results)
+
+        # Attach metadata
+        response.data["filter"] = filter_type
+        response.data["from"] = start_date.strftime("%Y-%m-%d")
+        response.data["to"] = end_date.strftime("%Y-%m-%d")
+
+        return response
+
+    @action(detail=False, methods=["get"], url_path="absents")
+    def absents(self, request):
+        tz = pytz.timezone("America/Chicago")
+
+        filter_type = request.query_params.get("filter", "day")
+        date_param = request.query_params.get("date")
+        now = datetime.now(tz)
+
+        # -------- Resolve Date --------
+        if date_param:
+            selected_date = parse_date(date_param)
+            if not selected_date:
+                return Response(
+                    {"error": "Invalid date format. Use YYYY-MM-DD"},
+                    status=400
+                )
+        else:
+            selected_date = now.date()
+
+        # -------- Date Range --------
+        if filter_type == "day":
+            start_date = end_date = selected_date
+        elif filter_type == "week":
+            start_date = selected_date - timedelta(days=selected_date.weekday())
+            end_date = start_date + timedelta(days=6)
+        elif filter_type == "month":
+            start_date = selected_date.replace(day=1)
+            next_month = (start_date + timedelta(days=32)).replace(day=1)
+            end_date = next_month - timedelta(days=1)
+        else:
+            return Response({"error": "Invalid filter"}, status=400)
+
+        # -------- Query ABSENT --------
+        qs = (
+            Attendance.objects.filter(
+                date__range=[start_date, end_date],
+                status=Attendance.STATUS_ABSENT
+            )
+            .select_related("employee", "employee__user", "shift")
+            .order_by("-date", "employee__user__username")
+        )
+
+        paginator = LateLoginPagination()  # reuse same paginator
+        page = paginator.paginate_queryset(qs, request)
+
+        results = []
+        for att in page:
+            emp = att.employee          # ✅ ADD THIS LINE
+            user = getattr(emp, "user", None)
+
+            shift_name = (
+                att.shift.name
+                if att.shift
+                else getattr(emp.primary_shift, "name", "N/A")
+            )
+
+            results.append({
+                "employee_id": getattr(emp, "employee_code", emp.id),
+                "employee_name": (
+                    user.get_full_name()
+                    if user and user.get_full_name()
+                    else user.username if user else "N/A"
+                ),
+                "date": att.date.strftime("%Y-%m-%d"),
+                "shift_name": shift_name,
+            })
+
+        response = paginator.get_paginated_response(results)
+        response.data["filter"] = filter_type
+        response.data["from"] = start_date.strftime("%Y-%m-%d")
+        response.data["to"] = end_date.strftime("%Y-%m-%d")
+
+        return response
+
+    @action(detail=False, methods=["get"], url_path="login-logout")
+    def login_logout(self, request):
+        tz = pytz.timezone("America/Chicago")
+
+        filter_type = request.query_params.get("filter", "day")
+        date_param = request.query_params.get("date")
+
+        now = datetime.now(tz)
+        selected_date = parse_date(date_param) if date_param else now.date()
+
+        # ---- date range ----
+        if filter_type == "day":
+            start_date = end_date = selected_date
+        elif filter_type == "week":
+            start_date = selected_date - timedelta(days=selected_date.weekday())
+            end_date = start_date + timedelta(days=6)
+        else:  # month
+            start_date = selected_date.replace(day=1)
+            next_month = (start_date + timedelta(days=32)).replace(day=1)
+            end_date = next_month - timedelta(days=1)
+
+        qs = (
+            Attendance.objects.filter(date__range=[start_date, end_date])
+            .select_related("employee", "employee__user", "shift")
+            .prefetch_related("breaks")
+            .order_by("-date", "-login_time")
+        )
+
+        paginator = LateLoginPagination()
+        page = paginator.paginate_queryset(qs, request)
+
+        results = []
+
+        for att in page:
+            emp = att.employee
+            user = getattr(emp, "user", None)
+
+            # ✅ CORRECT WORK CALCULATION
+            if att.login_time and att.logout_time:
+                worked_seconds = int(
+                    (att.logout_time - att.login_time).total_seconds()
+                )
+            else:
+                worked_seconds = 0
+
+            worked_hhmmss = str(timedelta(seconds=worked_seconds))
+
+            results.append({
+                "employee_id": getattr(emp, "employee_code", emp.id),
+                "employee_name": (
+                    user.get_full_name()
+                    if user and user.get_full_name()
+                    else user.username if user else "N/A"
+                ),
+                "date": att.date.strftime("%Y-%m-%d"),
+                "status": att.status,
+                "login_time": timezone.localtime(att.login_time, tz).strftime("%I:%M %p")
+                    if att.login_time else "—",
+                "logout_time": timezone.localtime(att.logout_time, tz).strftime("%I:%M %p")
+                    if att.logout_time else "—",
+                "worked_hours": worked_hhmmss,
+                "shift_name": (
+                    att.shift.name
+                    if att.shift
+                    else getattr(emp.primary_shift, "name", "N/A")
+                ),
+            })
+
+        return paginator.get_paginated_response(results)
+
 
 class PunchInView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]

@@ -18,10 +18,10 @@ class Broker(models.Model):
     email = models.EmailField(max_length=100, unique=True, db_index=True)  # already unique
     NMLS = models.CharField(max_length=50, unique=True, db_index=True)  # already unique
     primary_phone = models.CharField(max_length=25, unique=True, db_index=True)  # already unique
-    phone = models.CharField(max_length=25, unique=True, db_index=True)  # already unique
-    address = models.TextField()
-    company_address = models.TextField()
-     
+    phone = models.CharField(max_length=25, db_index=True, blank=True, null=True)  # already unique
+    address = models.TextField(blank=True, null=True)
+    company_address = models.TextField(blank=True, null=True)
+
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -61,8 +61,6 @@ class LoanOfficer(models.Model):
 
 
 class Employee(models.Model):
-   
-    # Identity fields
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
     roles = models.ManyToManyField(Group, blank=True)   # allow multiple roles
     login_id = models.CharField(max_length=50, unique=True, db_index=True, null=True, blank=True)
@@ -74,6 +72,17 @@ class Employee(models.Model):
     team = models.ForeignKey('Team', on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
     primary_shift = models.ForeignKey('Shift', on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_employees')
     alternate_shift = models.ForeignKey('Shift', on_delete=models.SET_NULL, null=True, blank=True, related_name='alternate_employees')
+    bank_name = models.CharField(max_length=100, null=True, blank=True)
+    bank_account_no = models.CharField(max_length=50, null=True, blank=True, db_index=True)
+    work_location = models.CharField(max_length=150, null=True, blank=True)
+    basic = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    hra = models.DecimalField("House Rent Allowance", max_digits=10, decimal_places=2, default=0)
+    conveyance_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    medical_reimbursement = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    uniform_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    food_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    special_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    arrear_salary = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
@@ -95,7 +104,19 @@ class Employee(models.Model):
             self.user.username = self.login_id
             self.user.save(update_fields=["username"])
         super().save(*args, **kwargs)
-
+        
+    @property
+    def total_monthly_salary(self):
+        return (
+            self.basic +
+            self.hra +
+            self.conveyance_allowance +
+            self.medical_reimbursement +
+            self.uniform_allowance +
+            self.food_allowance +
+            self.special_allowance +
+            self.arrear_salary
+        )   
     class Meta:
         permissions = [
            
@@ -175,6 +196,95 @@ class LeaveRequests(models.Model):
         on_delete=models.SET_NULL
     )
     processed_at = models.DateTimeField(null=True, blank=True) 
+
+    
+    def save(self, *args, **kwargs):
+    # Get previous state only when updating existing instance
+        previous = LeaveRequests.objects.get(pk=self.pk) if self.pk else None
+
+        super().save(*args, **kwargs)  # Save first
+
+        # If new record → no action
+        if not previous:
+            return
+
+        # If neither status nor approval_type changed → skip to avoid double updates
+        if previous.status == self.status and previous.approval_type == self.approval_type:
+            return
+
+        self.apply_impact_on_employee(previous)
+        self.apply_attendance_status_updates(previous)
+
+    @property
+    def total_days(self):
+        # e.g. 1-day leave still counts as "1"
+        return (self.end_date - self.start_date).days + 1
+
+    def apply_attendance_status_updates(self, previous):
+        employee = self.employee
+        date_range = [self.start_date, self.end_date]
+
+        # APPROVED + PAID → mark as paid leave
+        if self.status == "approved" and self.approval_type == "paid":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status=Attendance.STATUS_ON_LEAVE)
+            return
+
+        # APPROVED + UNPAID → mark as unpaid leave
+        if self.status == "approved" and self.approval_type == "unpaid":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status=Attendance.STATUS_UNPAID_LEAVE)
+            return
+
+        # 🚩 APPROVED → DENIED (Revert to ABSENT)
+        if previous.status == "approved" and self.status == "denied":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status=Attendance.STATUS_ABSENT)
+            return
+        
+        if previous.status == "denied" and self.status == "pending":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status="")  # empty status, calendar logic will decide
+            return
+    
+        # 🚩 APPROVED → PENDING (Revert to blank → no response yet)
+        if previous.status == "approved" and self.status == "pending":
+            Attendance.objects.filter(
+                employee=employee,
+                date__range=date_range
+            ).update(status="")  # blank state on frontend
+            return
+
+    def apply_impact_on_employee(self, previous):
+        employee = self.employee
+        days = self.total_days
+
+        # 1️⃣ Approving a PAID leave → deduct ONCE
+        if self.status == "approved" and self.approval_type == "paid":
+            # Deduct only if it wasn't already deducted before
+            if not (previous.status == "approved" and previous.approval_type == "paid"):
+                employee.leave_balance = employee.leave_balance - days
+                employee.save(update_fields=["leave_balance"])
+            return
+
+        # 2️⃣ Reverting an approved paid leave → restore balance back
+        if previous.status == "approved" and previous.approval_type == "paid" and self.status in ["pending", "denied"]:
+            employee.leave_balance = min(employee.yearly_paid_leaves, employee.leave_balance + days)
+            employee.save(update_fields=["leave_balance"])
+            print("IMPACT RUNNING →", self.status, self.approval_type)
+            return
+
+        # 3️⃣ unpaid leave or no change → do nothing
+
+
     class Meta:
         permissions = [
             ("approve_leave", "Can approve leave requests"),
@@ -249,7 +359,7 @@ class Attendance(models.Model):
     
     class Meta:
         permissions = [
-            ("view_latelogins", "Can view late login records"),
+            ("view_latelogins", "Can view Login records"),
         ]
         unique_together = ("employee", "date")
         ordering = ("-date",)
@@ -478,4 +588,3 @@ class EmployeeBreak(models.Model):
             return (self.end_time - self.start_time).total_seconds()
         return None
     
-

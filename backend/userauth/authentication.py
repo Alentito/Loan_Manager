@@ -2,7 +2,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 class CookieJWTAuthentication(JWTAuthentication):
     def authenticate(self, request):
-        print("hi myr unbu")
+        
         if request.path in ["/api/token/refresh/", "/api/token/", "/api/token/obtain/"]:
             return None
         # Try to get token from cookies

@@ -87,7 +87,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'archived_at', 'created_at', 'updated_at', 'login_password',
             'yearly_paid_leaves', 'leave_balance',
             'team_name', 'primary_shift_name', 'alternate_shift_name',
-            'manager_id', 'team_manager_name'
+            'manager_id', 'team_manager_name', 'bank_name',
+            'bank_account_no',
+            'work_location',
+            'basic', 'hra', 'conveyance_allowance', 'medical_reimbursement',
+            'uniform_allowance', 'food_allowance', 'special_allowance',
+            'arrear_salary',
         ]
 
     def create(self, validated_data):
@@ -177,9 +182,10 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        if instance.status != "pending":
-            raise serializers.ValidationError("This request has already been processed.")
+        if instance.status == "approved" and "approval_type" in validated_data:
+            raise serializers.ValidationError("Cannot change leave type after approval. Revert to 'pending' first.")
         return super().update(instance, validated_data)
+
 
     def validate(self, data):
         request = self.context.get("request")

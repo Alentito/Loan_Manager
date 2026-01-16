@@ -1,3 +1,28 @@
+
+/* ---------- Fullscreen Fix ---------- */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+.fc {
+  height: 100% !important;
+}
+
+.fc-view-harness {
+  height: 100% !important;
+}
+
+.fc-daygrid {
+  height: 100% !important;
+}
+
+.fc-scrollgrid {
+  height: 100% !important;
+}
+
 /* ---------- Base Cell Styling ---------- */
 .fc-daygrid-day-frame {
   border-radius: 8px;
@@ -8,7 +33,34 @@
 .fc-daygrid-day:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   cursor: pointer;
+}
+
+/* Apply scale ONLY to inner frame, not the cell */
+.fc-daygrid-day-frame:hover {
   transform: scale(1.02);
+}
+
+.fc-daygrid-day-frame {
+  min-height: 100px;
+  box-sizing: border-box;
+}
+
+.fc-header-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  padding-bottom: 8px;
+}
+.fc-event-title {
+  white-space: normal;
+  line-height: 1.2;
+}
+
+@media (min-height: 900px) {
+  .fc-daygrid-day-frame {
+    min-height: 140px;
+  }
 }
 
 /* ---------- Attendance Status ---------- */
