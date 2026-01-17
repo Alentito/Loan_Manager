@@ -843,7 +843,7 @@ def export_employees_excel(request):
             emp.team.name if emp.team else '',
             emp.work_location or '',
             emp.primary_shift.name if emp.primary_shift else '',
-            float(emp.basic),
+            float(emp.base_salary),
             float(emp.hra),
             float(emp.conveyance_allowance),
             float(emp.medical_reimbursement),
@@ -918,7 +918,7 @@ def export_employees_pdf(request):
         p.setFont("Helvetica", 10)
 
         salary_rows = [
-            ("Basic", emp.basic),
+            ("Basic", emp.base_salary),
             ("HRA", emp.hra),
             ("Conveyance", emp.conveyance_allowance),
             ("Medical", emp.medical_reimbursement),
