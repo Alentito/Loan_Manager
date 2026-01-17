@@ -60,6 +60,7 @@ const teamManagers = ["Manager A", "Manager B"];
 const processors = ["Processor A", "Processor B"];
 const supports = ["Support A", "Support B"];
 
+
 export default function LoanManagement() {
   const Permissions = useSelector(
     (state) => state.auth.user?.permissions || []
@@ -67,24 +68,33 @@ export default function LoanManagement() {
 const [roleAssignments, setRoleAssignments] = useState({});
 
   const [openFilter, setOpenFilter] = React.useState(false);
-  const [filters, setFilters] = React.useState({
-    milestone: "",
-    managedBy: "",
-    minAmount: "",
-    maxAmount: "",
-    dateFrom: "",
-    dateTo: "",
+  const [draftFilters, setDraftFilters] = useState({});
+
+  useEffect(() => {
+  setDraftFilters({
+    milestone: searchParams.get("milestone") || "",
+    broker: searchParams.get("broker") || "",
+    loan_officer: searchParams.get("loan_officer") || "",
+    team_leader: searchParams.get("team_leader") || "",
+    processor: searchParams.get("processor") || "",
+    start_date: searchParams.get("start_date") || "",
+    end_date: searchParams.get("end_date") || "",
+  });
+}, [openFilter]);
+
+  const applyFilters = (nextFilters) => {
+  const next = new URLSearchParams(searchParams);
+
+  Object.entries(nextFilters).forEach(([key, value]) => {
+    if (value) next.set(key, value);
+    else next.delete(key);
   });
 
-  const handleFilterChange = (field, value) => {
-    setFilters((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const applyFilters = () => {
-    // Trigger backend filtering via RTK Query refetch
-    refetchLoans(filters);
-    setOpenFilter(false);
-  };
+  next.set("page", "1");
+  setSearchParams(next);
+  setPage(1);
+  setOpenFilter(false);
+};
 
   const theme = useTheme();
   //const [uploadXml, { isLoading: isUploading, isSuccess, error }] = useUploadXmlMutation();//xml upload
@@ -175,14 +185,21 @@ if (loan.role_assignments) {
   };
 
   const handleDetailsLoan = (loan) => {
-    navigate(`loan-details/${loan.id}`);
-    // For navigation, use react-router
-    // navigate(`/loans/${loan.id}`);
-    // Or set a state to show a details component/modal
-    // setSelectedLoan(loan); setShowDetails(true);
-  };
+  const params = new URLSearchParams(window.location.search);
+
+  navigate(`loan-details/${loan.id}?${params.toString()}`);
+};
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const urlMilestone = searchParams.get("milestone");
+  // Read URL filters passed from Report Page
+const urlProcessor = searchParams.get("processor");
+const urlTeamLeader = searchParams.get("team_leader");
+const urlBroker = searchParams.get("broker");
+const urlLoanOfficer = searchParams.get("loan_officer");
+const urlStartDate = searchParams.get("start_date");
+const urlEndDate = searchParams.get("end_date");
+
   const pageFromURL = parseInt(searchParams.get("page") ?? "1", 10);
   const sizeFromURL = parseInt(searchParams.get("rowsPerPage") ?? "10", 10); // NEW
 
@@ -199,24 +216,37 @@ if (loan.role_assignments) {
     activeTab === "Active Loans" || activeTab === "all" || activeTab === "archived" ? undefined : activeTab;
 
   const includeArchived = activeTab === "archived";
+  const effectiveSearch = openNew ? "" : search;
 const loanQueryArgs = useMemo(() => {
-    const base = {
-      page,
-      pageSize: rowsPerPage,
-      milestone: milestoneFilter,
-      search,
-      ordering,
-      ...filters,
-    };
-    return includeArchived
-      ? { ...base, include_archived: true, is_archived: true }
-      : base;
-  }, [page, rowsPerPage, milestoneFilter, search, ordering, includeArchived, filters]);
+  const get = (k) => searchParams.get(k) || undefined;
+
+  return {
+    page,
+    pageSize: rowsPerPage,
+    milestone: get("milestone"),
+    broker: get("broker"),
+    loan_officer: get("loan_officer"),
+    team_leader: get("team_leader"),
+    processor: get("processor"),
+    start_date: get("start_date"),
+    end_date: get("end_date"),
+    search: effectiveSearch,
+    ordering,
+    ...(activeTab === "archived"
+      ? { include_archived: true, is_archived: true }
+      : {}),
+  };
+}, [page, rowsPerPage, effectiveSearch, ordering, activeTab, searchParams]);
+
+useEffect(() => {
+  if (urlMilestone) {
+    setActiveTab((prev) => (prev !== "all" ? "all" : prev));
+    setPage((prev) => (prev !== 1 ? 1 : prev));
+  }
+}, [urlMilestone]);
 
   const { data, isLoading, isError } = useGetLoansQuery(loanQueryArgs);
 
-
- 
   const loans = data?.results || [];
   const totalLoans = data?.count || 0;
   const pageCount = Math.ceil(totalLoans / rowsPerPage);
@@ -660,8 +690,8 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 <InputLabel>Broker</InputLabel>
                 <Select
                   label="Broker"
-                  value={filters.broker || ""}
-                  onChange={(e) => handleFilterChange("broker", e.target.value)}
+                  value={draftFilters.broker || ""}
+                  onChange={(e) => setDraftFilters("broker", e.target.value)}
                 >
                   <MenuItem value="">All</MenuItem>
                   {brokers.map((b) => (
@@ -677,8 +707,8 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 <InputLabel>Loan Officer</InputLabel>
                 <Select
                   label="Loan Officer"
-                  value={filters.loanOfficer || ""}
-                  onChange={(e) => handleFilterChange("loanOfficer", e.target.value)}
+                  value={draftFilters.loanOfficer || ""}
+                  onChange={(e) => setDraftFilters("loanOfficer", e.target.value)}
                 >
                   <MenuItem value="">All</MenuItem>
                   {loanOfficers.map((o) => (
@@ -694,8 +724,8 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 <InputLabel>Milestone</InputLabel>
                 <Select
                   label="Milestone"
-                  value={filters.milestone || ""}
-                  onChange={(e) => handleFilterChange("milestone", e.target.value)}
+                  value={draftFilters.milestone || ""}
+                  onChange={(e) => setDraftFilters("milestone", e.target.value)}
                 >
                   <MenuItem value="">All</MenuItem>
                   {milestones.map((m) => (
@@ -713,8 +743,8 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 size="small"
                 fullWidth
                 margin="dense"
-                value={filters.minAmount || ""}
-                onChange={(e) => handleFilterChange("minAmount", e.target.value)}
+                value={draftFilters.minAmount || ""}
+                onChange={(e) => setDraftFilters("minAmount", e.target.value)}
               />
             </Grid>
             <Grid item xs={6}>
@@ -724,8 +754,8 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 size="small"
                 fullWidth
                 margin="dense"
-                value={filters.maxAmount || ""}
-                onChange={(e) => handleFilterChange("maxAmount", e.target.value)}
+                value={draftFilters.maxAmount || ""}
+                onChange={(e) => setDraftFilters("maxAmount", e.target.value)}
               />
             </Grid>
 
@@ -738,8 +768,8 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 fullWidth
                 margin="dense"
                 InputLabelProps={{ shrink: true }}
-                value={filters.createdFrom || ""}
-                onChange={(e) => handleFilterChange("createdFrom", e.target.value)}
+                value={draftFilters.createdFrom || ""}
+                onChange={(e) => setDraftFilters("createdFrom", e.target.value)}
               />
             </Grid>
             <Grid item xs={6}>
@@ -750,8 +780,8 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 fullWidth
                 margin="dense"
                 InputLabelProps={{ shrink: true }}
-                value={filters.createdTo || ""}
-                onChange={(e) => handleFilterChange("createdTo", e.target.value)}
+                value={draftFilters.createdTo || ""}
+                onChange={(e) => setDraftFilters("createdTo", e.target.value)}
               />
             </Grid>
           </Grid>
@@ -762,13 +792,13 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
           <Button
             size="small"
             onClick={() => {
-              handleFilterChange("broker", "");
-              handleFilterChange("loanOfficer", "");
-              handleFilterChange("milestone", "");
-              handleFilterChange("minAmount", "");
-              handleFilterChange("maxAmount", "");
-              handleFilterChange("createdFrom", "");
-              handleFilterChange("createdTo", "");
+              setDraftFilters("broker", "");
+              setDraftFilters("loanOfficer", "");
+              setDraftFilters("milestone", "");
+              setDraftFilters("minAmount", "");
+              setDraftFilters("maxAmount", "");
+              setDraftFilters("createdFrom", "");
+              setDraftFilters("createdTo", "");
             }}
           >
             Clear
