@@ -603,7 +603,7 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
             include_archived = self.request.query_params.get("include_archived", "").lower()
             if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
                 qs = qs.filter(is_archived=False)
-            return qs.order_by("-created_at")
+            
             
 
         # Non-privileged visibility logic
