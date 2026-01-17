@@ -11,8 +11,6 @@ from datetime import datetime, timedelta, time
 from employee.utils import now_cst, CST, to_cst, get_cst_date
 from django.db.models import Sum
 
-from decimal import Decimal
-
 
 # Create your models here.
 class Broker(models.Model):
@@ -63,7 +61,6 @@ class LoanOfficer(models.Model):
 
 
 class Employee(models.Model):
-
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
     roles = models.ManyToManyField(Group, blank=True)   # allow multiple roles
     login_id = models.CharField(max_length=50, unique=True, db_index=True, null=True, blank=True)
@@ -78,12 +75,7 @@ class Employee(models.Model):
     bank_name = models.CharField(max_length=100, null=True, blank=True)
     bank_account_no = models.CharField(max_length=50, null=True, blank=True, db_index=True)
     work_location = models.CharField(max_length=150, null=True, blank=True)
-    base_salary = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal("0.00"),
-        help_text="Monthly gross salary before incentives and deductions.",
-    )
+    basic = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     hra = models.DecimalField("House Rent Allowance", max_digits=10, decimal_places=2, default=0)
     conveyance_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     medical_reimbursement = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -101,13 +93,6 @@ class Employee(models.Model):
 
     yearly_paid_leaves = models.IntegerField(default=12)   # yearly quota
     leave_balance = models.IntegerField(default=12)  
-    
-    base_salary = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal("0.00"),
-        help_text="Monthly gross salary before incentives and deductions.",
-    )
 
     def save(self, *args, **kwargs):
         # Ensure balance never exceeds yearly quota
@@ -119,13 +104,7 @@ class Employee(models.Model):
             self.user.username = self.login_id
             self.user.save(update_fields=["username"])
         super().save(*args, **kwargs)
-            #@property
-    def prorated_salary(self, payable_days: int, period_working_days: int) -> Decimal:
-        if not self.base_salary or period_working_days <= 0:
-            return Decimal("0.00")
-        day_rate = (self.base_salary / Decimal(period_working_days)).quantize(Decimal("0.01"))
-        return (day_rate * Decimal(payable_days)).quantize(Decimal("0.01"))
-    
+        
     @property
     def total_monthly_salary(self):
         return (
@@ -138,7 +117,6 @@ class Employee(models.Model):
             self.special_allowance +
             self.arrear_salary
         )   
-        
     class Meta:
         permissions = [
            
@@ -316,6 +294,7 @@ class LeaveRequests(models.Model):
     def __str__(self):
          return f"{self.employee} - {self.approval_type or 'N/A'} ({self.status})"
 
+
 class Shift(models.Model):
     name = models.CharField(max_length=100)
     start_time = models.TimeField()
@@ -380,7 +359,7 @@ class Attendance(models.Model):
     
     class Meta:
         permissions = [
-            ("view_latelogins", "Can view login records"),
+            ("view_latelogins", "Can view Login records"),
         ]
         unique_together = ("employee", "date")
         ordering = ("-date",)
@@ -609,4 +588,3 @@ class EmployeeBreak(models.Model):
             return (self.end_time - self.start_time).total_seconds()
         return None
     
-
