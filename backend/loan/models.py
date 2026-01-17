@@ -399,3 +399,22 @@ class IncomeAssetNote(models.Model):
 
     def __str__(self):
         return f"IncomeAssetNote(loan={self.loan_id})"
+
+
+class LoanMilestoneHistory(models.Model):
+    loan = models.ForeignKey(
+        Loan,
+        on_delete=models.CASCADE,
+        related_name="milestone_history"
+    )
+    milestone = models.ForeignKey(
+        Milestone,
+        on_delete=models.CASCADE
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["changed_at"]
+
+    def __str__(self):
+        return f"{self.loan_id} → {self.milestone.name} @ {self.changed_at}"
