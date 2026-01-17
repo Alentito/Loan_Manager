@@ -18,6 +18,7 @@ import xml.etree.ElementTree as ET
 import csv
 import json
 import os, re
+import openpyxl
 from datetime import date, timedelta
 import calendar
 from django.utils import timezone
@@ -68,6 +69,15 @@ from django.contrib.auth.decorators import permission_required
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone as dj_timezone
 from django.db.models.functions import TruncMonth
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+import re
+from textwrap import wrap
+
 
 
 
@@ -234,17 +244,6 @@ def broker_stats(request):
         'last_updated': last_updated,
     })
 
-
-from django.http import HttpResponse
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-import openpyxl
-from openpyxl.utils import get_column_letter
-from openpyxl import Workbook
-from io import BytesIO
-from loan.models import Broker  # update import as needed
-
-
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def export_brokers_excel(request):
@@ -326,6 +325,14 @@ def export_brokers_pdf(request):
     return HttpResponse(buffer, content_type='application/pdf', headers={
         'Content-Disposition': 'attachment; filename="brokers.pdf"',
     })
+
+
+def draw_multiline(p, text, x, y, max_chars=90, line_height=14):
+    lines = wrap(text, max_chars)
+    for line in lines:
+        p.drawString(x, y, line)
+        y -= line_height
+    return y
 
 
 def clean_xml_text(text):
@@ -1289,12 +1296,10 @@ class BreakViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(brk)
         return Response(serializer.data, status=200)
     
-
 class LateLoginPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = "page_size"
     max_page_size = 100
-    
     
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all().select_related("employee", "shift").prefetch_related(
@@ -1675,7 +1680,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         return response
 
-
     @action(detail=False, methods=["get"], url_path="absents")
     def absents(self, request):
         tz = pytz.timezone("America/Chicago")
@@ -1820,7 +1824,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         return paginator.get_paginated_response(results)
 
-        
+
 class PunchInView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
