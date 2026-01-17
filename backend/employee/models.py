@@ -75,7 +75,12 @@ class Employee(models.Model):
     bank_name = models.CharField(max_length=100, null=True, blank=True)
     bank_account_no = models.CharField(max_length=50, null=True, blank=True, db_index=True)
     work_location = models.CharField(max_length=150, null=True, blank=True)
-    basic = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    base_salary = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Monthly gross salary before incentives and deductions.",
+    )
     hra = models.DecimalField("House Rent Allowance", max_digits=10, decimal_places=2, default=0)
     conveyance_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     medical_reimbursement = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -104,7 +109,14 @@ class Employee(models.Model):
             self.user.username = self.login_id
             self.user.save(update_fields=["username"])
         super().save(*args, **kwargs)
-        
+
+    def prorated_salary(self, payable_days: int, period_working_days: int) -> Decimal:
+        if not self.base_salary or period_working_days <= 0:
+            return Decimal("0.00")
+        day_rate = (self.base_salary / Decimal(period_working_days)).quantize(Decimal("0.01"))
+        return (day_rate * Decimal(payable_days)).quantize(Decimal("0.01"))
+
+    
     @property
     def total_monthly_salary(self):
         return (
