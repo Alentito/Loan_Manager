@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Loan, ChecklistQuestion, LoanContact,LoanDocStatus,Task
 from .models import DocOrder
-from .models import XMLUpload
+from .models import XMLUpload, LoanMilestoneHistory
 
 from employee.serializers import BrokerSerializer, LoanOfficerSerializer
 from employee.models import Broker, LoanOfficer
@@ -379,10 +379,17 @@ class LoanSerializer(serializers.ModelSerializer):
             employees = item.pop('employees', [])
             ra = LoanRoleAssignment.objects.create(loan=loan, **item)
             ra.employees.set(employees)
+
+        if loan.milestone:
+            LoanMilestoneHistory.objects.create(
+                loan=loan,
+                milestone=loan.milestone
+            )
         return loan
 
     def update(self, instance, validated_data):
         ras = validated_data.pop('role_assignments', None)
+        old_milestone_id = instance.milestone_id
         loan = super().update(instance, validated_data)
         if ras is not None:
             LoanRoleAssignment.objects.filter(loan=loan).delete()
@@ -390,4 +397,14 @@ class LoanSerializer(serializers.ModelSerializer):
                 employees = item.pop('employees', [])
                 ra = LoanRoleAssignment.objects.create(loan=loan, **item)
                 ra.employees.set(employees)
+
+        if (
+            loan.milestone_id
+            and old_milestone_id != loan.milestone_id
+        ):
+            LoanMilestoneHistory.objects.create(
+                loan=loan,
+                milestone=loan.milestone
+            )
+
         return loan
