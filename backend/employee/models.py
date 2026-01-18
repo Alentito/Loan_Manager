@@ -89,6 +89,22 @@ class Employee(models.Model):
     food_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     special_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     arrear_salary = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # --- Statutory / Compliance ---
+    uan_number = models.CharField(max_length=12, unique=True, null=True, blank=True, db_index=True)
+    tds_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    labour_welfare_fund = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    # --- Variable Earnings ---
+    bonus_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    leave_encashment_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    overtime_hours = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("0.00"))
+    overtime_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    night_shift_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    comp_off_balance = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("0.00"))
+
+    # --- Deductions ---
+    loan_repayment_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    other_deductions = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
 
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
