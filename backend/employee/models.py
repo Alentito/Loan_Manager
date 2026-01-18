@@ -10,6 +10,7 @@ import pytz
 from datetime import datetime, timedelta, time
 from employee.utils import now_cst, CST, to_cst, get_cst_date
 from django.db.models import Sum
+from decimal import Decimal
 
 
 # Create your models here.
@@ -75,7 +76,12 @@ class Employee(models.Model):
     bank_name = models.CharField(max_length=100, null=True, blank=True)
     bank_account_no = models.CharField(max_length=50, null=True, blank=True, db_index=True)
     work_location = models.CharField(max_length=150, null=True, blank=True)
-    basic = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    base_salary = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Monthly gross salary before incentives and deductions.",
+    )
     hra = models.DecimalField("House Rent Allowance", max_digits=10, decimal_places=2, default=0)
     conveyance_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     medical_reimbursement = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -83,6 +89,22 @@ class Employee(models.Model):
     food_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     special_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     arrear_salary = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # --- Statutory / Compliance ---
+    uan_number = models.CharField(max_length=12, unique=True, null=True, blank=True, db_index=True)
+    tds_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    labour_welfare_fund = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    # --- Variable Earnings ---
+    bonus_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    leave_encashment_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    overtime_hours = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("0.00"))
+    overtime_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    night_shift_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    comp_off_balance = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("0.00"))
+
+    # --- Deductions ---
+    loan_repayment_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    other_deductions = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
 
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
@@ -104,11 +126,18 @@ class Employee(models.Model):
             self.user.username = self.login_id
             self.user.save(update_fields=["username"])
         super().save(*args, **kwargs)
-        
+
+    def prorated_salary(self, payable_days: int, period_working_days: int) -> Decimal:
+        if not self.base_salary or period_working_days <= 0:
+            return Decimal("0.00")
+        day_rate = (self.base_salary / Decimal(period_working_days)).quantize(Decimal("0.01"))
+        return (day_rate * Decimal(payable_days)).quantize(Decimal("0.01"))
+
+    
     @property
     def total_monthly_salary(self):
         return (
-            self.basic +
+            self.base_salary +
             self.hra +
             self.conveyance_allowance +
             self.medical_reimbursement +
@@ -587,4 +616,6 @@ class EmployeeBreak(models.Model):
         if self.end_time:
             return (self.end_time - self.start_time).total_seconds()
         return None
+    
+
     
