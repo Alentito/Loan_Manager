@@ -89,10 +89,19 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'team_name', 'primary_shift_name', 'alternate_shift_name',
             'manager_id', 'team_manager_name', 'bank_name',
             'bank_account_no',
-            'work_location',
-            'basic', 'hra', 'conveyance_allowance', 'medical_reimbursement',
+            'work_location',"base_salary",
+            'hra', 'conveyance_allowance', 'medical_reimbursement',
             'uniform_allowance', 'food_allowance', 'special_allowance',
-            'arrear_salary',
+            'arrear_salary','uan_number', 'tds_amount', 'labour_welfare_fund',
+
+            # --- Variable Earnings ---
+            'bonus_amount', 'leave_encashment_amount',
+            'overtime_hours', 'overtime_amount',
+            'night_shift_allowance', 'comp_off_balance',
+
+            # --- Deductions ---
+            'loan_repayment_amount', 'other_deductions',
+
         ]
 
     def create(self, validated_data):
