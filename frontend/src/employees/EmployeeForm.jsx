@@ -28,27 +28,47 @@ const EmployeeForm = ({
   serverErrors = {},
 }) => {
   const [formData, setFormData] = useState({
-    login_id: "",
-    name: "",
-    company_email: "",
-    contact_number: "",
-    roles: "", // Role IDs
-    login_password: "",
-    team: "",
-    shift: "",
-    alternate_shift: "", // NEW field
-    bank_name: "",
-    bank_account_no: "",
-    work_location: "",
-    base_salary: "",
-    hra: "",
-    conveyance_allowance: "",
-    medical_reimbursement: "",
-    uniform_allowance: "",
-    food_allowance: "",
-    special_allowance: "",
-    arrear_salary: "",
-  });
+  login_id: "",
+  name: "",
+  company_email: "",
+  contact_number: "",
+  roles: [],
+  login_password: "",
+  team: "",
+  shift: "",
+  alternate_shift: "",
+
+  bank_name: "",
+  bank_account_no: "",
+  work_location: "",
+
+  base_salary: "",
+  hra: "",
+  conveyance_allowance: "",
+  medical_reimbursement: "",
+  uniform_allowance: "",
+  food_allowance: "",
+  special_allowance: "",
+  arrear_salary: "",
+
+  // ✅ Statutory
+  uan_number: "",
+  tds_amount: "",
+  labour_welfare_fund: "",
+
+  // ✅ Variable earnings
+  bonus_amount: "",
+  leave_encashment_amount: "",
+  overtime_hours: "",
+  overtime_amount: "",
+  night_shift_allowance: "",
+  comp_off_balance: "",
+
+  // ✅ Deductions
+  loan_repayment_amount: "",
+  other_deductions: "",
+});
+
 
   const [localErrors, setLocalErrors] = useState({});
   const [validateField] = useValidateEmployeeFieldMutation();
@@ -89,6 +109,20 @@ const EmployeeForm = ({
       food_allowance: existingData.food_allowance || "",
       special_allowance: existingData.special_allowance || "",
       arrear_salary: existingData.arrear_salary || "",
+      uan_number: existingData.uan_number || "",
+tds_amount: existingData.tds_amount || "",
+labour_welfare_fund: existingData.labour_welfare_fund || "",
+
+bonus_amount: existingData.bonus_amount || "",
+leave_encashment_amount: existingData.leave_encashment_amount || "",
+overtime_hours: existingData.overtime_hours || "",
+overtime_amount: existingData.overtime_amount || "",
+night_shift_allowance: existingData.night_shift_allowance || "",
+comp_off_balance: existingData.comp_off_balance || "",
+
+loan_repayment_amount: existingData.loan_repayment_amount || "",
+other_deductions: existingData.other_deductions || "",
+
     }));
   }, [existingData]);
 
@@ -190,6 +224,30 @@ const EmployeeForm = ({
       bank_account_no: "",
       work_location: "",
       base_salary: "",
+      hra: "",
+      conveyance_allowance: "",
+      medical_reimbursement: "",
+      uniform_allowance: "",
+      food_allowance: "",
+      special_allowance: "",
+      arrear_salary: "",
+
+      // ✅ Statutory
+      uan_number: "",
+      tds_amount: "",
+      labour_welfare_fund: "",
+
+      // ✅ Variable earnings
+      bonus_amount: "",
+      leave_encashment_amount: "",
+      overtime_hours: "",
+      overtime_amount: "",
+      night_shift_allowance: "",
+      comp_off_balance: "",
+
+      // ✅ Deductions
+      loan_repayment_amount: "",
+      other_deductions: "",
     });
     setLocalErrors({});
   };
@@ -392,6 +450,39 @@ const EmployeeForm = ({
 </Grid>
 <Grid item xs={12} sm={6}>
   {renderTextField("arrear_salary", "Arrear Salary", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("uan_number", "PF UAN Number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("tds_amount", "TDS Amount", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("labour_welfare_fund", "Labour Welfare Fund", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("bonus_amount", "Bonus Amount", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("leave_encashment_amount", "Leave Encashment", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("overtime_hours", "Overtime Hours", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("overtime_amount", "Overtime Amount", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("night_shift_allowance", "Night Shift Allowance", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("comp_off_balance", "Comp Off Balance", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("loan_repayment_amount", "Loan Repayment", "number")}
+</Grid>
+<Grid item xs={12} sm={6}>
+  {renderTextField("other_deductions", "Other Deductions", "number")}
 </Grid>
 
         <Grid item xs={12} sm={6}>
