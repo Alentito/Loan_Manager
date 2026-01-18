@@ -169,7 +169,7 @@ const EmployeeList = () => {
     };
 
     if (format && map[format]) {
-      window.open(`https://backend-l3f9.onrender.com/api/${map[format]}`, '_blank');
+      window.open(`http://localhost:8000/api/${map[format]}`, '_blank');
     }
   };
 
@@ -474,94 +474,37 @@ const EmployeeList = () => {
         <DialogTitle height={60} bgcolor="primary.main" mb={3}>Employee Details</DialogTitle>
         <DialogContent dividers>
           {viewingEmployee && (
-  <Box display="flex" flexDirection="column" gap={1.2}>
-
-    {/* 🔹 Basic Info */}
-    <Typography variant="subtitle2" color="primary">Basic Information</Typography>
-    {[
-      ['Name', viewingEmployee.name],
-      ['Login ID', viewingEmployee.login_id],
-      ['Company Email', viewingEmployee.company_email],
-      ['Contact Number', viewingEmployee.contact_number],
-      ['Role', viewingEmployee.role_names?.[0]],
-      ['Team', viewingEmployee.team_name],
-      ['Team Manager', viewingEmployee.team_manager_name],
-      ['Team Head', viewingEmployee.team_head_name],
-      ['Primary Shift', viewingEmployee.primary_shift_name],
-      ['Work Location', viewingEmployee.work_location],
-    ].map(([label, value]) => (
-      <Typography key={label}><strong>{label}:</strong> {value || '-'}</Typography>
-    ))}
-
-    {/* 🔹 Bank Details */}
-    <Typography variant="subtitle2" color="primary" mt={2}>Bank Details</Typography>
-    {[
-      ['Bank Name', viewingEmployee.bank_name],
-      ['Bank Account No', viewingEmployee.bank_account_no],
-    ].map(([label, value]) => (
-      <Typography key={label}><strong>{label}:</strong> {value || '-'}</Typography>
-    ))}
-
-    {/* 🔹 Salary Structure */}
-    <Typography variant="subtitle2" color="primary" mt={2}>Salary Structure</Typography>
-    {[
-      ['Base Salary', viewingEmployee.base_salary],
-      ['HRA', viewingEmployee.hra],
-      ['Conveyance Allowance', viewingEmployee.conveyance_allowance],
-      ['Medical Reimbursement', viewingEmployee.medical_reimbursement],
-      ['Uniform Allowance', viewingEmployee.uniform_allowance],
-      ['Food Allowance', viewingEmployee.food_allowance],
-      ['Special Allowance', viewingEmployee.special_allowance],
-      ['Arrear Salary', viewingEmployee.arrear_salary],
-    ].map(([label, value]) => (
-      <Typography key={label}><strong>{label}:</strong> {value ?? '0.00'}</Typography>
-    ))}
-
-    {/* 🔹 Statutory Details */}
-    <Typography variant="subtitle2" color="primary" mt={2}>Statutory Details</Typography>
-    {[
-      ['PF UAN Number', viewingEmployee.uan_number],
-      ['TDS Amount', viewingEmployee.tds_amount],
-      ['Labour Welfare Fund', viewingEmployee.labour_welfare_fund],
-    ].map(([label, value]) => (
-      <Typography key={label}><strong>{label}:</strong> {value ?? '0.00'}</Typography>
-    ))}
-
-    {/* 🔹 Variable Earnings */}
-    <Typography variant="subtitle2" color="primary" mt={2}>Variable Earnings</Typography>
-    {[
-      ['Bonus Amount', viewingEmployee.bonus_amount],
-      ['Leave Encashment', viewingEmployee.leave_encashment_amount],
-      ['Overtime Hours', viewingEmployee.overtime_hours],
-      ['Overtime Amount', viewingEmployee.overtime_amount],
-      ['Night Shift Allowance', viewingEmployee.night_shift_allowance],
-      ['Comp Off Balance', viewingEmployee.comp_off_balance],
-    ].map(([label, value]) => (
-      <Typography key={label}><strong>{label}:</strong> {value ?? '0.00'}</Typography>
-    ))}
-
-    {/* 🔹 Deductions */}
-    <Typography variant="subtitle2" color="primary" mt={2}>Deductions</Typography>
-    {[
-      ['Loan Repayment', viewingEmployee.loan_repayment_amount],
-      ['Other Deductions', viewingEmployee.other_deductions],
-    ].map(([label, value]) => (
-      <Typography key={label}><strong>{label}:</strong> {value ?? '0.00'}</Typography>
-    ))}
-
-    {/* 🔹 System Info */}
-    <Typography variant="subtitle2" color="primary" mt={2}>System Info</Typography>
-    {[
-      ['Created At', formatToCST(viewingEmployee.created_at)],
-      ['Last Updated', formatToCST(viewingEmployee.updated_at)],
-      ['Archived At', formatToCST(viewingEmployee.archived_at)],
-    ].map(([label, value]) => (
-      <Typography key={label}><strong>{label}:</strong> {value || '-'}</Typography>
-    ))}
-
-  </Box>
-)}
-
+            <Box display="flex" flexDirection="column" gap={1}>
+              {[
+                ['Name', viewingEmployee.name],
+                ['Login ID', viewingEmployee.login_id],
+                ['Company Email', viewingEmployee.company_email],
+                ['Contact Number', viewingEmployee.contact_number],
+                ['Role', viewingEmployee.role_names?.[0]],
+                ['Team ', viewingEmployee.team_name],
+                ['Team Manager', viewingEmployee.team_manager_name],
+                ['Team Head', viewingEmployee.team_head_name],
+                ['Shift', viewingEmployee.primary_shift_name],
+                ['Bank Name', viewingEmployee.bank_name],
+                ['Bank A/C No', viewingEmployee.bank_account_no],
+                ['Work Location', viewingEmployee.work_location],
+                ['Basic Salary', viewingEmployee.basic],
+                ['HRA', viewingEmployee.hra],
+                ['Conveyance Allowance', viewingEmployee.conveyance_allowance],
+                ['Medical Reimbursement', viewingEmployee.medical_reimbursement],
+                ['Uniform Allowance', viewingEmployee.uniform_allowance],
+                ['Food Allowance', viewingEmployee.food_allowance],
+                ['Special Allowance', viewingEmployee.special_allowance],
+                ['Arrear Salary', viewingEmployee.arrear_salary],    
+                //['Alternative Shift', viewingEmployee.alternate_shift_name],
+                ['Created At - MM:DD:YY', formatToCST(viewingEmployee.created_at)],
+                ['Last Updated - MM:DD:YY', formatToCST(viewingEmployee.updated_at)],
+                ['Archived At', formatToCST(viewingEmployee.archived_at)],
+              ].map(([label, value]) => (
+                <Typography key={label}><strong>{label}:</strong> {value || '-'}</Typography>
+              ))}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setViewDialogOpen(false)} variant="contained" color="primary">Close</Button>
