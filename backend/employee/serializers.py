@@ -182,9 +182,10 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        if instance.status != "pending":
-            raise serializers.ValidationError("This request has already been processed.")
+        if instance.status == "approved" and "approval_type" in validated_data:
+            raise serializers.ValidationError("Cannot change leave type after approval. Revert to 'pending' first.")
         return super().update(instance, validated_data)
+
 
     def validate(self, data):
         request = self.context.get("request")
@@ -599,4 +600,6 @@ class EmployeeBreakSerializer(serializers.ModelSerializer):
         model = EmployeeBreak
         fields = ['id', 'employee', 'start_time', 'end_time', 'reason', 'duration_seconds']
         read_only_fields = ['employee']
+
+
 
