@@ -121,7 +121,7 @@ class Employee(models.Model):
     @property
     def total_monthly_salary(self):
         return (
-            self.basic +
+            self.base_salary +
             self.hra +
             self.conveyance_allowance +
             self.medical_reimbursement +
