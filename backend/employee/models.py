@@ -10,6 +10,7 @@ import pytz
 from datetime import datetime, timedelta, time
 from employee.utils import now_cst, CST, to_cst, get_cst_date
 from django.db.models import Sum
+from decimal import Decimal
 
 
 # Create your models here.
