@@ -600,3 +600,5 @@ class EmployeeBreak(models.Model):
             return (self.end_time - self.start_time).total_seconds()
         return None
     
+
+    
