@@ -586,7 +586,7 @@ const handleSaveClick = useCallback(() => {
                           }
                         >
                           <MenuItem value="entegra">Entegra</MenuItem>
-                          <MenuItem value="quantegra">Quantegra</MenuItem>
+                          <MenuItem value="quantegra">Quadaid</MenuItem>
                         </Select>
                       </FormControl>
 
@@ -609,7 +609,7 @@ const handleSaveClick = useCallback(() => {
 
                       {String(newLoan.funded_invoice_company || "") === "quantegra" ? (
                         <TextField
-                          label="Quantegra Amount"
+                          label="Quadaid Amount"
                           type="number"
                           fullWidth
                           margin="dense"
