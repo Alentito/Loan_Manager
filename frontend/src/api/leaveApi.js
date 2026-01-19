@@ -10,11 +10,6 @@ export const leaveApi = createApi({
     // ✅ Employee: get own leave requests (with pagination)
     getEmployeeLeaveRequests: builder.query({
       query: ({ employeeId, page = 1, page_size = 10 }) => {
-        if (!employeeId) {
-  return { url: "", method: "GET" }; // will never be called due to skip
-}
-
-
         const params = new URLSearchParams();
         params.set("page", page);
         params.set("page_size", page_size);
