@@ -353,7 +353,7 @@ class Loan(models.Model):
     class Meta:
      permissions = [
         ("view_all_loans", "Can view all loans"),
-        ("view_reports", "Can view reports"),
+        ("View_reports", "Can view reports"),
      ]
 
     def __str__(self):
