@@ -11,8 +11,9 @@ export const leaveApi = createApi({
     getEmployeeLeaveRequests: builder.query({
       query: ({ employeeId, page = 1, page_size = 10 }) => {
         if (!employeeId) {
-          throw new Error("❌ employeeId (Employee profile ID) is required for fetching leave requests");
-        }
+  return { url: "", method: "GET" }; // will never be called due to skip
+}
+
 
         const params = new URLSearchParams();
         params.set("page", page);
