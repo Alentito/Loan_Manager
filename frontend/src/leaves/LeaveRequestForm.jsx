@@ -84,7 +84,9 @@ export default function LeaveRequestsPage() {
     refetch,
   } = useGetEmployeeLeaveRequestsQuery(
     { employeeId, page, page_size: ROWS_PER_PAGE },
-    { skip: !employeeId }
+    { skip: !employeeId,
+      pollingInterval: 8000,
+     }
   );
 
   const [submitLeaveRequest, { isLoading: submitting }] =
