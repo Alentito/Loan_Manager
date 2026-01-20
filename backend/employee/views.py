@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
-from .serializers import BrokerSerializer, LoanOfficerSerializer, EmployeeSerializer,  PublicHolidaySerializer, MeetingSerializer, LeaveRequestSerializer, ShiftSerializer, TeamSerializer, BreakSerializer, AttendanceSerializer,  MonthlyAttendanceSummarySerializer, LenderSerializer, TeamLeadSerializer, TeamManagerSerializer,EmployeeTokenSerializer, EmployeeBreakSerializer
+from .serializers import BrokerSerializer, LoanOfficerSerializer,  PublicHolidaySerializer, MeetingSerializer, LeaveRequestSerializer, ShiftSerializer, TeamSerializer, BreakSerializer, AttendanceSerializer,  MonthlyAttendanceSummarySerializer, LenderSerializer, TeamLeadSerializer, TeamManagerSerializer,EmployeeTokenSerializer, EmployeeBreakSerializer, EmployeeCreateSerializer, EmployeeDetailSerializer
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import api_view, action, permission_classes
@@ -557,14 +557,23 @@ class EmployeePagination(PageNumberPagination):
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     permission_classes = [StrictDjangoModelPermissions]
-    queryset = Employee.objects.select_related('team', 'primary_shift').all().order_by('-created_at')
-    serializer_class = EmployeeSerializer
+    queryset = Employee.objects.select_related(
+        "team", "primary_shift"
+    ).prefetch_related("roles").order_by("-created_at")
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return EmployeeCreateSerializer
+        return EmployeeDetailSerializer
+
+    serializer_class = EmployeeDetailSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['position', 'status']  # ✅ Removed 'manager'
     filterset_fields = [ 'team', 'primary_shift', 'team__manager']  # ✅ Removed 'manager'
     search_fields = ['name', 'login_id', 'company_email', 'contact_number']
     ordering_fields = ['created_at','name']
     pagination_class = EmployeePagination
+
 
 
     def create(self, request, *args, **kwargs):
