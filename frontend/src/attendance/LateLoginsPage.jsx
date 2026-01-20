@@ -48,9 +48,27 @@ export default function AttendanceReportsPage() {
   };
 
   /* ------------------ Queries ------------------ */
-  const lateQuery = useGetLateLoginsQuery(queryArgs, { skip: tab !== "late" });
-  const absentQuery = useGetAbsentsQuery(queryArgs, { skip: tab !== "absent" });
-  const loginQuery = useGetLoginLogoutQuery(queryArgs, { skip: tab !== "login" });
+  const lateQuery = useGetLateLoginsQuery(queryArgs, {
+  skip: tab !== "late",
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
+});
+
+const absentQuery = useGetAbsentsQuery(queryArgs, {
+  skip: tab !== "absent",
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
+});
+
+const loginQuery = useGetLoginLogoutQuery(queryArgs, {
+  skip: tab !== "login",
+  refetchOnMountOrArgChange: true,
+  refetchOnFocus: true,
+  refetchOnReconnect: true,
+  pollingInterval: tab === "login" ? 30_000 : 0, // ✅ ONLY poll when tab active
+});
 
   /* ------------------ Tab Config ------------------ */
   const tabsConfig = {
@@ -84,6 +102,7 @@ export default function AttendanceReportsPage() {
         Attendance Reports
       </Typography>
 
+
       {/* 🔹 Tabs */}
       <Box display="flex" gap={2} mb={2}>
         {Object.entries(tabsConfig).map(([key, cfg]) => (
@@ -108,7 +127,16 @@ export default function AttendanceReportsPage() {
             {mode[0].toUpperCase() + mode.slice(1)}
           </Button>
         ))}
-
+<Button
+  variant="outlined"
+  onClick={() => {
+    if (tab === "late") lateQuery.refetch();
+    if (tab === "absent") absentQuery.refetch();
+    if (tab === "login") loginQuery.refetch();
+  }}
+>
+  ♻️
+</Button>
         <TextField
           type="date"
           size="small"
