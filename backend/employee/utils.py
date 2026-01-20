@@ -258,10 +258,11 @@ def mark_attendance_on_login(user, login_dt=None):
         date=att_date,
         defaults={
             "login_time": login_dt_cst,
+            "logout_time": None, 
             "counted_from": counted_from,
             "status": status,
             "minutes_late": minutes_late,
-            "worked_minutes": potential_worked,
+            "worked_minutes": 0,
             "shift": shift,
         },
     )
@@ -316,17 +317,6 @@ def mark_attendance_on_login(user, login_dt=None):
                     save_fields.append("holiday_id")
 
             attendance.save(update_fields=save_fields)
-    else:
-        # If created, but the login we just recorded is actually a later login
-        # (rare) we still ensure logout_time contains something meaningful
-        attendance.logout_time = login_dt_cst
-        attendance.updated_at = timezone.now()
-        # include possible holiday fields
-        try:
-            attendance.save()
-        except Exception:
-            # fallback to saving only minimal fields in case of custom model constraints
-            attendance.save(update_fields=["logout_time", "updated_at"])
 
     return attendance
 
