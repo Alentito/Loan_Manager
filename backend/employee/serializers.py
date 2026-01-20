@@ -66,7 +66,7 @@ class MeetingSerializer(serializers.ModelSerializer):
             validated_data['datetime'] = dt_cst.astimezone(dt_timezone.utc)
         return super().update(instance, validated_data)
 
-class EmployeeSerializer(serializers.ModelSerializer):
+class EmployeeDetailSerializer(serializers.ModelSerializer):
     roles = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all(), many=True)
     role_names = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name', source='roles')
     team_name = serializers.CharField(source='team.name', read_only=True)
@@ -104,17 +104,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
         ]
 
-    def create(self, validated_data):
-        roles = validated_data.pop('roles', [])
-        team = validated_data.get('team', None)
-
-        if team and not validated_data.get('primary_shift'):
-            validated_data['primary_shift'] = team.shift
-
-        employee = Employee.objects.create(**validated_data)
-        employee.roles.set(roles)
-        
-        return employee
+    def validate_uan_number(self, value):
+        if value in ("", None):
+            return None
+        return value    
 
     def update(self, instance, validated_data):
         roles = validated_data.pop('roles', None)
@@ -151,6 +144,44 @@ class EmployeeSerializer(serializers.ModelSerializer):
             instance.roles.set(roles)
 
         return instance
+
+class EmployeeCreateSerializer(serializers.ModelSerializer):
+    roles = serializers.PrimaryKeyRelatedField(
+        queryset=Group.objects.all(), many=True, required=False
+    )
+
+    class Meta:
+        model = Employee
+        fields = [
+            "user",
+            "login_id",
+            "name",
+            "company_email",
+            "contact_number",
+            "designation",
+            "team",
+            "primary_shift",
+            "alternate_shift",
+            "work_location",
+            "bank_name",
+            "bank_account_no",
+            "yearly_paid_leaves",
+            "leave_balance",
+            "roles",
+        ]
+
+    def create(self, validated_data):
+        roles = validated_data.pop("roles", [])
+        team = validated_data.get("team")
+
+        # Auto-assign shift from team
+        if team and not validated_data.get("primary_shift"):
+            validated_data["primary_shift"] = team.shift
+
+        employee = Employee.objects.create(**validated_data)
+        if roles:
+            employee.roles.set(roles)
+        return employee
 
 
 class EmployeeBasicSerializer(serializers.ModelSerializer):
@@ -609,3 +640,10 @@ class EmployeeBreakSerializer(serializers.ModelSerializer):
         model = EmployeeBreak
         fields = ['id', 'employee', 'start_time', 'end_time', 'reason', 'duration_seconds']
         read_only_fields = ['employee']
+
+
+
+
+
+
+EmployeeSerializer = EmployeeDetailSerializer
