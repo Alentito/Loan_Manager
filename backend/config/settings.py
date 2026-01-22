@@ -176,15 +176,21 @@ CACHES = {
 }
 
 # Celery
+CELERY_TIMEZONE = "America/Chicago"
 CELERY_BROKER_URL = VALKEY_URL + "/0"
 CELERY_RESULT_BACKEND = VALKEY_URL + "/1"
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = "json"
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_SCHEDULE = {
     "publish-outbox-every-2s": {
         "task": "loan.tasks.publish_outbox",
         "schedule": 2.0,
+    },
+    "mark-daily-absents": {
+        "task": "employee.tasks.mark_daily_absents",
+        "schedule": crontab(hour=23, minute=59),  # CST server timezone
     }
 }
 
