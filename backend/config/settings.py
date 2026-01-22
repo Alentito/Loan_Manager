@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
+from celery.schedules import crontab
 
 VALKEY_URL = os.environ.get("VALKEY_URL") or os.environ.get("REDIS_URL")
 
