@@ -375,7 +375,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
     shift_name = serializers.CharField(source="shift.name", read_only=True)
     leave_balance = serializers.SerializerMethodField()
     yearly_late_seconds = serializers.SerializerMethodField()
-    employee_details = EmployeeSerializer(source="employee", read_only=True)
+    employee_details = EmployeeDetailSerializer(source="employee", read_only=True)
     daily_late_hhmmss = serializers.SerializerMethodField()
 
     class Meta:
