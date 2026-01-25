@@ -258,11 +258,10 @@ def mark_attendance_on_login(user, login_dt=None):
         date=att_date,
         defaults={
             "login_time": login_dt_cst,
-            "logout_time": None, 
             "counted_from": counted_from,
             "status": status,
             "minutes_late": minutes_late,
-            "worked_minutes": 0,
+            "worked_minutes": potential_worked,
             "shift": shift,
         },
     )
@@ -480,7 +479,7 @@ def mark_missing_absents(employee):
         absent_records.append(
             Attendance(
                 employee=employee,
-                shift=employee.primary_shift,
+                shift=employee.primary_shift if employee.primary_shift else None,
                 date=single_date,
                 status=Attendance.STATUS_ABSENT,
                 login_time=None,
