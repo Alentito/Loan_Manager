@@ -585,14 +585,14 @@ const handleSaveClick = useCallback(() => {
                             })
                           }
                         >
-                          <MenuItem value="entegra">Entegra</MenuItem>
+                          <MenuItem value="entegra">Entregar</MenuItem>
                           <MenuItem value="quantegra">Quadaid</MenuItem>
                         </Select>
                       </FormControl>
 
                       {String(newLoan.funded_invoice_company || "") === "entegra" ? (
                         <TextField
-                          label="Entegra Amount"
+                          label="Entregar Amount"
                           type="number"
                           fullWidth
                           margin="dense"
@@ -654,7 +654,7 @@ const handleSaveClick = useCallback(() => {
 
             {String(newLoan.lock_status || "").toLowerCase() === "locked" ? (
               <TextField
-                label="Lock Amount"
+                label="Lock"
                 type="number"
                 fullWidth
                 margin="dense"
