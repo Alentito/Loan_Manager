@@ -606,7 +606,7 @@ class LoanExportReportAPIView(APIView):
                 ", ".join(l.lender_name for l in loan.lenders.all()),
                 loan.loan_officer.name if loan.loan_officer else "",
                 *milestone_dates,
-                "",  # Rate
+                loan.broker_rate or "",
                 "",  # Notes
                 "",  # State
             ])
@@ -614,9 +614,14 @@ class LoanExportReportAPIView(APIView):
         self._auto_size_columns(
                 ws,
                 min_widths={
+                    "broker": 15,
+                    "Borrower": 30,
+                    "Property": 25,
+                    "Lender": 25,
+                    "LO": 20,
                     "Rate": 12,
-                    "Notes": 30,
-                    "State": 10,
+                    "Notes": 20,
+                    "State": 20,
                 }
             )
 
