@@ -359,7 +359,18 @@ class Loan(models.Model):
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.subject_property or 'Loan'}"
     
+    @property
+    def broker_rate(self):
+        if not self.funded_invoice:
+            return None
 
+        if self.funded_invoice_company == "entegra":
+            return self.funded_invoice_entegra_amount
+
+        if self.funded_invoice_company == "quantegra":
+            return self.funded_invoice_quantegra_amount
+
+        return None
 
 class Task(models.Model):
     loan       = models.ForeignKey(Loan, related_name="tasks",
