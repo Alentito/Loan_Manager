@@ -554,6 +554,7 @@ class LoanExportReportAPIView(APIView):
             + ["Rate", "Notes", "State"]
         )
 
+
         self._add_invoice_header(
             ws,
             "Invoice – Broker Wise Loan Report",
@@ -581,21 +582,19 @@ class LoanExportReportAPIView(APIView):
         loans = loans.order_by("broker__name", "created_at")
 
         for loan in loans:
-            # 🔹 Build milestone → latest date map
             milestone_date_map = {}
 
             for h in loan.milestone_history.all():
-                if (
-                    h.milestone_id not in milestone_date_map
-                    or h.changed_at > milestone_date_map[h.milestone_id]
-                ):
-                    milestone_date_map[h.milestone_id] = h.changed_at
+                mid = h.milestone_id
+                dt = h.changed_at
 
-            # 🔹 Dates per milestone column
+                # always keep latest
+                if mid not in milestone_date_map or dt > milestone_date_map[mid]:
+                    milestone_date_map[mid] = dt
+
             milestone_dates = [
                 milestone_date_map[m.id].strftime("%m/%d/%Y")
-                if m.id in milestone_date_map
-                else ""
+                if m.id in milestone_date_map else ""
                 for m in milestones
             ]
 
@@ -607,10 +606,10 @@ class LoanExportReportAPIView(APIView):
                 loan.loan_officer.name if loan.loan_officer else "",
                 *milestone_dates,
                 loan.broker_rate or "",
-                "",  # Notes
-                "",  # State
+                "",
+                "",
             ])
-            
+       
         self._auto_size_columns(
                 ws,
                 min_widths={
