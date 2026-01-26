@@ -95,6 +95,13 @@ export const payrollApi = createApi({
         };
       },
     }),
+    downloadPayslip: builder.query({
+      query: ({ id }) => ({
+        url: `/payroll/payrolls/${id}/payslip/`,
+        method: "GET",
+        responseHandler: (response) => response.blob(),
+      }),
+    }),
     generatePayroll: builder.mutation({
     query: (data) => ({
     url: `/payroll/payrolls/generate/`,
@@ -123,4 +130,6 @@ export const {
   useGeneratePayrollMutation,
   useExportPayrollsQuery,
   useLazyExportPayrollsQuery,
+  useDownloadPayslipQuery,
+  useLazyDownloadPayslipQuery,
 } = payrollApi;
