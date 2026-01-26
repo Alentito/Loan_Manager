@@ -72,24 +72,32 @@ class PayrollCalculator:
             other_allowances = getattr(employee, "other_allowances", Decimal("0.00"))
 
             gross = (
-                base_pay + incentive_amount + bonus + leave_encash + overtime +
-                night_shift + arrear + special + food + uniform + medical +
-                conveyance + other_allowances
-            ).quantize(Decimal("0.01"))
+            base_pay + incentive_amount + bonus + leave_encash + overtime +
+            night_shift + arrear + special + food + uniform + medical +
+            conveyance + other_allowances
+             ).quantize(Decimal("0.01"))
+            
+            settings = self.settings
+            pf_employee = (base_pay * settings.pf_employee_rate).quantize(Decimal("0.01"))
+            esi_employee = (gross * settings.esi_employee_rate).quantize(Decimal("0.01"))
 
-            deductions = self._calculate_statutory_deductions(employee, base_pay, incentive_amount)
+            deductions = pf_employee + esi_employee  # add other deductions as needed
             net = (gross - deductions).quantize(Decimal("0.01"))
+
+            
             computations.append(
-                PayrollComputation(
-                    employee=employee,
-                    base_pay=base_pay,
-                    incentive_pay=incentive_amount,
-                    gross_pay=gross,
-                    statutory_deductions=deductions,
-                    net_pay=net,
-                    loans_count=len(employee_loans),
-                )
+            PayrollComputation(
+                employee=employee,
+                base_pay=base_pay,
+                incentive_pay=incentive_amount,
+                gross_pay=gross,
+                statutory_deductions=deductions,
+                net_pay=net,
+                loans_count=len(employee_loans),
+                #notes="",
+                # Optionally, add pf_employee and esi_employee as fields if you extend PayrollComputation
             )
+        )
         return computations
 
     @staticmethod
@@ -123,9 +131,16 @@ class PayrollCalculator:
         with transaction.atomic():
             created_objs = []
             for c in computations:
+                settings = self.settings
+                pf_employee = (c.base_pay * settings.pf_employee_rate).quantize(Decimal("0.01"))
+                esi_employee = (c.gross_pay * settings.esi_employee_rate).quantize(Decimal("0.01"))
                 obj, _ = EmployeePayroll.objects.get_or_create(
                 employee=c.employee,
                 month=self.period_start,   # first day of month
+
+                # obj, _ = EmployeePayroll.objects.get_or_create(
+                # employee=c.employee,
+                # month=self.period_start,   # first day of month
                 defaults={
                         "base_salary": c.base_pay,
                         "hra": Decimal("0.00"),
@@ -140,8 +155,8 @@ class PayrollCalculator:
                         "incentive_amount": c.incentive_pay,
                         "incentive_breakdown": {},
                         "gross_salary": c.gross_pay,
-                        "pf_employee_contribution": Decimal("0.00"),
-                        "pf_employer_contribution": Decimal("0.00"),
+                        "pf_employee_contribution": pf_employee,
+                        "esi_employee_contribution": esi_employee,
                         "eps_contribution": Decimal("0.00"),
                         "esi_employee_contribution": Decimal("0.00"),
                         "esi_employer_contribution": Decimal("0.00"),
