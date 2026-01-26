@@ -29,8 +29,14 @@ from .serializers import (
     PayrollSettingsSerializer,
 )
 
-from employee.models import Employee, Attendance, PublicHoliday
+from employee.models import Employee, Attendance, PublicHoliday, Team
 from payroll.payroll_calculator import PayrollCalculator
+from django.db.models import Prefetch
+from openpyxl import Workbook
+from django.http import HttpResponse
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
 
 
 # -------------------------
@@ -96,14 +102,14 @@ class PayrollSettingsViewSet(viewsets.ModelViewSet):
             obj = PayrollSettings.objects.create()
         ser = self.get_serializer(obj)
         return Response(ser.data)
+    
+
 
 
 class EmployeePayrollViewSet(viewsets.ModelViewSet):
     queryset = EmployeePayroll.objects.select_related("employee").order_by("-month", "employee__name")
     serializer_class = EmployeePayrollSerializer
     permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ["employee", "month"]
     search_fields = ["employee__name", "employee__login_id", "employee__company_email"]
     ordering_fields = ["month", "gross_salary", "net_salary", "employee__name"]
     ordering = ["-month"]
@@ -171,6 +177,119 @@ class EmployeePayrollViewSet(viewsets.ModelViewSet):
         ser = self.get_serializer(saved, many=True)
         return Response(ser.data, status=201)
 
+
+
+    #Export
+    #--------------------------
+    queryset = EmployeePayroll.objects.all()
+
+    @action(detail=False, methods=["get"])
+    def export_excel(self, request):
+        month = request.GET.get("month")  # YYYY-MM
+        if not month:
+            return Response({"error": "month required"}, status=400)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"Payroll {month}"
+
+        HEADERS = [
+            "Employee Code",
+            "Employee Name",
+            "Designation",
+            "Gross Salary",
+            "Net Salary",
+        ]
+
+        def write_headers():
+            ws.append(HEADERS)
+
+        # ----------------------------------
+        # Fetch payrolls once (efficient)
+        # ----------------------------------
+        payrolls = (
+            EmployeePayroll.objects
+            .select_related("employee", "employee__team", "employee__team__head")
+            .filter(month__startswith=month)
+        )
+
+        payroll_by_employee = {
+            p.employee_id: p for p in payrolls
+        }
+
+        # ----------------------------------
+        # TEAM-WISE EXPORT
+        # ----------------------------------
+        teams = (
+            Team.objects
+            .select_related("head")
+            .prefetch_related(
+                Prefetch(
+                    "employees",
+                    queryset=Employee.objects.all()
+                )
+            )
+        )
+
+        assigned_employee_ids = set()
+
+        for team in teams:
+            team_emps = team.employees.all()
+            if not team_emps:
+                continue
+
+            ws.append([])
+            ws.append([
+                f"TEAM: {team.name} | LEADER: {team.head.name if team.head else '—'}"
+            ])
+            write_headers()
+
+            for emp in team_emps:
+                payroll = payroll_by_employee.get(emp.id)
+                if not payroll:
+                    continue
+
+                assigned_employee_ids.add(emp.id)
+                roles = ", ".join(emp.roles.values_list("name", flat=True)) or "—"
+
+
+                ws.append([
+                    emp.login_id,
+                    emp.name,
+                    roles,
+                    float(payroll.gross_salary),
+                    float(payroll.net_salary),
+                ])
+
+        # ----------------------------------
+        # UNASSIGNED EMPLOYEES
+        # ----------------------------------
+        unassigned = payrolls.exclude(employee_id__in=assigned_employee_ids)
+
+        if unassigned.exists():
+            ws.append([])
+            ws.append(["UNASSIGNED EMPLOYEES"])
+            write_headers()
+
+            for p in unassigned:
+                emp = p.employee
+                ws.append([
+                    emp.employee_code,
+                    emp.name,
+                    emp.designation,
+                    float(p.gross_salary),
+                    float(p.net_salary),
+                ])
+
+        # ----------------------------------
+        # RESPONSE
+        # ----------------------------------
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = f'attachment; filename="payroll_{month}.xlsx"'
+        wb.save(response)
+        return response
     # -------------------------
     # Payslip PDF (clean, no-overlap layout)
     # -------------------------
