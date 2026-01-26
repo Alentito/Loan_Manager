@@ -197,3 +197,6 @@ CELERY_BEAT_SCHEDULE = {
 
 # Default primary key
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+COMPANY_NAME = "Entreger Solutions"
+COMPANY_ADDRESS = "Kerala, India"
