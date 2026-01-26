@@ -110,6 +110,14 @@ export const payrollApi = createApi({
   }),
   invalidatesTags: [{ type: "Payrolls", id: "LIST" }],
 }),
+exportPayrollExcel: builder.query({
+  query: ({ month }) => ({
+    url: `/payroll/payrolls/export_excel/?month=${month}`,
+    method: "GET",
+    responseHandler: (response) => response.blob(),
+  }),
+}),
+
   }),
 });
 
@@ -132,4 +140,5 @@ export const {
   useLazyExportPayrollsQuery,
   useDownloadPayslipQuery,
   useLazyDownloadPayslipQuery,
+  useLazyExportPayrollExcelQuery
 } = payrollApi;
