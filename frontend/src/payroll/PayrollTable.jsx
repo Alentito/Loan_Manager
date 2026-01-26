@@ -81,13 +81,13 @@ export default function PayrollTable({
       </IconButton>
     </span>
   </Tooltip>
-              <Tooltip title="Edit">
+              {/* <Tooltip title="Edit">
                 <span>
                   <IconButton size="small" onClick={() => onEdit(r)}>
                     <EditIcon fontSize="small" />
                   </IconButton>
                 </span>
-              </Tooltip>
+              </Tooltip> */}
               <Tooltip title="Delete">
                 <span>
                   <IconButton size="small" color="error" onClick={() => onDelete(r)}>
