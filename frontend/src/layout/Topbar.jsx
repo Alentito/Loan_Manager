@@ -255,10 +255,7 @@ export default function TopNavbar({ mode, setMode, onOpenSidebar = () => {} }) {
             <ListItemText>Profile</ListItemText>
           </MenuItem>
           <MenuItem onClick={handleLogout}>
-            <ListItemIcon>
-              <LogOut size={16} />
-            </ListItemIcon>
-            <ListItemText>Logout</ListItemText>
+            
           </MenuItem>
         </Menu>
       </Box>
