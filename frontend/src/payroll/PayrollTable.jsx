@@ -10,11 +10,24 @@ import {
   TablePagination,
   Box,
   Typography,
+  Tooltip,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 
-export default function PayrollTable({ rows = [], page = 1, pageSize = 25, total = 0, onPageChange = () => {}, onPageSizeChange = () => {}, onEdit, onDelete }) {
+export default function PayrollTable({
+  rows = [],
+  page = 1,
+  pageSize = 25,
+  total = 0,
+  onPageChange = () => {},
+  onPageSizeChange = () => {},
+  onEdit,
+  onDelete,
+  onDownloadPayslip,
+  downloadingId,
+}) {
   return (
     <Table size="small" sx={{ tableLayout: 'fixed' }}>
       <TableHead>
@@ -57,16 +70,31 @@ export default function PayrollTable({ rows = [], page = 1, pageSize = 25, total
             </TableCell>
 
             <TableCell align="center">
-              <IconButton size="small" onClick={() => onEdit(r)}>
-                <EditIcon fontSize="small" />
-              </IconButton>
-              <IconButton
-                size="small"
-                color="error"
-                onClick={() => onDelete(r)}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
+               <Tooltip title="Payslip">
+    <span>
+      <IconButton
+        size="small"
+        onClick={() => onDownloadPayslip?.(r)}
+        disabled={!onDownloadPayslip || downloadingId === r.id}
+      >
+        <FileDownloadOutlinedIcon fontSize="small" />
+      </IconButton>
+    </span>
+  </Tooltip>
+              <Tooltip title="Edit">
+                <span>
+                  <IconButton size="small" onClick={() => onEdit(r)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Delete">
+                <span>
+                  <IconButton size="small" color="error" onClick={() => onDelete(r)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
             </TableCell>
           </TableRow>
         ))}
