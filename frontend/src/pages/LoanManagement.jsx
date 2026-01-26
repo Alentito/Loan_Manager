@@ -16,6 +16,16 @@ import {
   useUploadXmlMutation,
   useLazyGetLoansQuery,
 } from "../api/loanApi";
+
+import { Autocomplete } from "@mui/material";
+import { useGetBrokersQuery } from "../api/brokerApi";
+import { useGetLoanOfficersQuery } from "../api/loanOfficerApi";
+import { useGetMilestonesQuery } from "../api/milestoneApi";
+import { useGetLendersQuery } from "../api/lenderApiSlice";
+import { useGetGroupsQuery } from "../api/authApi";
+
+
+
 import useLoanSocket from "../components/loan/useLoanSocket";
 import { debounce } from "lodash";
 import Checkbox from "@mui/material/Checkbox";
@@ -50,51 +60,46 @@ import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import { FaMoneyCheckAlt } from "react-icons/fa";
 
-// Sample dropdown options
-const brokers = ["Broker A", "Broker B"];
-const loanOfficers = ["Officer X", "Officer Y"];
-const lendersList = ["Lender 1", "Lender 2"];
-const milestones = ["Application", "Underwriting", "Funding"];
-const teamLeads = ["Lead A", "Lead B"];
-const teamManagers = ["Manager A", "Manager B"];
-const processors = ["Processor A", "Processor B"];
-const supports = ["Support A", "Support B"];
 
 
 export default function LoanManagement() {
+
+  const { data: brokersData = {} } = useGetBrokersQuery({ page_size: 100 });
+const brokers = brokersData.results || [];
+const { data: milestonesData = {} } = useGetMilestonesQuery({ page_size: 100 });
+const milestones = milestonesData.results || [];
+const { data: loanOfficersData = {} } = useGetLoanOfficersQuery({ page_size: 100 });
+const loanOfficers = loanOfficersData.results || [];
+const { data: lendersData = {} } = useGetLendersQuery({ page_size: 100 });
+const lenderss = lendersData.results || [];
+const { data: groupsData = {} } = useGetGroupsQuery({ page_size: 100 });
+const groups = groupsData.results || [];
+
+
   const Permissions = useSelector(
     (state) => state.auth.user?.permissions || []
   );
 const [roleAssignments, setRoleAssignments] = useState({});
 
   const [openFilter, setOpenFilter] = React.useState(false);
-  const [draftFilters, setDraftFilters] = useState({});
-
-  useEffect(() => {
-  setDraftFilters({
-    milestone: searchParams.get("milestone") || "",
-    broker: searchParams.get("broker") || "",
-    loan_officer: searchParams.get("loan_officer") || "",
-    team_leader: searchParams.get("team_leader") || "",
-    processor: searchParams.get("processor") || "",
-    start_date: searchParams.get("start_date") || "",
-    end_date: searchParams.get("end_date") || "",
-  });
-}, [openFilter]);
-
-  const applyFilters = (nextFilters) => {
-  const next = new URLSearchParams(searchParams);
-
-  Object.entries(nextFilters).forEach(([key, value]) => {
-    if (value) next.set(key, value);
-    else next.delete(key);
+  const [filters, setFilters] = React.useState({
+    milestone: "",
+    managedBy: "",
+    minAmount: "",
+    maxAmount: "",
+    dateFrom: "",
+    dateTo: "",
   });
 
-  next.set("page", "1");
-  setSearchParams(next);
-  setPage(1);
-  setOpenFilter(false);
-};
+  const handleFilterChange = (field, value) => {
+    setFilters((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const applyFilters = () => {
+    // Trigger backend filtering via RTK Query refetch
+    refetchLoans(filters);
+    setOpenFilter(false);
+  };
 
   const theme = useTheme();
   //const [uploadXml, { isLoading: isUploading, isSuccess, error }] = useUploadXmlMutation();//xml upload
@@ -185,21 +190,14 @@ if (loan.role_assignments) {
   };
 
   const handleDetailsLoan = (loan) => {
-  const params = new URLSearchParams(window.location.search);
-
-  navigate(`loan-details/${loan.id}?${params.toString()}`);
-};
+    navigate(`loan-details/${loan.id}`);
+    // For navigation, use react-router
+    // navigate(`/loans/${loan.id}`);
+    // Or set a state to show a details component/modal
+    // setSelectedLoan(loan); setShowDetails(true);
+  };
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const urlMilestone = searchParams.get("milestone");
-  // Read URL filters passed from Report Page
-const urlProcessor = searchParams.get("processor");
-const urlTeamLeader = searchParams.get("team_leader");
-const urlBroker = searchParams.get("broker");
-const urlLoanOfficer = searchParams.get("loan_officer");
-const urlStartDate = searchParams.get("start_date");
-const urlEndDate = searchParams.get("end_date");
-
   const pageFromURL = parseInt(searchParams.get("page") ?? "1", 10);
   const sizeFromURL = parseInt(searchParams.get("rowsPerPage") ?? "10", 10); // NEW
 
@@ -216,37 +214,24 @@ const urlEndDate = searchParams.get("end_date");
     activeTab === "Active Loans" || activeTab === "all" || activeTab === "archived" ? undefined : activeTab;
 
   const includeArchived = activeTab === "archived";
-  const effectiveSearch = openNew ? "" : search;
 const loanQueryArgs = useMemo(() => {
-  const get = (k) => searchParams.get(k) || undefined;
-
-  return {
-    page,
-    pageSize: rowsPerPage,
-    milestone: get("milestone"),
-    broker: get("broker"),
-    loan_officer: get("loan_officer"),
-    team_leader: get("team_leader"),
-    processor: get("processor"),
-    start_date: get("start_date"),
-    end_date: get("end_date"),
-    search: effectiveSearch,
-    ordering,
-    ...(activeTab === "archived"
-      ? { include_archived: true, is_archived: true }
-      : {}),
-  };
-}, [page, rowsPerPage, effectiveSearch, ordering, activeTab, searchParams]);
-
-useEffect(() => {
-  if (urlMilestone) {
-    setActiveTab((prev) => (prev !== "all" ? "all" : prev));
-    setPage((prev) => (prev !== 1 ? 1 : prev));
-  }
-}, [urlMilestone]);
+    const base = {
+      page,
+      pageSize: rowsPerPage,
+      milestone: milestoneFilter,
+      search,
+      ordering,
+      ...filters,
+    };
+    return includeArchived
+      ? { ...base, include_archived: true, is_archived: true }
+      : base;
+  }, [page, rowsPerPage, milestoneFilter, search, ordering, includeArchived, filters]);
 
   const { data, isLoading, isError } = useGetLoansQuery(loanQueryArgs);
 
+
+ 
   const loans = data?.results || [];
   const totalLoans = data?.count || 0;
   const pageCount = Math.ceil(totalLoans / rowsPerPage);
@@ -671,143 +656,103 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
         roleAssignments={roleAssignments}
         setRoleAssignments={setRoleAssignments}
       />
-       <Dialog
-        open={openFilter}
-        onClose={() => setOpenFilter(false)}
-        maxWidth="xs"         // small width
-        fullWidth
-        keepMounted
-      >
-        <DialogTitle sx={{ py: 1.5, fontSize: 16, fontWeight: 600 }}>
-          Filter Loans
-        </DialogTitle>
-
-        <DialogContent dividers sx={{ p: 1.5 }}>
-          <Grid container spacing={1.25}>
-            {/* Broker */}
-            <Grid item xs={12}>
-              <FormControl fullWidth size="small" margin="dense">
-                <InputLabel>Broker</InputLabel>
-                <Select
-                  label="Broker"
-                  value={draftFilters.broker || ""}
-                  onChange={(e) => setDraftFilters("broker", e.target.value)}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {brokers.map((b) => (
-                    <MenuItem key={b} value={b}>{b}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Loan Officer */}
-            <Grid item xs={12}>
-              <FormControl fullWidth size="small" margin="dense">
-                <InputLabel>Loan Officer</InputLabel>
-                <Select
-                  label="Loan Officer"
-                  value={draftFilters.loanOfficer || ""}
-                  onChange={(e) => setDraftFilters("loanOfficer", e.target.value)}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {loanOfficers.map((o) => (
-                    <MenuItem key={o} value={o}>{o}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Milestone */}
-            <Grid item xs={12}>
-              <FormControl fullWidth size="small" margin="dense">
-                <InputLabel>Milestone</InputLabel>
-                <Select
-                  label="Milestone"
-                  value={draftFilters.milestone || ""}
-                  onChange={(e) => setDraftFilters("milestone", e.target.value)}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {milestones.map((m) => (
-                    <MenuItem key={m} value={m}>{m}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Amount range */}
-            <Grid item xs={6}>
-              <TextField
-                label="Min Amount"
-                type="number"
-                size="small"
-                fullWidth
-                margin="dense"
-                value={draftFilters.minAmount || ""}
-                onChange={(e) => setDraftFilters("minAmount", e.target.value)}
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                label="Max Amount"
-                type="number"
-                size="small"
-                fullWidth
-                margin="dense"
-                value={draftFilters.maxAmount || ""}
-                onChange={(e) => setDraftFilters("maxAmount", e.target.value)}
-              />
-            </Grid>
-
-            {/* Created date range */}
-            <Grid item xs={6}>
-              <TextField
-                label="Created From"
-                type="date"
-                size="small"
-                fullWidth
-                margin="dense"
-                InputLabelProps={{ shrink: true }}
-                value={draftFilters.createdFrom || ""}
-                onChange={(e) => setDraftFilters("createdFrom", e.target.value)}
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                label="Created To"
-                type="date"
-                size="small"
-                fullWidth
-                margin="dense"
-                InputLabelProps={{ shrink: true }}
-                value={draftFilters.createdTo || ""}
-                onChange={(e) => setDraftFilters("createdTo", e.target.value)}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 1.25 }}>
-          <Button size="small" onClick={() => setOpenFilter(false)}>Cancel</Button>
-          <Button
-            size="small"
-            onClick={() => {
-              setDraftFilters("broker", "");
-              setDraftFilters("loanOfficer", "");
-              setDraftFilters("milestone", "");
-              setDraftFilters("minAmount", "");
-              setDraftFilters("maxAmount", "");
-              setDraftFilters("createdFrom", "");
-              setDraftFilters("createdTo", "");
-            }}
-          >
-            Clear
-          </Button>
-          <Button size="small" variant="contained" onClick={applyFilters}>
-            Apply
-          </Button>
-        </DialogActions>
-      </Dialog>
+       <Dialog open={openFilter} onClose={() => setOpenFilter(false)} maxWidth="sm" fullWidth>
+  <DialogTitle>Filter Loans</DialogTitle>
+  <DialogContent dividers>
+    <Grid container spacing={2}>
+      <Grid item xs={12}>
+        <Autocomplete
+          options={brokers}
+          getOptionLabel={(o) => o?.name ?? ""}
+          value={brokers.find(b => String(b.id) === String(filters.broker)) || null}
+          onChange={(_e, val) => handleFilterChange("broker", val ? val.id : "")}
+          renderInput={(params) => <TextField {...params} label="Broker" variant="outlined" />}
+        />
+      </Grid>
+      <Grid item xs={12}>
+        <Autocomplete
+          options={loanOfficers}
+          getOptionLabel={(o) => o?.name ?? ""}
+          value={loanOfficers.find(o => String(o.id) === String(filters.loan_officer)) || null}
+          onChange={(_e, val) => handleFilterChange("loan_officer", val ? val.id : "")}
+          renderInput={(params) => <TextField {...params} label="Loan Officer" variant="outlined" />}
+        />
+      </Grid>
+      <Grid item xs={12}>
+        <Autocomplete
+          options={milestones}
+          getOptionLabel={(o) => o?.name ?? ""}
+          value={milestones.find(m => String(m.id) === String(filters.milestone)) || null}
+          onChange={(_e, val) => handleFilterChange("milestone", val ? val.id : "")}
+          renderInput={(params) => <TextField {...params} label="Milestone" variant="outlined" />}
+        />
+      </Grid>
+      <Grid item xs={12}>
+        <Autocomplete
+          multiple
+          options={lenderss}
+          getOptionLabel={(o) => o?.lender_name ?? ""}
+          value={lenderss.filter(l => (filters.lender_ids || []).includes(l.id))}
+          onChange={(_e, val) => handleFilterChange("lender_ids", val.map(l => l.id))}
+          renderInput={(params) => <TextField {...params} label="Lenders" variant="outlined" />}
+        />
+      </Grid>
+      <Grid item xs={12}>
+        <Autocomplete
+          multiple
+          options={groups}
+          getOptionLabel={(o) => o?.name ?? ""}
+          value={groups.filter(g => (filters.group_ids || []).includes(g.id))}
+          onChange={(_e, val) => handleFilterChange("group_ids", val.map(g => g.id))}
+          renderInput={(params) => <TextField {...params} label="Groups" variant="outlined" />}
+        />
+      </Grid>
+      <Grid item xs={6}>
+        <TextField
+          label="Min Amount"
+          type="number"
+          fullWidth
+          value={filters.amount__gte || ""}
+          onChange={(e) => handleFilterChange("amount__gte", e.target.value)}
+        />
+      </Grid>
+      <Grid item xs={6}>
+        <TextField
+          label="Max Amount"
+          type="number"
+          fullWidth
+          value={filters.amount__lte || ""}
+          onChange={(e) => handleFilterChange("amount__lte", e.target.value)}
+        />
+      </Grid>
+      <Grid item xs={6}>
+        <TextField
+          label="Created From"
+          type="date"
+          fullWidth
+          InputLabelProps={{ shrink: true }}
+          value={filters.created_at__gte || ""}
+          onChange={(e) => handleFilterChange("created_at__gte", e.target.value)}
+        />
+      </Grid>
+      <Grid item xs={6}>
+        <TextField
+          label="Created To"
+          type="date"
+          fullWidth
+          InputLabelProps={{ shrink: true }}
+          value={filters.created_at__lte || ""}
+          onChange={(e) => handleFilterChange("created_at__lte", e.target.value)}
+        />
+      </Grid>
+    </Grid>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setOpenFilter(false)}>Cancel</Button>
+    <Button onClick={() => setFilters({})}>Clear</Button>
+    <Button variant="contained" onClick={applyFilters}>Apply</Button>
+  </DialogActions>
+</Dialog>
     </Box>
   );
 }
