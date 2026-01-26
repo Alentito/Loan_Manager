@@ -22,6 +22,7 @@ class AttendanceStats:
     paid_leave_days: int
     unpaid_leave_days: int
     present_days: int
+    payable_days: int  # <-- add this
 
 
 @dataclass
@@ -46,7 +47,6 @@ class PayrollCalculator:
         employees = list(get_sorted_payroll_employees())
         attendance_map = get_attendance_map(self.period_start, self.period_end)
         loans = list(get_payroll_loans(self.period_start, self.period_end))
-        # Build mapping employee_id -> loans (any role assignment)
         loans_by_employee = self._index_loans_dynamic(loans)
         incentive_rules = IncentiveRule.objects.filter(is_active=True).select_related("milestone").prefetch_related("roles")
 
@@ -57,8 +57,27 @@ class PayrollCalculator:
             employee_loans = loans_by_employee.get(employee.id, [])
             incentive_amount = self._calculate_incentive(employee, employee_loans, incentive_rules)
             base_pay = self._calculate_base_salary(employee, attendance_stats)
+
+            # --- Add other earnings here ---
+            bonus = getattr(employee, "bonus_amount", Decimal("0.00"))
+            leave_encash = getattr(employee, "leave_encashment_amount", Decimal("0.00"))
+            overtime = getattr(employee, "overtime_amount", Decimal("0.00"))
+            night_shift = getattr(employee, "night_shift_allowance", Decimal("0.00"))
+            arrear = getattr(employee, "arrear_salary", Decimal("0.00"))
+            special = getattr(employee, "special_allowance", Decimal("0.00"))
+            food = getattr(employee, "food_allowance", Decimal("0.00"))
+            uniform = getattr(employee, "uniform_allowance", Decimal("0.00"))
+            medical = getattr(employee, "medical_reimbursement", Decimal("0.00"))
+            conveyance = getattr(employee, "conveyance_allowance", Decimal("0.00"))
+            other_allowances = getattr(employee, "other_allowances", Decimal("0.00"))
+
+            gross = (
+                base_pay + incentive_amount + bonus + leave_encash + overtime +
+                night_shift + arrear + special + food + uniform + medical +
+                conveyance + other_allowances
+            ).quantize(Decimal("0.01"))
+
             deductions = self._calculate_statutory_deductions(employee, base_pay, incentive_amount)
-            gross = (base_pay + incentive_amount).quantize(Decimal("0.01"))
             net = (gross - deductions).quantize(Decimal("0.01"))
             computations.append(
                 PayrollComputation(
@@ -135,10 +154,7 @@ class PayrollCalculator:
                 created_objs.append(obj)
             return created_objs
 
-    def _build_attendance_stats(
-        self, summary: Optional[MonthlyAttendanceSummary]
-    ) -> AttendanceStats:
-        # If there's no summary for the month, assume standard working days with full presence
+    def _build_attendance_stats(self, summary: Optional[dict]) -> AttendanceStats:
         if not summary:
             wd = int(getattr(self.settings, "standard_working_days", 26) or 26)
             return AttendanceStats(
@@ -146,23 +162,24 @@ class PayrollCalculator:
                 paid_leave_days=0,
                 unpaid_leave_days=0,
                 present_days=wd,
+                payable_days=wd,  # all days are payable if no data
             )
-        working_days = (
-            summary.present_count + summary.late_count + summary.early_count + summary.leave_count + summary.unpaid_leave_count
-        )
+        present = summary.get("present", 0)
+        paid_leave = summary.get("paid_leave", 0)
+        unpaid_leave = summary.get("unpaid_leave", 0)
+        working_days = present + paid_leave + unpaid_leave
+        payable_days = present + paid_leave
         return AttendanceStats(
             working_days=working_days,
-            paid_leave_days=summary.leave_count,
-            unpaid_leave_days=summary.unpaid_leave_count,
-            present_days=summary.present_count + summary.late_count + summary.early_count,
+            paid_leave_days=paid_leave,
+            unpaid_leave_days=unpaid_leave,
+            present_days=present,
+            payable_days=payable_days,
         )
-
     def _calculate_base_salary(self, employee: Employee, stats: AttendanceStats) -> Decimal:
         if stats.working_days <= 0:
             return Decimal("0.00")
-        unpaid = stats.unpaid_leave_days
-        payable_days = max(0, stats.working_days - unpaid)
-        return employee.prorated_salary(payable_days, stats.working_days)
+        return employee.prorated_salary(stats.payable_days, stats.working_days)
 
     def _calculate_incentive(
         self,
