@@ -1,19 +1,17 @@
 # backend/payroll/payroll_fetchers.py
 from datetime import date
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable
 
-from django.db.models import OuterRef, Subquery, IntegerField, Value, F, Q, Prefetch
-from django.utils import timezone
+from django.db.models import OuterRef, Subquery, IntegerField, F, Prefetch
 
-from employee.models import Employee, MonthlyAttendanceSummary
-from loan.models import Loan, Milestone
+from employee.models import Employee, Attendance
+from loan.models import Loan, LoanRoleAssignment
 from userauth.models import RoleMetadata
-from loan.models import Loan, Milestone, LoanRoleAssignment
 
 
 def get_sorted_payroll_employees() -> Iterable[Employee]:
     """
-    Return employees flagged for payroll, ordered by their lowest role sort_order then name.
+    Employees ordered by role priority, then name
     """
     metadata_subquery = (
         RoleMetadata.objects.filter(group__employee__pk=OuterRef("pk"))
@@ -26,41 +24,61 @@ def get_sorted_payroll_employees() -> Iterable[Employee]:
         .annotate(
             primary_role_sort_order=Subquery(
                 metadata_subquery, output_field=IntegerField()
-            ),
+            )
         )
         .order_by(F("primary_role_sort_order").asc(nulls_last=True), "name")
         .prefetch_related("roles__metadata")
     )
 
 
-def get_payroll_loans(period_start: date, period_end: date) -> Iterable[Loan]:
+def get_payroll_loans(period_start: date, period_end: date):
+    """
+    Loans created in payroll period
+    """
     return (
         Loan.objects.filter(
             created_at__date__gte=period_start,
             created_at__date__lte=period_end,
             is_archived=False,
         )
-        # REMOVE .only(); it caused deferred FK + select_related conflict
         .select_related("broker", "loan_officer")
         .prefetch_related(
             Prefetch(
                 "role_assignments",
                 queryset=LoanRoleAssignment.objects
-                    .select_related("role")
-                    .prefetch_related("employees")
+                .select_related("role")
+                .prefetch_related("employees"),
             )
         )
     )
 
 
-def get_attendance_map(period_start: date, period_end: date) -> Dict[int, MonthlyAttendanceSummary]:
-    """
-    Return monthly attendance summary keyed by employee id for the given period.
-    """
-    year = period_start.year
-    month = period_start.month
-    summaries = MonthlyAttendanceSummary.objects.filter(
-        year=year,
-        month=month,
-    ).select_related("employee")
-    return {summary.employee_id: summary for summary in summaries}
+from datetime import date
+from typing import Dict
+from employee.models import Attendance
+
+
+def get_attendance_map(period_start: date, period_end: date) -> Dict[int, dict]:
+    qs = Attendance.objects.filter(
+        date__gte=period_start,
+        date__lte=period_end,
+    )
+
+    data: Dict[int, dict] = {}
+
+    for a in qs:
+        emp = a.employee_id
+        data.setdefault(emp, {"present": 0, "paid_leave": 0, "unpaid_leave": 0})
+
+        if a.status in (
+            Attendance.STATUS_PRESENT,
+            Attendance.STATUS_LATE,
+            Attendance.STATUS_EARLY,
+        ):
+            data[emp]["present"] += 1
+        elif a.status == Attendance.STATUS_ON_LEAVE:
+            data[emp]["paid_leave"] += 1
+        elif a.status == Attendance.STATUS_UNPAID_LEAVE:
+            data[emp]["unpaid_leave"] += 1
+
+    return data
