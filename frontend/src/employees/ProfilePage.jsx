@@ -349,14 +349,7 @@ export default function ProfilePage() {
                     ))}
                   </Stack>
 
-                  <Box sx={{ mt: 3, display: "flex", gap: 1.5 }}>
-                    <Button variant="contained" size="large">
-                      Edit Profile
-                    </Button>
-                    <Button variant="outlined" size="large" onClick={() => refetch()}>
-                      Refresh
-                    </Button>
-                  </Box>
+                  
                 </CardContent>
               </Card>
             </Paper>
