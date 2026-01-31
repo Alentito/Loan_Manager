@@ -1361,7 +1361,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if month and year:
             qs = qs.filter(date__month=int(month), date__year=int(year))
         else:
-            today = today_cst()
+            today = timezone.localdate()
             qs = qs.filter(date__month=today.month, date__year=today.year)
 
         return qs.order_by("date")
@@ -1372,7 +1372,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         """
         Return today’s attendance for the logged-in employee
         """
-        attendance = self.get_queryset().filter(date=today_cst()).first()
+        attendance = self.get_queryset().filter(date=timezone.localdate()).first()
         if not attendance:
             return Response({"detail": "No attendance record for today"}, status=404)
 
@@ -1386,8 +1386,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         employee_id = request.query_params.get("employeeId")
 
         # Use CST time for year reference
-        now_cst = to_cst(timezone.now())
-        year = int(request.query_params.get("year") or now_cst.year)
+        year = int(request.query_params.get("year") or timezone.localdate().year)
 
         # Resolve employee
         if not employee_id:
@@ -1595,11 +1594,11 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=["get"], url_path="late-logins")
     def late_logins(self, request):
-        tz = pytz.timezone("America/Chicago")
+     
 
         filter_type = request.query_params.get("filter", "day")
         date_param = request.query_params.get("date")
-        now = datetime.now(tz)
+        now = timezone.localtime()
 
         # ---------------- Resolve Date ----------------
         if date_param:
