@@ -58,7 +58,9 @@ export const attendanceApi = createApi({
           ]
           : [{ type: "Attendance", id: "LIST" }],
     }),
-    
+    getTodayAttendance: builder.query({
+      query: () => "attendance/today/",
+    }),
     getAttendanceSummary: builder.query({
       query: ({ employeeId, year } = {}) => {
         const params = new URLSearchParams();
