@@ -188,7 +188,13 @@ def mark_attendance_on_login(user, login_dt=None):
 
     shift, shift_start, shift_end = pick_shift_for_login(employee, login_dt_cst)
     att_date = shift_start.date() if shift else login_dt_cst.date()
-
+    print("=== ATTENDANCE DEBUG ===")
+    print("Server now (UTC):", timezone.now())
+    print("Login datetime CST:", login_dt_cst)
+    print("Shift start:", shift_start)
+    print("Shift end:", shift_end)
+    print("Final attendance date:", att_date)
+    print("========================")
     # Check if this att_date is a public holiday (in CST normalized date)
     holiday_obj = PublicHoliday.objects.filter(date=att_date, is_public=True).first()
 
@@ -337,6 +343,11 @@ def mark_attendance_on_logout(user, logout_dt=None):
     # Pick shift for this logout datetime
     shift, shift_start, shift_end = pick_shift_for_login(employee, logout_dt_cst)
     att_date = shift_start.date() if shift else logout_dt_cst.date()
+    print("=== LOGOUT DEBUG ===")
+    print("Logout CST:", logout_dt_cst)
+    print("Shift start:", shift_start)
+    print("Final attendance date:", att_date)
+    print("====================")
 
     # Get today's attendance record
     attendance = Attendance.objects.filter(employee=employee, date=att_date).first()
