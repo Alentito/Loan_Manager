@@ -1691,11 +1691,11 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="absents")
     def absents(self, request):
-        tz = pytz.timezone("America/Chicago")
+        
 
         filter_type = request.query_params.get("filter", "day")
         date_param = request.query_params.get("date")
-        now = datetime.now(tz)
+        now = timezone.localtime()
 
         # -------- Resolve Date --------
         if date_param:
@@ -1819,9 +1819,9 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 ),
                 "date": att.date.strftime("%Y-%m-%d"),
                 "status": att.status,
-                "login_time": timezone.localtime(att.login_time, tz).strftime("%I:%M %p")
+                "login_time": timezone.localtime(att.login_time).strftime("%I:%M %p")
                     if att.login_time else "—",
-                "logout_time": timezone.localtime(att.logout_time, tz).strftime("%I:%M %p")
+                "logout_time": timezone.localtime(att.logout_time).strftime("%I:%M %p")
                     if att.logout_time else "—",
                 "worked_hours": worked_hhmmss,
                 "shift_name": (
