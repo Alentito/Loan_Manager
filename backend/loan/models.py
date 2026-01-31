@@ -282,11 +282,11 @@ class Loan(models.Model):
     # Structured compensation (UI: two independent options + amounts)
     compensation_borrower_paid = models.BooleanField(default=False)
     compensation_borrower_paid_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True
+        max_digits=30, decimal_places=2, null=True, blank=True
     )
     compensation_lender_paid = models.BooleanField(default=False)
     compensation_lender_paid_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True
+        max_digits=30, decimal_places=2, null=True, blank=True
     )
 
     # Funded milestone options (UI only when milestone is Funded)
