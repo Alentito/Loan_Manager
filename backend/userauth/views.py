@@ -201,10 +201,12 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             try:
                 user = User.objects.get(username=username)
                 if hasattr(user, "employee") and user.employee:
+                    employee = user.employee
+                    mark_missing_absents(employee)
                     attendance = mark_attendance_on_login(user, login_dt=timezone.now())
                     print(f"[ATTENDANCE] user={user.username} -> {attendance.status}")
             except Exception as e:
-                print(f"[ERROR] mark_attendance_on_login failed: {e}")
+                print(f"[ERROR] attendance marking failed: {e}")
 
 
             res = Response(status=status.HTTP_200_OK)
