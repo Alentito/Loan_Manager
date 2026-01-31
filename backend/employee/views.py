@@ -1361,7 +1361,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if month and year:
             qs = qs.filter(date__month=int(month), date__year=int(year))
         else:
-            today = timezone.localdate()
+            today = today_cst()
             qs = qs.filter(date__month=today.month, date__year=today.year)
 
         return qs.order_by("date")
@@ -1372,7 +1372,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         """
         Return today’s attendance for the logged-in employee
         """
-        attendance = self.get_queryset().filter(date=timezone.localdate()).first()
+        attendance = self.get_queryset().filter(date=today_cst()).first()
         if not attendance:
             return Response({"detail": "No attendance record for today"}, status=404)
 
@@ -1386,7 +1386,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         employee_id = request.query_params.get("employeeId")
 
         # Use CST time for year reference
-        year = int(request.query_params.get("year") or timezone.localdate().year)
+        now_cst = to_cst(timezone.now())
+        year = int(request.query_params.get("year") or now_cst.year)
 
         # Resolve employee
         if not employee_id:
@@ -1447,8 +1448,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         user = request.user
         employee_id = request.query_params.get("employeeId")
 
-        year = int(request.query_params.get("year") or timezone.localdate().year)
-
+        now_cst = to_cst(timezone.now())
+        year = int(request.query_params.get("year") or now_cst.year)
 
         # Resolve employee
         if not employee_id:
@@ -1524,8 +1525,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         leave_summary = {}
         if employee:
             # Year for summary
-            year = int(request.query_params.get("year") or timezone.localdate().year)
-
+            year = int(request.query_params.get("year") or timezone.now().astimezone(CST).year)
 
             # Calculate yearly late in seconds
             total_minutes = Attendance.objects.filter(
@@ -1595,11 +1595,11 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=["get"], url_path="late-logins")
     def late_logins(self, request):
-     
+        tz = pytz.timezone("America/Chicago")
 
         filter_type = request.query_params.get("filter", "day")
         date_param = request.query_params.get("date")
-        now = timezone.localtime()
+        now = datetime.now(tz)
 
         # ---------------- Resolve Date ----------------
         if date_param:
@@ -1691,11 +1691,11 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="absents")
     def absents(self, request):
-        
+        tz = pytz.timezone("America/Chicago")
 
         filter_type = request.query_params.get("filter", "day")
         date_param = request.query_params.get("date")
-        now = timezone.localtime()
+        now = datetime.now(tz)
 
         # -------- Resolve Date --------
         if date_param:
@@ -1765,12 +1765,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="login-logout")
     def login_logout(self, request):
-      
+        tz = pytz.timezone("America/Chicago")
 
         filter_type = request.query_params.get("filter", "day")
         date_param = request.query_params.get("date")
 
-        now = timezone.localtime()
+        now = datetime.now(tz)
         selected_date = parse_date(date_param) if date_param else now.date()
 
         # ---- date range ----
@@ -1819,9 +1819,9 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 ),
                 "date": att.date.strftime("%Y-%m-%d"),
                 "status": att.status,
-                "login_time": timezone.localtime(att.login_time).strftime("%I:%M %p")
+                "login_time": timezone.localtime(att.login_time, tz).strftime("%I:%M %p")
                     if att.login_time else "—",
-                "logout_time": timezone.localtime(att.logout_time).strftime("%I:%M %p")
+                "logout_time": timezone.localtime(att.logout_time, tz).strftime("%I:%M %p")
                     if att.logout_time else "—",
                 "worked_hours": worked_hhmmss,
                 "shift_name": (
