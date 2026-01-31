@@ -1447,8 +1447,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         user = request.user
         employee_id = request.query_params.get("employeeId")
 
-        now_cst = to_cst(timezone.now())
-        year = int(request.query_params.get("year") or now_cst.year)
+        year = int(request.query_params.get("year") or timezone.localdate().year)
+
 
         # Resolve employee
         if not employee_id:
@@ -1524,7 +1524,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         leave_summary = {}
         if employee:
             # Year for summary
-            year = int(request.query_params.get("year") or timezone.now().astimezone(CST).year)
+            year = int(request.query_params.get("year") or timezone.localdate().year)
+
 
             # Calculate yearly late in seconds
             total_minutes = Attendance.objects.filter(
@@ -1764,12 +1765,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="login-logout")
     def login_logout(self, request):
-        tz = pytz.timezone("America/Chicago")
+      
 
         filter_type = request.query_params.get("filter", "day")
         date_param = request.query_params.get("date")
 
-        now = datetime.now(tz)
+        now = timezone.localtime()
         selected_date = parse_date(date_param) if date_param else now.date()
 
         # ---- date range ----
