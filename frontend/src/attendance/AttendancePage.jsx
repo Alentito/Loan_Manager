@@ -90,12 +90,12 @@ const AttendancePage = () => {
     { skip: !employeeIdToFetch }
   );
 
-  // 🔄 Auto-refresh attendance when it gets marked on login
 useEffect(() => {
-  if (todayAttendance) {
-    refetch(); // fetch fresh attendance list
+  if (todayAttendance && employeeIdToFetch) {
+    refetch();
   }
-}, [todayAttendance, refetch]);
+}, [todayAttendance, employeeIdToFetch, refetch]);
+
 
 
   const { data: attendanceSummary } = useGetAttendanceSummaryQuery(
@@ -130,15 +130,15 @@ const monthlyWorkedHHMMSS = useMemo(() => {
   const allHolidays = allHolidayData?.holidays ?? [];
 
   // ---------------------- Breaks ----------------------
-  const breakQueryArgs = useMemo(() => ({
-    employeeId: employeeIdToFetch,
-    month,
-    year
-  }), [employeeIdToFetch, month, year]);
+  const breakQueryArgs = useMemo(() => {
+  if (!employeeIdToFetch) return undefined;
+  return { employeeId: employeeIdToFetch, month, year };
+}, [employeeIdToFetch, month, year]);
+
 
   const { data: breakDataRaw = [], refetch: refetchBreaks } = useGetEmployeeBreaksQuery(
     breakQueryArgs,
-    { refetchOnMountOrArgChange: true }
+    { skip: !employeeIdToFetch, refetchOnMountOrArgChange: true }
   );
 
   const { data: totalBreakData = {}, refetch: refetchTotalBreakTime } = useGetTotalBreakTimeQuery(
@@ -156,12 +156,12 @@ const monthlyWorkedHHMMSS = useMemo(() => {
     [breakData]
   );
 
-  useEffect(() => {
-    if (employeeIdToFetch) {
-      refetchBreaks();
-      refetchTotalBreakTime();
-    }
-  }, [employeeIdToFetch, month, year, refetchBreaks, refetchTotalBreakTime]);
+useEffect(() => {
+  if (employeeIdToFetch && breakQueryArgs) {
+    refetchBreaks();
+    refetchTotalBreakTime();
+  }
+}, [employeeIdToFetch, breakQueryArgs, month, year]);
 
 
   const leaveBalance = useMemo(() => attendanceSummary?.leave_balance ?? 0, [attendanceSummary]);
@@ -237,18 +237,24 @@ const monthlyWorkedHHMMSS = useMemo(() => {
 
   // ---------------------- Handlers ----------------------
   const handleMarkToday = useCallback(async () => {
-    if (alreadyMarked) return toast.error("Already marked today");
-    try {
-      const today = await markAttendance({ employee: employeeIdToFetch, date: todayStr }).unwrap();
-      dispatch(setAuthenticated({ user: authUser, attendance: today }));
-      toast.success("Attendance marked for today");
-      refetch();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to mark attendance");
+  if (alreadyMarked) return toast.error("Already marked today");
+  try {
+    const today = await markAttendance({
+      employee: employeeIdToFetch,
+      date: todayStr
+    }).unwrap();
+
+    dispatch(setAuthenticated({ user: authUser, attendance: today }));
+    toast.success("Attendance marked for today");
+
+    if (employeeIdToFetch) {
+      refetch(); // ✅ SAFE
     }
-  }, [alreadyMarked, authUser, employeeIdToFetch, markAttendance, dispatch, refetch, todayStr]);
-  console.log("Fetching breaks for employee:", employeeIdToFetch);
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to mark attendance");
+  }
+}, [alreadyMarked, authUser, employeeIdToFetch, markAttendance, dispatch, refetch, todayStr]);
 
   const handleDateClick = useCallback(dateStr => {
     const att = attendance.find(a => formatToCSTDate(a.date) === dateStr);
