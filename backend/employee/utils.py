@@ -57,7 +57,7 @@ def add_us_holidays(years=None, state="IL"):
     from .models import PublicHoliday
 
     if years is None:
-        current_year = timezone.localdate().year
+        current_year = date.today().year
         years = [current_year + i for i in range(10)]  # next 10 years
 
     us_holidays = holidays.US(years=years, state=state, observed=True)
@@ -105,7 +105,7 @@ def now_cst():
     """
     Return current datetime in CST (timezone-aware)
     """
-    return timezone.localtime()
+    return datetime.now(dt_timezone.utc).astimezone(CST)
 
 def get_candidate_shifts(employee):
     s_primary = employee.primary_shift
@@ -169,7 +169,7 @@ def _decide_status(shift, login_dt_cst):
         return Attendance.STATUS_LATE, int(delta.total_seconds() // 60), login_dt_cst
 
 def today_cst():
-    return timezone.localdate()
+    return datetime.now(CST).date()
 
 
 @transaction.atomic
@@ -492,4 +492,3 @@ def mark_missing_absents(employee):
 
     if absent_records:
         Attendance.objects.bulk_create(absent_records)
-
