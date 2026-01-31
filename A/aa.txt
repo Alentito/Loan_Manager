@@ -1,3 +1,30 @@
+Terminal 1
+
+venv\Scripts\activate
+cd backend
+python manage.py runserver
+
+Terminal 2
+
+cd frontend
+npm run dev
+
+Terminal 3
+
+celery -A config worker -l info -P solo
+
+Terminak 4
+celery -A config beat -l info
+
+Terminal 5
+
+just cd.. upto File C , then paste   
+"C:\Program Files\Redis\redis-cli"
+
+
+
+
+
 cd backend
 venv\Scripts\activate
 python manage.py runserver
