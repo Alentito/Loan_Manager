@@ -65,6 +65,8 @@ export default function LoanFormDialog({
   // Employees
   const { data: employeesData = {} } = useGetAllEmployeesQuery({ page_size: 2000 });
   const employees = employeesData.results || [];
+  const moneyRegex = /^\d{0,12}(\.\d{0,2})?$/;
+
 
   // Normalize any stored primitive IDs into full employee objects after employees load
   useEffect(() => {
@@ -445,18 +447,27 @@ const handleSaveClick = useCallback(() => {
                 {newLoan.compensation_borrower_paid ? (
                   <TextField
                     label="Borrower Paid Amount"
-                    type="number"
+                    type="text"
                     fullWidth
                     margin="dense"
                     value={newLoan.compensation_borrower_paid_amount ?? ""}
-                    onChange={(e) =>
-                      setNewLoan({
-                        ...newLoan,
-                        compensation_borrower_paid_amount: e.target.value,
-                      })
-                    }
-                    inputProps={{ min: 0, step: "0.01" }}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                  
+                      // allow empty
+                      if (value === "" || moneyRegex.test(value)) {
+                        setNewLoan({
+                          ...newLoan,
+                          compensation_borrower_paid_amount: value,
+                        });
+                      }
+                    }}
+                    inputProps={{
+                      inputMode: "decimal", // mobile numeric keypad
+                      placeholder: "Up to 12 digits",
+                    }}
                   />
+
                 ) : null}
 
                 <FormControlLabel
@@ -478,19 +489,23 @@ const handleSaveClick = useCallback(() => {
                 />
                 {newLoan.compensation_lender_paid ? (
                   <TextField
-                    label="Lender Paid Amount"
-                    type="number"
-                    fullWidth
-                    margin="dense"
-                    value={newLoan.compensation_lender_paid_amount ?? ""}
-                    onChange={(e) =>
+                  label="Lender Paid Amount"
+                  type="text"
+                  fullWidth
+                  margin="dense"
+                  value={newLoan.compensation_lender_paid_amount ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "" || moneyRegex.test(value)) {
                       setNewLoan({
                         ...newLoan,
-                        compensation_lender_paid_amount: e.target.value,
-                      })
+                        compensation_lender_paid_amount: value,
+                      });
                     }
-                    inputProps={{ min: 0, step: "0.01" }}
-                  />
+                  }}
+                  inputProps={{ inputMode: "decimal" }}
+                />
+
                 ) : null}
               </FormGroup>
             </Box>
