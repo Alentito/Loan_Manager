@@ -596,90 +596,84 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
         if not user.is_authenticated:
             return Loan.objects.none()
 
-        # Start with base queryset INCLUDING prefetch of role assignments
         qs = self._with_role_prefetch(Loan.objects.all())
 
-        if user.is_superuser or user.has_perm("loan.view_all_loans"):
-            include_archived = self.request.query_params.get("include_archived", "").lower()
-            if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
-                qs = qs.filter(is_archived=False)
-            
-            
+        can_view_all = user.is_superuser or user.has_perm("loan.view_all_loans")
 
-        # Non-privileged visibility logic
-        from employee.models import Employee as EmpModel
-        try:
-            employee = EmpModel.objects.get(user=user)
-        except EmpModel.DoesNotExist:
-            employee = None
+        # ============================
+        # VISIBILITY (ONLY if needed)
+        # ============================
+        if not can_view_all:
+            from employee.models import Employee as EmpModel
+            try:
+                employee = EmpModel.objects.get(user=user)
+            except EmpModel.DoesNotExist:
+                employee = None
 
-        visibility_q = Q()
+            visibility_q = Q()
 
-        if employee:
-            visibility_q |= Q(role_assignments__employees=employee)
+            if employee:
+                visibility_q |= Q(role_assignments__employees=employee)
 
-        if _has_field(Loan, "created_by"):
-            visibility_q |= Q(created_by=user)
+            if _has_field(Loan, "created_by"):
+                visibility_q |= Q(created_by=user)
 
-        assigner_exists = Task.objects.filter(
-            loan_id=OuterRef("pk"),
-            assigner_id=user.id
-        )
-
-        assignee_exists = (
-            Task.objects.filter(
+            assigner_exists = Task.objects.filter(
                 loan_id=OuterRef("pk"),
-                assignee_id=employee.id
-            ) if employee else Task.objects.none()
-        )
+                assigner_id=user.id
+            )
 
-        qs = qs.annotate(
-            is_assigner=Exists(assigner_exists),
-            is_assignee=Exists(assignee_exists),
-        ).filter(
-            visibility_q | Q(is_assigner=True) | Q(is_assignee=True)
-        )
+            assignee_exists = (
+                Task.objects.filter(
+                    loan_id=OuterRef("pk"),
+                    assignee_id=employee.id
+                ) if employee else Task.objects.none()
+            )
 
+            qs = qs.annotate(
+                is_assigner=Exists(assigner_exists),
+                is_assignee=Exists(assignee_exists),
+            ).filter(
+                visibility_q | Q(is_assigner=True) | Q(is_assignee=True)
+            )
+
+        # ============================
+        # ARCHIVE (everyone)
+        # ============================
         include_archived = self.request.query_params.get("include_archived", "").lower()
         if include_archived != "true" and getattr(self, "action", None) not in ("archive", "unarchive"):
             qs = qs.filter(is_archived=False)
 
+        # ============================
+        # REPORT FILTERS (everyone)
+        # ============================
         params = self.request.query_params
 
-        broker_id = params.get("broker")
-        officer_id = params.get("loan_officer")
-        team_leader = self.request.query_params.get("team_leader")
-        processor = self.request.query_params.get("processor")
-        milestone_id = params.get("milestone")
-        start_date = params.get("start_date")
-        end_date = params.get("end_date")
+        if params.get("broker"):
+            qs = qs.filter(broker_id=params["broker"])
 
-        if broker_id:
-            qs = qs.filter(broker_id=broker_id)
+        if params.get("loan_officer"):
+            qs = qs.filter(loan_officer_id=params["loan_officer"])
 
-        if officer_id:
-            qs = qs.filter(loan_officer_id=officer_id)
+        if params.get("milestone"):
+            qs = qs.filter(milestone_id=params["milestone"])
 
-        if milestone_id:
-            qs = qs.filter(milestone_id=milestone_id)
+        if params.get("start_date"):
+            qs = qs.filter(created_at__date__gte=params["start_date"])
 
-        if start_date:
-            qs = qs.filter(created_at__date__gte=start_date)
+        if params.get("end_date"):
+            qs = qs.filter(created_at__date__lte=params["end_date"])
 
-        if end_date:
-            qs = qs.filter(created_at__date__lte=end_date)
-
-        # 🔑 ROLE-BASED FILTERING (CRITICAL)
-        if team_leader:
+        if params.get("team_leader"):
             qs = qs.filter(
                 role_assignments__role__name__iexact="Lead",
-                role_assignments__employees__id=team_leader
+                role_assignments__employees__id=params["team_leader"]
             )
 
-        if processor:
+        if params.get("processor"):
             qs = qs.filter(
                 role_assignments__role__name__iexact="Processor",
-                role_assignments__employees__id=processor
+                role_assignments__employees__id=params["processor"]
             )
 
         return qs.distinct().order_by("-created_at")
