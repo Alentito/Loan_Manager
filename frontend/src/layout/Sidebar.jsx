@@ -52,25 +52,29 @@ export function SidebarContent() {
   { path: "/loan-management", label: "Loan Management", icon: Landmark, permission: "loan.view_loan" },
   { path: "/milestones", label: "Milestones", icon: Flag, permission: "loan.view_milestone" },
   { path: "/tasks", label: "Tasks", icon: CheckSquare, permission: "loan.view_task" },
+  { path: "/audit", label: "Audit", icon: ScrollText, permission: "audit.view_auditevent" },
 
   { path: "/brokers", label: "Brokers", icon: UserRound, permission: "employee.sidebar_broker" },
   { path: "/loan-officers", label: "Loan Officers", icon: Briefcase, permission: "employee.sidebar_loanofficer" },
+  { path: "/lenders", label: "Lenders", icon: Building, permission: "employee.sidebar_lender" },
+
   { path: "/employees", label: "Employees", icon: Users, permission: "employee.sidebar_employee" },
+  { path: "/payroll", label: "Payroll", icon: BadgeDollarSign, permission: "payroll.view_employeepayroll" },
+  { path: "/reports/funded-loans", label: "Report", icon: Layers, permission: "loan.View_reports" },
 
   { path: "/payroll", label: "Payroll", icon: BadgeDollarSign, permission: "employee.view_payroll" },
   { path: "/reports", label: "Reports", icon: FileText, permission: "loan.view_report" },
-  { path: "/audit", label: "Audit", icon: ScrollText, permission: "audit.view_auditevent" },
 
   { path: "/role-management", label: "Role Management", icon: UserCog, permission: "auth.view_group" },
   { path: "/teams", label: "Teams", icon: UsersRound, permission: "employee.view_team" },
   { path: "/shifts", label: "Shifts", icon: Timer, permission: "employee.view_shift" },
 
   { path: "/attendance", label: "Attendance", icon: CalendarClock, permission: "employee.view_attendance" },
-  { path: "/leaves/request", label: "Leave Request", icon: ClipboardSignature, permission: "employee.add_leaverequests" },
-  { path: "/admin/leave-approvals", label: "Leave Approvals", icon: Shield, permission: "employee.approve_leave" },
   { path: "/admin/holidays", label: "Holidays", icon: CalendarCheck2, permission: "employee.view_publicholiday" },
 
-  { path: "/lenders", label: "Lenders", icon: Building, permission: "employee.sidebar_lender" },
+  { path: "/leaves/request", label: "Leave Request", icon: ClipboardSignature, permission: "employee.add_leaverequests" },
+  { path: "/admin/leave-approvals", label: "Leave Approvals", icon: Shield, permission: "employee.approve_leave" },
+
 
   { path: "/attendance/summary", label: "Monthly Summary", icon: FileBarChart2, permission: "employee.view_attendancesummary" },
   { path: "/attendance/late-logins", label: "Logins Summary", icon: Clock, permission: "employee.view_latelogins" },
@@ -78,11 +82,9 @@ export function SidebarContent() {
   { path: "/token/new", label: "Complaint", icon: MessageSquareWarning, permission: "employee.add_employeetoken" },
   { path: "/admin/token-approvals", label: "Respond", icon: Bell, permission: "employee.approve_tokens" },
 
-  { path: "/reports/funded-loans", label: "Report", icon: Layers, permission: "loan.View_reports" },
 
   { path: "/breaks", label: "Breaks", icon: Coffee, permission: null },
 
-  { path: "/payroll", label: "Payroll", icon: BadgeDollarSign, permission: "payroll.view_employeepayroll" },
 ];
 
 
