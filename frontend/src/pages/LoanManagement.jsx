@@ -38,6 +38,7 @@ import {
   InputAdornment,
   Tooltip,
   CircularProgress,
+  LinearProgress,
   Box,
   TextField,
   Grid,
@@ -91,13 +92,25 @@ const [roleAssignments, setRoleAssignments] = useState({});
     dateTo: "",
   });
 
+  const clearFilters = () => {
+    setFilters({
+      milestone: "",
+      managedBy: "",
+      minAmount: "",
+      maxAmount: "",
+      dateFrom: "",
+      dateTo: "",
+    });
+    setPage(1);
+  };
+
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
   };
 
   const applyFilters = () => {
-    // Trigger backend filtering via RTK Query refetch
-    refetchLoans(filters);
+    // RTK Query will refetch automatically because `filters` is part of `loanQueryArgs`
+    setPage(1);
     setOpenFilter(false);
   };
 
@@ -228,7 +241,7 @@ const loanQueryArgs = useMemo(() => {
       : base;
   }, [page, rowsPerPage, milestoneFilter, search, ordering, includeArchived, filters]);
 
-  const { data, isLoading, isError } = useGetLoansQuery(loanQueryArgs);
+  const { data, isLoading, isFetching, isError } = useGetLoansQuery(loanQueryArgs);
 
 
  
@@ -442,6 +455,7 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
 
   return (
     <Box sx={{ mx: 3, mt: 1 }}>
+      {isFetching && <LinearProgress sx={{ mb: 1 }} />}
       {/* Title & Actions */}
 
       {/* Tabs */}
@@ -749,7 +763,7 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
   </DialogContent>
   <DialogActions>
     <Button onClick={() => setOpenFilter(false)}>Cancel</Button>
-    <Button onClick={() => setFilters({})}>Clear</Button>
+    <Button onClick={clearFilters}>Clear</Button>
     <Button variant="contained" onClick={applyFilters}>Apply</Button>
   </DialogActions>
 </Dialog>
