@@ -577,12 +577,20 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
 
     def create(self, request, *args, **kwargs):
-        data = request.data.copy()
-        employee_id = data.get('login_id')
-        employee_password = data.get('login_password')
+        raw_data = request.data.copy()
+    
+        employee_id = raw_data.get('login_id')
+        employee_password = raw_data.get('login_password')
+    
+        # 🔥 NOW clean the data
+        data = raw_data.copy()
+        for key in list(data.keys()):
+            if data[key] in ["", None, [], {}]:
+                data.pop(key)
+    
         roles = data.get('roles', [])
-
-        # Normalize incoming roles into a list of ints
+    
+        # Normalize roles
         role_ids = []
         if roles in (None, ""):
             role_ids = []
@@ -597,59 +605,53 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             role_ids = list(roles)
         else:
             role_ids = [roles]
-
+    
         try:
             role_ids = [int(r) for r in role_ids]
         except Exception:
             pass
-
+    
         if not employee_id or not employee_password:
             return Response({'detail': 'login_id and login_password are required.'},
                             status=status.HTTP_400_BAD_REQUEST)
-
+    
         if User.objects.filter(username=employee_id).exists():
             return Response({'detail': 'User with this login_id already exists.'},
                             status=status.HTTP_400_BAD_REQUEST)
-
+    
         try:
             with transaction.atomic():
-                # Create Django User
-                user = User.objects.create_user(username=employee_id, password=employee_password)
-
+                user = User.objects.create_user(
+                    username=employee_id,
+                    password=employee_password
+                )
+    
                 if role_ids:
                     groups_qs = Group.objects.filter(pk__in=role_ids)
                     user.groups.set(groups_qs)
-
+    
                 data['user'] = user.id
-                data.pop('login_password', None)  # never persist plain password
-
+                data.pop('login_password', None)
+    
                 serializer = self.get_serializer(data=data)
                 serializer.is_valid(raise_exception=True)
                 employee = serializer.save()
-
-                # ✅ Archive handling
-                if getattr(employee, 'is_archived', False):
-                    employee.archived_at = timezone.now()
-                    employee.save(update_fields=["archived_at"])
-                    # ❌ Disable User login if archived
-                    user.is_active = False
-                    user.save(update_fields=["is_active"])
-                else:
-                    # make sure active employees can log in
-                    user.is_active = True
-                    user.save(update_fields=["is_active"])
-
-                # defensive sync: employee.roles ←→ user.groups
+    
+                user.is_active = not employee.is_archived
+                user.save(update_fields=["is_active"])
+    
                 if hasattr(employee, "roles"):
                     employee.roles.set(user.groups.all())
-
+    
                 out_serializer = self.get_serializer(employee)
-                headers = self.get_success_headers(out_serializer.data)
-                return Response(out_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
+                return Response(out_serializer.data, status=201)
+    
         except Exception as e:
-            return Response({'detail': 'Error creating employee', 'error': str(e)},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'detail': 'Error creating employee', 'error': str(e)},
+                status=400
+            )
+
         
         
     def perform_update(self, serializer):
