@@ -486,15 +486,15 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
         }}
       >
         <Tab label="Loan Pipeline" value="all" />
-        <Tab label="Active Loans" value="Active Loans" />
+        {/* <Tab label="Active Loans" value="Active Loans" />
         <Tab label="Funded Loans" value="funded" />
-        <Tab label="Busted Loans" value="busted" />
+        <Tab label="Busted Loans" value="busted" /> */}
         <Tab label="Archived Loans" value="archived" />
 
       </Tabs>
 
       {/* Search + Filter Bar */}
-      <Box
+      {/* <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
@@ -549,7 +549,7 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
               <Filter size={18} />
             </IconButton>
           </Tooltip>
-        </Box>
+        </Box> */}
         <Box>
           <Button
             variant="outlined"
