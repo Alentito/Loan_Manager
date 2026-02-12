@@ -493,107 +493,49 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
 
       </Tabs>
 
-      {/* Search + Filter Bar */}
-      {/* <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 2,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <TextField
-            size="small"
-            placeholder="Search borrower..."
-            onChange={handleSearchChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: theme.palette.text.secondary }} />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              width: 300,
-              borderRadius: "12px",
-              backgroundColor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              "& .MuiOutlinedInput-root": {
-                borderRadius: "12px",
-                color: theme.palette.text.primary,
-                "& fieldset": {
-                  borderColor: theme.palette.divider,
-                },
-                "&:hover fieldset": {
-                  borderColor: theme.palette.primary.light,
-                },
-                "&.Mui-focused fieldset": {
-                  borderColor: theme.palette.primary.main,
-                },
-              },
-            }}
-          />
-          <Tooltip title="Filter">
-            <IconButton
-              onClick={() => setOpenFilter(true)}
-              sx={{
-                borderRadius: "10px",
-                border: `1px solid ${theme.palette.divider}`,
-                backgroundColor: theme.palette.background.paper,
-                "&:hover": {
-                  backgroundColor: theme.palette.action.hover,
-                },
-              }}
-            >
-              <Filter size={18} />
-            </IconButton>
-          </Tooltip>
-        </Box> */}
-        <Box>
-          <Button
-            variant="outlined"
-            startIcon={<Download size="16" />}
-            sx={{
-              mr: 1,
-              borderRadius: "10px",
-              color: theme.palette.text.primary,
-              fontWeight: "600",
-              border: `1px solid ${theme.palette.divider}`,
-              backgroundColor: theme.palette.background.paper,
-              textTransform: "none",
-              "&:hover": {
-                backgroundColor: theme.palette.action.hover,
-                borderColor: theme.palette.primary.light,
-              },
-            }}
-            onClick={() => setOpenImport(true)}
-          >
-            Import
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Upload size="16" />}
-            sx={{
-              mr: 1,
-              color: theme.palette.text.primary,
-              fontWeight: "600",
-              borderRadius: "10px",
-              border: `1px solid ${theme.palette.divider}`,
-              backgroundColor: theme.palette.background.paper,
-              textTransform: "none",
-              "&:hover": {
-                backgroundColor: theme.palette.action.hover,
-                borderColor: theme.palette.primary.light,
-              },
-            }}
-            onClick={exportToXML}
-          >
-            Export
+      {/* Actions */}
+      <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, mb: 2 }}>
+        <Button
+          variant="outlined"
+          startIcon={<Download size="16" />}
+          sx={{
+            borderRadius: "10px",
+            color: theme.palette.text.primary,
+            fontWeight: "600",
+            border: `1px solid ${theme.palette.divider}`,
+            backgroundColor: theme.palette.background.paper,
+            textTransform: "none",
+            "&:hover": {
+              backgroundColor: theme.palette.action.hover,
+              borderColor: theme.palette.primary.light,
+            },
+          }}
+          onClick={() => setOpenImport(true)}
+        >
+          Import
+        </Button>
 
-          </Button>
-          {Permissions.includes("loan.add_loan") && (
+        <Button
+          variant="outlined"
+          startIcon={<Upload size="16" />}
+          sx={{
+            color: theme.palette.text.primary,
+            fontWeight: "600",
+            borderRadius: "10px",
+            border: `1px solid ${theme.palette.divider}`,
+            backgroundColor: theme.palette.background.paper,
+            textTransform: "none",
+            "&:hover": {
+              backgroundColor: theme.palette.action.hover,
+              borderColor: theme.palette.primary.light,
+            },
+          }}
+          onClick={exportToXML}
+        >
+          Export
+        </Button>
 
+        {Permissions.includes("loan.add_loan") && (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -624,14 +566,13 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
               backgroundColor: "rgba(0, 60, 247, 1)",
               borderRadius: "12px",
               "&:hover": {
-                backgroundColor: "rgba(0, 50, 200, 1)", // optional hover color
+                backgroundColor: "rgba(0, 50, 200, 1)",
               },
             }}
           >
             New Loan
           </Button>
-          )}
-        </Box>
+        )}
       </Box>
 
       {/* Table */}
