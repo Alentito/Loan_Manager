@@ -49,19 +49,23 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import { FaMoneyCheckAlt } from "react-icons/fa";
+import { useGetBrokersQuery } from "../api/brokerApi";
+import { useGetLoanOfficersQuery } from "../api/loanOfficerApi";
+import { useGetMilestonesQuery } from "../api/milestoneApi";
 
 // Sample dropdown options
-const brokers = ["Broker A", "Broker B"];
-const loanOfficers = ["Officer X", "Officer Y"];
-const lendersList = ["Lender 1", "Lender 2"];
-const milestones = ["Application", "Underwriting", "Funding"];
-const teamLeads = ["Lead A", "Lead B"];
-const teamManagers = ["Manager A", "Manager B"];
-const processors = ["Processor A", "Processor B"];
-const supports = ["Support A", "Support B"];
-
 
 export default function LoanManagement() {
+
+  const { data: brokersData = {} } = useGetBrokersQuery({ page_size: 100 });
+const brokers = brokersData.results || [];
+
+const { data: loanOfficersData = {} } = useGetLoanOfficersQuery({ page_size: 100 });
+const loanOfficers = loanOfficersData.results || [];
+
+const { data: milestonesData = {} } = useGetMilestonesQuery({ page_size: 100 });
+const milestones = milestonesData.results || [];
+
   const Permissions = useSelector(
     (state) => state.auth.user?.permissions || []
   );
@@ -79,8 +83,13 @@ const [roleAssignments, setRoleAssignments] = useState({});
     processor: searchParams.get("processor") || "",
     start_date: searchParams.get("start_date") || "",
     end_date: searchParams.get("end_date") || "",
+    amount__gte: searchParams.get("amount__gte") || "",
+    amount__lte: searchParams.get("amount__lte") || "",
+
+    created_at__gte: searchParams.get("created_at__gte") || "",
+    created_at__lte: searchParams.get("created_at__lte") || "",
   });
-}, [openFilter]);
+}, [openFilter, searchParams]);
 
   const applyFilters = (nextFilters) => {
   const next = new URLSearchParams(searchParams);
@@ -230,6 +239,11 @@ const loanQueryArgs = useMemo(() => {
     processor: get("processor"),
     start_date: get("start_date"),
     end_date: get("end_date"),
+    amount__gte: get("amount__gte"),
+amount__lte: get("amount__lte"),
+created_at__gte: get("created_at__gte"),
+created_at__lte: get("created_at__lte"),
+
     search: effectiveSearch,
     ordering,
     ...(activeTab === "archived"
@@ -493,8 +507,64 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
 
       </Tabs>
 
-      {/* Actions */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, mb: 2 }}>
+{/* Search + Filter Bar */}
+<Box
+  sx={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    mb: 2,
+  }}
+>
+
+  {/* LEFT SIDE: Search + Filter */}
+  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+
+    {/* Search Field */}
+    <TextField
+      size="small"
+      placeholder="Search borrower..."
+      value={search}
+      onChange={handleSearchChange}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchIcon sx={{ color: theme.palette.text.secondary }} />
+          </InputAdornment>
+        ),
+      }}
+      sx={{
+        width: 300,
+        borderRadius: "12px",
+        backgroundColor: theme.palette.background.paper,
+        "& .MuiOutlinedInput-root": {
+          borderRadius: "12px",
+        },
+      }}
+    />
+
+    {/* Filter Button */}
+    <Tooltip title="Filter">
+      <IconButton
+        onClick={() => setOpenFilter(true)}
+        sx={{
+          borderRadius: "10px",
+          border: `1px solid ${theme.palette.divider}`,
+          backgroundColor: theme.palette.background.paper,
+        }}
+      >
+        <Filter size={18} />
+      </IconButton>
+    </Tooltip>
+
+  </Box>
+
+</Box>
+
+
+{/* Actions */}
+<Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, mb: 2 }}>
+
         <Button
           variant="outlined"
           startIcon={<Download size="16" />}
@@ -632,11 +702,19 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 <Select
                   label="Broker"
                   value={draftFilters.broker || ""}
-                  onChange={(e) => setDraftFilters("broker", e.target.value)}
+                 onChange={(e) =>
+  setDraftFilters(prev => ({
+    ...prev,
+    broker: e.target.value
+  }))
+}
+
                 >
                   <MenuItem value="">All</MenuItem>
                   {brokers.map((b) => (
-                    <MenuItem key={b} value={b}>{b}</MenuItem>
+                   <MenuItem key={b.id} value={b.id}>
+    {b.name}
+  </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -648,13 +726,22 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 <InputLabel>Loan Officer</InputLabel>
                 <Select
                   label="Loan Officer"
-                  value={draftFilters.loanOfficer || ""}
-                  onChange={(e) => setDraftFilters("loanOfficer", e.target.value)}
+                  value={draftFilters.loan_officer || ""}
+onChange={(e) =>
+  setDraftFilters(prev => ({
+    ...prev,
+    loan_officer: e.target.value
+  }))
+}
+
                 >
                   <MenuItem value="">All</MenuItem>
                   {loanOfficers.map((o) => (
-                    <MenuItem key={o} value={o}>{o}</MenuItem>
-                  ))}
+  <MenuItem key={o.id} value={o.id}>
+    {o.name}
+  </MenuItem>
+))}
+
                 </Select>
               </FormControl>
             </Grid>
@@ -666,12 +753,21 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 <Select
                   label="Milestone"
                   value={draftFilters.milestone || ""}
-                  onChange={(e) => setDraftFilters("milestone", e.target.value)}
+                 onChange={(e) =>
+  setDraftFilters(prev => ({
+    ...prev,
+    milestone: e.target.value
+  }))
+}
+
                 >
                   <MenuItem value="">All</MenuItem>
                   {milestones.map((m) => (
-                    <MenuItem key={m} value={m}>{m}</MenuItem>
-                  ))}
+  <MenuItem key={m.id} value={m.id}>
+    {m.name}
+  </MenuItem>
+))}
+
                 </Select>
               </FormControl>
             </Grid>
@@ -684,8 +780,14 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 size="small"
                 fullWidth
                 margin="dense"
-                value={draftFilters.minAmount || ""}
-                onChange={(e) => setDraftFilters("minAmount", e.target.value)}
+                value={draftFilters.amount__gte || ""}
+onChange={(e) =>
+  setDraftFilters(prev => ({
+    ...prev,
+    amount__gte: e.target.value
+  }))
+}
+
               />
             </Grid>
             <Grid item xs={6}>
@@ -695,8 +797,14 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 size="small"
                 fullWidth
                 margin="dense"
-                value={draftFilters.maxAmount || ""}
-                onChange={(e) => setDraftFilters("maxAmount", e.target.value)}
+                value={draftFilters.amount__lte || ""}
+onChange={(e) =>
+  setDraftFilters(prev => ({
+    ...prev,
+    amount__lte: e.target.value
+  }))
+}
+
               />
             </Grid>
 
@@ -709,8 +817,14 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 fullWidth
                 margin="dense"
                 InputLabelProps={{ shrink: true }}
-                value={draftFilters.createdFrom || ""}
-                onChange={(e) => setDraftFilters("createdFrom", e.target.value)}
+               value={draftFilters.created_at__gte || ""}
+onChange={(e) =>
+  setDraftFilters(prev => ({
+    ...prev,
+    created_at__gte: e.target.value
+  }))
+}
+
               />
             </Grid>
             <Grid item xs={6}>
@@ -721,8 +835,14 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
                 fullWidth
                 margin="dense"
                 InputLabelProps={{ shrink: true }}
-                value={draftFilters.createdTo || ""}
-                onChange={(e) => setDraftFilters("createdTo", e.target.value)}
+                value={draftFilters.created_at__lte || ""}
+onChange={(e) =>
+  setDraftFilters(prev => ({
+    ...prev,
+    created_at__lte: e.target.value
+  }))
+}
+
               />
             </Grid>
           </Grid>
@@ -733,18 +853,31 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
           <Button
             size="small"
             onClick={() => {
-              setDraftFilters("broker", "");
-              setDraftFilters("loanOfficer", "");
-              setDraftFilters("milestone", "");
-              setDraftFilters("minAmount", "");
-              setDraftFilters("maxAmount", "");
-              setDraftFilters("createdFrom", "");
-              setDraftFilters("createdTo", "");
-            }}
+ setDraftFilters({
+  broker: "",
+  loan_officer: "",
+  milestone: "",
+  team_leader: "",
+  processor: "",
+  amount__gte: "",
+  amount__lte: "",
+  created_at__gte: "",
+  created_at__lte: "",
+});
+
+  setSearchParams({});
+  setPage(1);
+}}
+
           >
             Clear
           </Button>
-          <Button size="small" variant="contained" onClick={applyFilters}>
+          <Button
+  size="small"
+  variant="contained"
+  onClick={() => applyFilters(draftFilters)}
+>
+
             Apply
           </Button>
         </DialogActions>
