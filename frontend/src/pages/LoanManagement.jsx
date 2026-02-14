@@ -56,7 +56,8 @@ import { useGetMilestonesQuery } from "../api/milestoneApi";
 // Sample dropdown options
 
 export default function LoanManagement() {
-
+ const [searchParams, setSearchParams] = useSearchParams();
+ 
   const { data: brokersData = {} } = useGetBrokersQuery({ page_size: 100 });
 const brokers = brokersData.results || [];
 
@@ -199,7 +200,7 @@ if (loan.role_assignments) {
   navigate(`loan-details/${loan.id}?${params.toString()}`);
 };
 
-  const [searchParams, setSearchParams] = useSearchParams();
+ 
   const urlMilestone = searchParams.get("milestone");
   // Read URL filters passed from Report Page
 const urlProcessor = searchParams.get("processor");
