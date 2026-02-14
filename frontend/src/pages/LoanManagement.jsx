@@ -521,7 +521,7 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
   {/* LEFT SIDE: Search + Filter */}
   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
 
-    {/* Search Field */}
+    {/* Search Field 
     <TextField
       size="small"
       placeholder="Search borrower..."
@@ -542,7 +542,7 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
           borderRadius: "12px",
         },
       }}
-    />
+    />*/}
 
     {/* Filter Button */}
     <Tooltip title="Filter">
