@@ -23,14 +23,21 @@ just cd.. upto File C , then paste
 
 this on terminal 1
 cd backend
-gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 4
+waitress-serve --host=127.0.0.1 --port=8000 config.wsgi:application
+
 this on terminal 2
 cd frontend
+npm run build
 npx serve -s dist
+
 this on terminal 3 
+"C:\Program Files\Redis\redis-cli"
+
+this on terminal 4
 cd backend
 celery -A config worker -l info --pool=threads --concurrency=4
-this on terminal 4
+
+this on terminal 5
 cd backend
 celery -A config beat -l info
 
