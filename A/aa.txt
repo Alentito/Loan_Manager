@@ -41,6 +41,20 @@ this on terminal 5
 cd backend
 celery -A config beat -l info
 
+this on terminal 6
+cd backend
+locust -f locustfile.py
+
+
+
+
+
+
+
+
+
+
+
 
 
 cd backend
