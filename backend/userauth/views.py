@@ -5,7 +5,6 @@ from django.shortcuts import render
 # Create your views here.
 from django.contrib.auth.models import Group
 from django.db.models import IntegerField, Value, F
-from employee.tasks import process_login_attendance
 
 from rest_framework import viewsets, permissions
 #from django.contrib.auth.models import Group, Permission
@@ -202,8 +201,10 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             try:
                 user = User.objects.get(username=username)
                 if hasattr(user, "employee") and user.employee:
-                   
-                    process_login_attendance.delay(user.id)
+                    employee = user.employee
+                    mark_missing_absents(employee)
+                    attendance = mark_attendance_on_login(user, login_dt=timezone.now())
+                    print(f"[ATTENDANCE] user={user.username} -> {attendance.status}")
             except Exception as e:
                 print(f"[ERROR] attendance marking failed: {e}")
 
