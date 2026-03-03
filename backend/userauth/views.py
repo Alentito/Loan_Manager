@@ -1,5 +1,6 @@
 from django.shortcuts import render
 
+from employee.tasks import process_login_attendance
 
 
 # Create your views here.
@@ -201,10 +202,8 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             try:
                 user = User.objects.get(username=username)
                 if hasattr(user, "employee") and user.employee:
-                    employee = user.employee
-                    mark_missing_absents(employee)
-                    attendance = mark_attendance_on_login(user, login_dt=timezone.now())
-                    print(f"[ATTENDANCE] user={user.username} -> {attendance.status}")
+                   
+                    process_login_attendance.delay(user.id)
             except Exception as e:
                 print(f"[ERROR] attendance marking failed: {e}")
 
