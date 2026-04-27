@@ -176,9 +176,7 @@ const loginQuery = useGetLoginLogoutQuery(queryArgs, {
                   {columns.includes("late_duration") && (
                     <TableCell>Late Duration</TableCell>
                   )}
-                  {columns.includes("worked_hours") && (
-                    <TableCell>Worked Hours</TableCell>
-                  )}
+                  
 
                   <TableCell>Shift</TableCell>
                 </TableRow>
@@ -204,9 +202,7 @@ const loginQuery = useGetLoginLogoutQuery(queryArgs, {
                       {columns.includes("late_duration") && (
                         <TableCell>{row.late_duration}</TableCell>
                       )}
-                      {columns.includes("worked_hours") && (
-                        <TableCell>{row.worked_hours}</TableCell>
-                      )}
+                      
 
                       <TableCell>{row.shift_name}</TableCell>
                     </TableRow>
