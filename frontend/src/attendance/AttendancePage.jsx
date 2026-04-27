@@ -351,7 +351,7 @@ useEffect(() => {
             { key: "leave_balance", label: "📝 Leave Balance", count: leaveBalance, color: "info" },
             { key: "yearly_late", label: "⏱️ Yearly Late", count: yearlyLateHHMMSS, color: "warning" },
             { key: "monthly_late", label: "📅 Monthly Late", count: monthlyLateHHMMSS, color: "warning" },
-            { key: "worked_hours", label: "🕒 Worked Hours", count: monthlyWorkedHHMMSS, color: "success" },
+            //{ key: "worked_hours", label: "🕒 Worked Hours", count: monthlyWorkedHHMMSS, color: "success" },
 
           ].map(({ key, label, count, color }) => (
             <Paper key={key} sx={{
