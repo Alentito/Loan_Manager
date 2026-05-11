@@ -43,11 +43,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  LinearProgress,
+  Divider,
 } from "@mui/material";
 import CloudDownloadIcon from "@mui/icons-material/CloudDownload";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
 import { FaMoneyCheckAlt } from "react-icons/fa";
 import { useGetBrokersQuery } from "../api/brokerApi";
 import { useGetLoanOfficersQuery } from "../api/loanOfficerApi";
@@ -111,7 +114,8 @@ const [roleAssignments, setRoleAssignments] = useState({});
   //const fileInputRef = React.useRef();
 
   const navigate = useNavigate(); //loan details route
-  const [search, setSearch] = useState(""); //search state
+  const [search, setSearch] = useState(""); //search state (debounced, for API)
+  const [localSearch, setLocalSearch] = useState(""); // local input state
   const [selectedRows, setSelectedRows] = useState([]); // array of loan IDs
   const [activeTab, setActiveTab] = useState("all"); // state for active tab
   const [openImport, setOpenImport] = useState(false);
@@ -156,9 +160,30 @@ const [roleAssignments, setRoleAssignments] = useState({});
   const [editMode, setEditMode] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState(null);
 
+  const debouncedSetSearch = useMemo(
+    () => debounce((val) => {
+      setSearch(val);
+      setPage(1);
+    }, 500),
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      debouncedSetSearch.cancel();
+    };
+  }, [debouncedSetSearch]);
+
   const handleSearchChange = (e) => {
-    setSearch(e.target.value);
-    setPage(1); // Reset to first page on new search
+    setLocalSearch(e.target.value);
+    debouncedSetSearch(e.target.value);
+  };
+
+  const handleClearSearch = () => {
+    setLocalSearch("");
+    setSearch("");
+    setPage(1);
+    debouncedSetSearch.cancel();
   };
 
   const handleEditLoan = (loan) => {
@@ -260,7 +285,7 @@ useEffect(() => {
   }
 }, [urlMilestone]);
 
-  const { data, isLoading, isError } = useGetLoansQuery(loanQueryArgs);
+  const { data, isLoading, isFetching, isError } = useGetLoansQuery(loanQueryArgs);
 
   const loans = data?.results || [];
   const totalLoans = data?.count || 0;
@@ -285,6 +310,7 @@ useEffect(() => {
     setPage(1); // Reset pagination to page 1 when tab changes
   };
 
+  /*
   const exportToXML = () => {
     let xml = '<?xml version="1.0" encoding="UTF-8"?><Loans>';
     loans.forEach((loan) => {
@@ -307,6 +333,7 @@ useEffect(() => {
     link.click();
     document.body.removeChild(link);
   };
+  */
 
 const roleAssignmentsArray = Object.entries(roleAssignments).map(
   ([roleId, emps]) => ({
@@ -521,11 +548,11 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
   {/* LEFT SIDE: Search + Filter */}
   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
 
-    {/* Search Field 
+    {/* Search Field */}
     <TextField
       size="small"
-      placeholder="Search borrower..."
-      value={search}
+      placeholder="Search borrower, broker, milestone..."
+      value={localSearch}
       onChange={handleSearchChange}
       InputProps={{
         startAdornment: (
@@ -533,16 +560,34 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
             <SearchIcon sx={{ color: theme.palette.text.secondary }} />
           </InputAdornment>
         ),
+        endAdornment: localSearch ? (
+          <InputAdornment position="end">
+            <IconButton size="small" onClick={handleClearSearch} edge="end">
+              <ClearIcon fontSize="small" />
+            </IconButton>
+          </InputAdornment>
+        ) : null,
       }}
       sx={{
-        width: 300,
+        width: { xs: '100%', sm: 300, md: 350 },
+        transition: 'width 0.3s ease',
+        '&:focus-within': {
+          width: { xs: '100%', sm: 350, md: 450 },
+        },
         borderRadius: "12px",
         backgroundColor: theme.palette.background.paper,
         "& .MuiOutlinedInput-root": {
           borderRadius: "12px",
+          boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+          '&:hover': {
+             boxShadow: '0 4px 6px rgba(0,0,0,0.08)',
+          },
+          '&.Mui-focused': {
+             boxShadow: `0 0 0 2px ${theme.palette.primary.main}33`,
+          }
         },
       }}
-    />*/}
+    />
 
     {/* Filter Button */}
     <Tooltip title="Filter">
@@ -586,6 +631,7 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
           Import
         </Button>
 
+        {/* 
         <Button
           variant="outlined"
           startIcon={<Upload size="16" />}
@@ -605,6 +651,7 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
         >
           Export
         </Button>
+        */}
 
         {Permissions.includes("loan.add_loan") && (
           <Button
@@ -646,6 +693,13 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
         )}
       </Box>
 
+      {/* Pagination Loading State */}
+      {isFetching && !isLoading && (
+        <Box sx={{ width: '100%', mb: 1 }}>
+          <LinearProgress sx={{ borderRadius: 2 }} />
+        </Box>
+      )}
+
       {/* Table */}
       <LoanTable
         loans={loans}
@@ -683,203 +737,160 @@ const roleAssignmentsArray = Object.entries(roleAssignments).map(
         roleAssignments={roleAssignments}
         setRoleAssignments={setRoleAssignments}
       />
-       <Dialog
+      <Dialog
         open={openFilter}
         onClose={() => setOpenFilter(false)}
-        maxWidth="xs"         // small width
+        maxWidth="sm"
         fullWidth
-        keepMounted
+        PaperProps={{
+          sx: {
+            width: '100%',
+            maxWidth: 500, // precise width control
+            borderRadius: 3,
+            overflow: 'hidden'
+          }
+        }}
       >
-        <DialogTitle sx={{ py: 1.5, fontSize: 16, fontWeight: 600 }}>
+        <DialogTitle sx={{ py: 2, fontSize: 18, fontWeight: 700, backgroundColor: theme.palette.background.default }}>
           Filter Loans
         </DialogTitle>
 
-        <DialogContent dividers sx={{ p: 1.5 }}>
-          <Grid container spacing={1.25}>
-            {/* Broker */}
-            <Grid item xs={12}>
-              <FormControl fullWidth size="small" margin="dense">
-                <InputLabel>Broker</InputLabel>
-                <Select
-                  label="Broker"
-                  value={draftFilters.broker || ""}
-                 onChange={(e) =>
-  setDraftFilters(prev => ({
-    ...prev,
-    broker: e.target.value
-  }))
-}
-
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {brokers.map((b) => (
-                   <MenuItem key={b.id} value={b.id}>
-    {b.name}
-  </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Loan Officer */}
-            <Grid item xs={12}>
-              <FormControl fullWidth size="small" margin="dense">
-                <InputLabel>Loan Officer</InputLabel>
-                <Select
-                  label="Loan Officer"
-                  value={draftFilters.loan_officer || ""}
-onChange={(e) =>
-  setDraftFilters(prev => ({
-    ...prev,
-    loan_officer: e.target.value
-  }))
-}
-
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {loanOfficers.map((o) => (
-  <MenuItem key={o.id} value={o.id}>
-    {o.name}
-  </MenuItem>
-))}
-
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Milestone */}
-            <Grid item xs={12}>
-              <FormControl fullWidth size="small" margin="dense">
-                <InputLabel>Milestone</InputLabel>
-                <Select
-                  label="Milestone"
-                  value={draftFilters.milestone || ""}
-                 onChange={(e) =>
-  setDraftFilters(prev => ({
-    ...prev,
-    milestone: e.target.value
-  }))
-}
-
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {milestones.map((m) => (
-  <MenuItem key={m.id} value={m.id}>
-    {m.name}
-  </MenuItem>
-))}
-
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Amount range */}
-            <Grid item xs={6}>
+        <DialogContent dividers sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* PERSONNEL SECTION */}
+          <Box>
+            <Typography variant="subtitle2" color="primary" sx={{ mb: 1.5, fontWeight: 600 }}>
+              Personnel
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField
-                label="Min Amount"
-                type="number"
-                size="small"
+                select
                 fullWidth
-                margin="dense"
-                value={draftFilters.amount__gte || ""}
-onChange={(e) =>
-  setDraftFilters(prev => ({
-    ...prev,
-    amount__gte: e.target.value
-  }))
-}
-
-              />
-            </Grid>
-            <Grid item xs={6}>
+                size="small"
+                label="Broker"
+                value={draftFilters.broker || ""}
+                onChange={(e) => setDraftFilters(prev => ({ ...prev, broker: e.target.value }))}
+              >
+                <MenuItem value="">All</MenuItem>
+                {brokers.map((b) => (
+                  <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+                ))}
+              </TextField>
               <TextField
-                label="Max Amount"
-                type="number"
-                size="small"
+                select
                 fullWidth
-                margin="dense"
-                value={draftFilters.amount__lte || ""}
-onChange={(e) =>
-  setDraftFilters(prev => ({
-    ...prev,
-    amount__lte: e.target.value
-  }))
-}
+                size="small"
+                label="Loan Officer"
+                value={draftFilters.loan_officer || ""}
+                onChange={(e) => setDraftFilters(prev => ({ ...prev, loan_officer: e.target.value }))}
+              >
+                <MenuItem value="">All</MenuItem>
+                {loanOfficers.map((o) => (
+                  <MenuItem key={o.id} value={o.id}>{o.name}</MenuItem>
+                ))}
+              </TextField>
+            </Box>
+          </Box>
 
-              />
-            </Grid>
+          <Divider />
 
-            {/* Created date range */}
-            <Grid item xs={6}>
+          {/* LOAN DETAILS SECTION */}
+          <Box>
+            <Typography variant="subtitle2" color="primary" sx={{ mb: 1.5, fontWeight: 600 }}>
+              Loan Specs
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Milestone"
+                value={draftFilters.milestone || ""}
+                onChange={(e) => setDraftFilters(prev => ({ ...prev, milestone: e.target.value }))}
+              >
+                <MenuItem value="">All</MenuItem>
+                {milestones.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                ))}
+              </TextField>
+              
+              <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                <TextField
+                  label="Min Amount"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={draftFilters.amount__gte || ""}
+                  onChange={(e) => setDraftFilters(prev => ({ ...prev, amount__gte: e.target.value }))}
+                />
+                <TextField
+                  label="Max Amount"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  value={draftFilters.amount__lte || ""}
+                  onChange={(e) => setDraftFilters(prev => ({ ...prev, amount__lte: e.target.value }))}
+                />
+              </Box>
+            </Box>
+          </Box>
+
+          <Divider />
+
+          {/* TIMELINE SECTION */}
+          <Box>
+            <Typography variant="subtitle2" color="primary" sx={{ mb: 1.5, fontWeight: 600 }}>
+              Timeline
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField
                 label="Created From"
                 type="date"
                 size="small"
                 fullWidth
-                margin="dense"
                 InputLabelProps={{ shrink: true }}
-               value={draftFilters.created_at__gte || ""}
-onChange={(e) =>
-  setDraftFilters(prev => ({
-    ...prev,
-    created_at__gte: e.target.value
-  }))
-}
-
+                value={draftFilters.created_at__gte || ""}
+                onChange={(e) => setDraftFilters(prev => ({ ...prev, created_at__gte: e.target.value }))}
               />
-            </Grid>
-            <Grid item xs={6}>
               <TextField
                 label="Created To"
                 type="date"
                 size="small"
                 fullWidth
-                margin="dense"
                 InputLabelProps={{ shrink: true }}
                 value={draftFilters.created_at__lte || ""}
-onChange={(e) =>
-  setDraftFilters(prev => ({
-    ...prev,
-    created_at__lte: e.target.value
-  }))
-}
-
+                onChange={(e) => setDraftFilters(prev => ({ ...prev, created_at__lte: e.target.value }))}
               />
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 1.25 }}>
-          <Button size="small" onClick={() => setOpenFilter(false)}>Cancel</Button>
+        <DialogActions sx={{ p: 2, backgroundColor: theme.palette.background.default }}>
+          <Button onClick={() => setOpenFilter(false)}>Cancel</Button>
           <Button
-            size="small"
             onClick={() => {
- setDraftFilters({
-  broker: "",
-  loan_officer: "",
-  milestone: "",
-  team_leader: "",
-  processor: "",
-  amount__gte: "",
-  amount__lte: "",
-  created_at__gte: "",
-  created_at__lte: "",
-});
-
-  setSearchParams({});
-  setPage(1);
-}}
-
+              setDraftFilters({
+                broker: "",
+                loan_officer: "",
+                milestone: "",
+                team_leader: "",
+                processor: "",
+                amount__gte: "",
+                amount__lte: "",
+                created_at__gte: "",
+                created_at__lte: "",
+              });
+              setSearchParams({});
+              setPage(1);
+            }}
           >
             Clear
           </Button>
           <Button
-  size="small"
-  variant="contained"
-  onClick={() => applyFilters(draftFilters)}
->
-
-            Apply
+            variant="contained"
+            onClick={() => applyFilters(draftFilters)}
+            sx={{ px: 3, borderRadius: 2 }}
+          >
+            Apply Filters
           </Button>
         </DialogActions>
       </Dialog>

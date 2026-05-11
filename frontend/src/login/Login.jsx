@@ -75,7 +75,7 @@ export default function Login() {
           }));
 
           // Navigate to dashboard as usual
-          navigate("/dashboard");
+          navigate("/loan-management");
           return;
         }
 
@@ -84,7 +84,7 @@ export default function Login() {
       }
 
       // 6️⃣ Navigate
-      navigate("/dashboard");
+      navigate("/loan-management");
     } catch (err) {
       console.error("Login error:", err);
       setErrorMsg(

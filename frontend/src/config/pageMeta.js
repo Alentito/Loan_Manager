@@ -44,4 +44,68 @@ export const pageMeta = {
     title: "Settings",
     description: "Application and account settings",
   },
+  "/milestones": {
+    title: "Milestones",
+    description: "Manage loan milestones",
+  },
+  "/lenders": {
+    title: "Lenders",
+    description: "Manage lender information",
+  },
+  "/reports/funded-loans": {
+    title: "Funded Loans Report",
+    description: "View funded loans report",
+  },
+  "/role-management": {
+    title: "Role Management",
+    description: "Manage roles and permissions",
+  },
+  "/teams": {
+    title: "Teams",
+    description: "Manage employee teams",
+  },
+  "/shifts": {
+    title: "Shifts",
+    description: "Manage employee shifts",
+  },
+  "/attendance": {
+    title: "Attendance",
+    description: "View employee attendance",
+  },
+  "/admin/holidays": {
+    title: "Holidays",
+    description: "Manage public holidays",
+  },
+  "/leaves/request": {
+    title: "Leave Request",
+    description: "Submit and view leave requests",
+  },
+  "/admin/leave-approvals": {
+    title: "Leave Approvals",
+    description: "Approve or reject leave requests",
+  },
+  "/attendance/summary": {
+    title: "Monthly Summary",
+    description: "View monthly attendance summary",
+  },
+  "/attendance/late-logins": {
+    title: "Logins Summary",
+    description: "View late logins summary",
+  },
+  "/token/new": {
+    title: "Complaint",
+    description: "Submit a new complaint",
+  },
+  "/admin/token-approvals": {
+    title: "Respond",
+    description: "Review and respond to complaints",
+  },
+  "/breaks": {
+    title: "Breaks",
+    description: "Manage your breaks",
+  },
+  "/profile": {
+    title: "Profile",
+    description: "Manage your profile",
+  },
 };

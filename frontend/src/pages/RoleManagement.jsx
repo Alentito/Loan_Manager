@@ -12,8 +12,6 @@ import {
   TablePagination,
   Checkbox,
   Divider,
-  Select,
-  MenuItem,
   Table,
   TableBody,
   TableCell,
@@ -21,8 +19,17 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Modal,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Chip,
+  IconButton,
+  Tooltip,
+  Switch,
+  Grid
 } from "@mui/material";
+import { Plus, Edit2, Trash2, Shield, AlertCircle, CheckCircle2 } from "lucide-react";
 import {
   useGetPermissionsQuery,
   useCreateGroupMutation,
@@ -42,7 +49,7 @@ export default function RoleManagement() {
   const [roleName, setRoleName] = useState("");
   const [roleType, setRoleType] = useState("Custom");
   const [selectedPermissions, setSelectedPermissions] = useState({});
-  const [modalOpen, setModalOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -64,12 +71,14 @@ export default function RoleManagement() {
 
   const totalCount = groupsRaw?.count ?? groups.length;
 
-  const sortedGroups = [...groups].sort((a, b) => {
-    const aOrder = a.sort_order ?? 0;
-    const bOrder = b.sort_order ?? 0;
-    if (aOrder !== bOrder) return aOrder - bOrder;
-    return a.name.localeCompare(b.name);
-  });
+  const sortedGroups = useMemo(() => {
+    return [...groups].sort((a, b) => {
+      const aOrder = a.sort_order ?? 0;
+      const bOrder = b.sort_order ?? 0;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+  }, [groups]);
 
   const groupedPermissions = useMemo(() => {
     const map = {};
@@ -114,42 +123,45 @@ export default function RoleManagement() {
     setSelectedPermissions({});
     setActiveStep(0);
     setSortOrder(0);
+    setAssignableOnLoan(false);
   };
 
-  const openCreateModal = () => {
+  const openCreateDialog = () => {
     resetFormState();
-    setModalOpen(true);
+    setDialogOpen(true);
   };
 
-  const openEditModal = (role) => {
-  setMode("edit");
-  setEditingRoleId(role.id);
-  setRoleName(role.name);
-  setRoleType(role.type || "Custom");
-  setSortOrder(role.sort_order ?? 0);
-  setAssignableOnLoan(!!role.assignable_on_loan); // <-- Add this line
-  setSelectedPermissions(() => {
-    const next = {};
-    (role.permissions || []).forEach((perm) => {
-      const groupKey = `${perm.app_label}/${perm.model}`;
-      if (!next[groupKey]) next[groupKey] = {};
-      next[groupKey][perm.codename] = true;
+  const openEditDialog = (role) => {
+    setMode("edit");
+    setEditingRoleId(role.id);
+    setRoleName(role.name);
+    setRoleType(role.type || "Custom");
+    setSortOrder(role.sort_order ?? 0);
+    setAssignableOnLoan(!!role.assignable_on_loan);
+    setSelectedPermissions(() => {
+      const next = {};
+      (role.permissions || []).forEach((perm) => {
+        const groupKey = `${perm.app_label}/${perm.model}`;
+        if (!next[groupKey]) next[groupKey] = {};
+        next[groupKey][perm.codename] = true;
+      });
+      return next;
     });
-    return next;
-  });
-  setActiveStep(0);
-  setModalOpen(true);
-};
+    setActiveStep(0);
+    setDialogOpen(true);
+  };
 
-  const handleCloseModal = () => {
-    setModalOpen(false);
+  const handleCloseDialog = () => {
+    setDialogOpen(false);
     resetFormState();
   };
+
   const handleChangePage = (_event, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
+
   const handleNext = async () => {
     if (activeStep < steps.length - 1) {
       setActiveStep((prev) => prev + 1);
@@ -180,12 +192,10 @@ export default function RoleManagement() {
       } else {
         await createRole(payload).unwrap();
       }
-      alert("Role saved ✅");
-      handleCloseModal();
+      handleCloseDialog();
       refetchGroups();
     } catch (err) {
       console.error(err);
-      alert("Error saving role");
     }
   };
 
@@ -201,26 +211,20 @@ export default function RoleManagement() {
       refetchGroups();
     } catch (err) {
       console.error(err);
-      alert("Error deleting role");
     }
   };
 
   const renderPermissionStep = () => {
     if (loadingPerms) {
-      return <Typography>Loading permissions…</Typography>;
+      return (
+        <Box sx={{ p: 4, textAlign: 'center' }}>
+          <Typography color="text.secondary">Loading permissions…</Typography>
+        </Box>
+      );
     }
-    if (!permissionsData.length) {
-      return <Typography>No permissions available.</Typography>;
-    }
-
+    
     return (
-      <Box
-        sx={{
-          maxHeight: 350,
-          overflowY: "auto",
-          pr: 1,
-        }}
-      >
+      <Box sx={{ mt: 2, maxHeight: 400, overflowY: "auto", pr: 1 }}>
         {Object.entries(groupedPermissions).map(([group, perms]) => {
           const allSelected = perms.every(
             (perm) => selectedPermissions[group]?.[perm.codename]
@@ -230,14 +234,15 @@ export default function RoleManagement() {
           );
 
           return (
-            <Box key={group} sx={{ mb: 2 }}>
-              <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-                <Typography variant="subtitle1" sx={{ flex: 1 }}>
-                  {group}
+            <Box key={group} sx={{ mb: 3 }}>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 0.5, px: 1 }}>
+                <Typography variant="overline" sx={{ flex: 1, fontWeight: 700, color: 'primary.main' }}>
+                  {group.replace('/', ' • ')}
                 </Typography>
                 <FormControlLabel
                   control={
                     <Checkbox
+                      size="small"
                       checked={allSelected}
                       indeterminate={someSelected && !allSelected}
                       onChange={(e) =>
@@ -245,26 +250,28 @@ export default function RoleManagement() {
                       }
                     />
                   }
-                  label="Select All"
+                  label={<Typography variant="caption">Select All</Typography>}
                 />
               </Box>
-              <Divider sx={{ mb: 1 }} />
-              <FormGroup row>
+              <Divider sx={{ mb: 1.5 }} />
+              <Grid container spacing={1} sx={{ px: 1 }}>
                 {perms.map((perm) => (
-                  <FormControlLabel
-                    key={perm.id}
-                    control={
-                      <Checkbox
-                        checked={!!selectedPermissions[group]?.[perm.codename]}
-                        onChange={() =>
-                          handlePermissionChange(group, perm.codename)
-                        }
-                      />
-                    }
-                    label={perm.name}
-                  />
+                  <Grid item xs={12} sm={6} md={4} key={perm.id}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={!!selectedPermissions[group]?.[perm.codename]}
+                          onChange={() =>
+                            handlePermissionChange(group, perm.codename)
+                          }
+                        />
+                      }
+                      label={<Typography variant="body2">{perm.name}</Typography>}
+                    />
+                  </Grid>
                 ))}
-              </FormGroup>
+              </Grid>
             </Box>
           );
         })}
@@ -272,70 +279,96 @@ export default function RoleManagement() {
     );
   };
 
+  const renderPermissionsChips = (permissions) => {
+    if (!permissions || permissions.length === 0) {
+      return <Typography variant="body2" color="text.disabled">—</Typography>;
+    }
+    
+    const visible = permissions.slice(0, 2);
+    const remaining = permissions.length - visible.length;
+
+    return (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+        {visible.map((p) => (
+          <Chip 
+            key={p.id} 
+            label={p.name} 
+            size="small" 
+            variant="outlined" 
+            sx={{ fontSize: '0.7rem', height: 20 }}
+          />
+        ))}
+        {remaining > 0 && (
+          <Tooltip title={permissions.slice(2).map(p => p.name).join(", ")}>
+            <Chip 
+              label={`+${remaining} more`} 
+              size="small" 
+              sx={{ fontSize: '0.7rem', height: 20, bgcolor: 'action.hover' }} 
+            />
+          </Tooltip>
+        )}
+      </Box>
+    );
+  };
+
   return (
-    <Box
-      sx={{
-        p: 3,
-        width: "100%", // ensure it stretches full available width
-        maxWidth: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-      <Typography variant="h5" sx={{ mb: 2 }}>
-        Roles
-      </Typography>
+    <Box sx={{ p: 3, width: "100%", boxSizing: "border-box" }}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
+        <Button 
+          variant="contained" 
+          startIcon={<Plus size={18} />} 
+          onClick={openCreateDialog}
+          disableElevation
+          sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+        >
+          New Role
+        </Button>
+      </Box>
 
-      <Button variant="contained" onClick={openCreateModal} sx={{ mb: 2 }}>
-        Create Role
-      </Button>
-
-      <TableContainer component={Paper} sx={{ mb: 4 }}>
+      <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, minHeight: 400 }}>
         <Table>
-          <TableHead>
+          <TableHead sx={{ bgcolor: 'action.hover' }}>
             <TableRow>
-              <TableCell>Role Name</TableCell>
-              <TableCell>Permissions</TableCell>
-              <TableCell>Sort Order</TableCell>
-              <TableCell width={160}>Actions</TableCell>
+              <TableCell sx={{ fontWeight: 600, py: 2.5 }}>Role Name</TableCell>
+              <TableCell sx={{ fontWeight: 600, py: 2.5 }}>Permissions</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 600, py: 2.5 }}>Sort</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 600, py: 2.5 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loadingGroups ? (
               <TableRow>
-                <TableCell colSpan={4}>Loading…</TableCell>
+                <TableCell colSpan={4} align="center" sx={{ py: 5 }}>
+                  <Typography variant="body2" color="text.secondary">Loading roles…</Typography>
+                </TableCell>
               </TableRow>
-            ) : groups.length === 0 ? (
+            ) : sortedGroups.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4}>
-                  No roles found. Create your first role.
+                <TableCell colSpan={4} align="center" sx={{ py: 5 }}>
+                  <Typography variant="body2" color="text.secondary">No roles found.</Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              groups.map((group) => (
-                <TableRow key={group.id}>
-                  <TableCell>{group.name}</TableCell>
-                  <TableCell>
-                    {group.permissions?.length
-                      ? group.permissions.map((perm) => perm.name).join(", ")
-                      : "—"}
+              sortedGroups.map((group) => (
+                <TableRow key={group.id} hover>
+                  <TableCell sx={{ fontWeight: 500, py: 2 }}>{group.name}</TableCell>
+                  <TableCell sx={{ py: 2 }}>{renderPermissionsChips(group.permissions)}</TableCell>
+                  <TableCell align="center" sx={{ py: 2 }}>
+                    <Typography variant="body2" color="text.secondary">{group.sort_order ?? 0}</Typography>
                   </TableCell>
-                  <TableCell width={120}>{group.sort_order ?? 0}</TableCell>
-
-                  <TableCell>
-                    <Button
-                      size="small"
-                      sx={{ mr: 1 }}
-                      onClick={() => openEditModal(group)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="small"
-                      color="error"
-                      onClick={() => handleDelete(group)}
-                    >
-                      Delete
-                    </Button>
+                  <TableCell align="right" sx={{ py: 2 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                      <Tooltip title="Edit">
+                        <IconButton size="small" onClick={() => openEditDialog(group)}>
+                          <Edit2 size={16} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton size="small" color="error" onClick={() => handleDelete(group)}>
+                          <Trash2 size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))
@@ -351,31 +384,29 @@ export default function RoleManagement() {
         onPageChange={handleChangePage}
         rowsPerPage={rowsPerPage}
         onRowsPerPageChange={handleChangeRowsPerPage}
-        rowsPerPageOptions={[5, 10, 25, 50]}
+        rowsPerPageOptions={[5, 10, 25]}
+        sx={{ borderTop: 'none' }}
       />
 
-      <Modal open={modalOpen} onClose={handleCloseModal}>
-        <Box
-          sx={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            bgcolor: "background.paper",
-            borderRadius: 3,
-            boxShadow: 4,
-            width: 520,
-            maxWidth: "90vw",
-            maxHeight: "90vh",
-            p: 3,
-            overflow: "auto",
-          }}
-        >
-          <Typography variant="h6" gutterBottom>
+      <Dialog 
+        open={dialogOpen} 
+        onClose={handleCloseDialog}
+        fullWidth
+        maxWidth="md"
+        PaperProps={{
+          sx: { borderRadius: 3 }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Shield size={20} style={{ color: '#3b82f6' }} />
+          <Typography variant="h6" fontWeight={700}>
             {mode === "edit" ? "Edit Role" : "Create Role"}
           </Typography>
-
-          <Stepper activeStep={activeStep} sx={{ mb: 3 }}>
+        </DialogTitle>
+        <Divider />
+        
+        <DialogContent sx={{ py: 3 }}>
+          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
             {steps.map((label) => (
               <Step key={label}>
                 <StepLabel>{label}</StepLabel>
@@ -384,55 +415,68 @@ export default function RoleManagement() {
           </Stepper>
 
           {activeStep === 0 ? (
-            <Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 500, mx: 'auto', py: 2 }}>
               <TextField
                 label="Role Name"
                 fullWidth
+                size="small"
                 value={roleName}
                 onChange={(e) => setRoleName(e.target.value)}
-                sx={{ mb: 2 }}
+                autoFocus
               />
               <TextField
                 label="Sort Order"
                 type="number"
+                fullWidth
+                size="small"
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value)}
-                fullWidth
-                sx={{ mb: 2 }}
+                helperText="Determines the display order in menus"
               />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={assignableOnLoan}
-                    onChange={(e) => setAssignableOnLoan(e.target.checked)}
-                  />
-                }
-                label="Assignable on Loan"
-              />
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={600}>Assignable on Loan</Typography>
+                  <Typography variant="caption" color="text.secondary">Users with this role can be assigned to loans</Typography>
+                </Box>
+                <Switch
+                  checked={assignableOnLoan}
+                  onChange={(e) => setAssignableOnLoan(e.target.checked)}
+                />
+              </Box>
             </Box>
           ) : (
             renderPermissionStep()
           )}
+        </DialogContent>
 
-          <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
-            <Button disabled={activeStep === 0} onClick={handleBack}>
-              Back
-            </Button>
-            <Box>
-              <Button onClick={handleCloseModal} sx={{ mr: 1 }}>
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                onClick={handleNext}
-                disabled={savingRole || (activeStep === 0 && !roleName.trim())}
-              >
-                {activeStep === steps.length - 1 ? "Finish" : "Next"}
-              </Button>
-            </Box>
-          </Box>
-        </Box>
-      </Modal>
+        <Divider />
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button 
+            onClick={handleBack} 
+            disabled={activeStep === 0}
+            sx={{ textTransform: 'none', fontWeight: 600 }}
+          >
+            Back
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button 
+            onClick={handleCloseDialog} 
+            color="inherit"
+            sx={{ textTransform: 'none', fontWeight: 600, mr: 1 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleNext}
+            disabled={savingRole || (activeStep === 0 && !roleName.trim())}
+            disableElevation
+            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, px: 3 }}
+          >
+            {activeStep === steps.length - 1 ? (mode === 'edit' ? "Update Role" : "Create Role") : "Next"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

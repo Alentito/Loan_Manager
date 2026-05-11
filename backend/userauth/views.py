@@ -116,8 +116,9 @@ class LogoutView(APIView):
                 print(f"[ERROR] mark_attendance_on_logout failed: {e}")
 
         res = Response({"message": "Logged out"})
-        res.delete_cookie(key="access_token", path="/")
-        res.delete_cookie(key="refresh_token", path="/")
+        res.delete_cookie(key="access_token", path="/", samesite="None")
+        res.delete_cookie(key="refresh_token", path="/", samesite="None")
+        res.delete_cookie(key="csrftoken", path="/", samesite="None")
         return res
     
 #@method_decorator(csrf_exempt, name='dispatch')

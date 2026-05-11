@@ -574,7 +574,7 @@ class LoanViewSet(AuditableViewSetMixin, viewsets.ModelViewSet):
     tracked_fields = "__all__"
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = [ 'first_name', 'milestone', 'created_at', 'closing_date', 'broker' ,'is_archived']  
-    search_fields = ['first_name', 'last_name', 'broker__name','milestone']
+    search_fields = ['first_name', 'last_name', 'broker__name', 'milestone__name']
     ordering_fields = ['created_at', 'amount', 'milestone', 'first_name']  # allowed sort fields
     ordering = ['created_at']  # default sort
 

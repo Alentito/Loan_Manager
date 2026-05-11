@@ -114,7 +114,7 @@ function App() {
 
         {/* Protected Routes */}
         <Route element={<RequireAuth />}>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/loan-management" replace />} />
           <Route element={<ProtectedLayout mode={mode} setMode={setMode} />}>
             {/* Core Pages */}
             <Route path="/dashboard" element={<Dashboard />} />

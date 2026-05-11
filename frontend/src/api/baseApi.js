@@ -19,7 +19,7 @@ function getCookie(name) {
 }
 
 const baseQuery = fetchBaseQuery({
-  baseUrl: 'https://backend-l3f9.onrender.com/api/',
+  baseUrl: '/api/',
   credentials: 'include',
   prepareHeaders: (headers) => {
     headers.set('X-CSRFToken', getCookie('csrftoken') || '');
